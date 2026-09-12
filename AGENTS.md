@@ -48,6 +48,7 @@ Run all pipeline commands with that interpreter, for example:
 | Install deps | `.\.local\venv\Scripts\python.exe -m pip install -r requirements.txt` |
 | Extract source | `.\.local\venv\Scripts\python.exe tools\extract.py` |
 | Build page | `.\.local\venv\Scripts\python.exe tools\build.py` |
+| Pack single file | `.\.local\venv\Scripts\python.exe tools\pack.py` |
 | Tests | `.\.local\venv\Scripts\python.exe -m pytest` |
 | Lint | `.\.local\venv\Scripts\python.exe -m ruff check .` |
 | Format | `.\.local\venv\Scripts\python.exe -m ruff format .` |

@@ -30,6 +30,10 @@ src/glossary.md                                 shared terminology
 dist/index.html                                 reader page
 dist/assets/{styles,scripts,figures,fonts}/     copied, offline assets
 dist/manifest.json                              content hash + asset inventory
+        |
+        |  tools/pack.py
+        v
+dist/<document title>.html                      single self-contained deliverable
 ```
 
 ## Key decisions
@@ -80,6 +84,16 @@ heading, figure, table caption and numbered equation appears in `src/content/`, 
 paragraph outside math/code blocks is still English prose. It exits non-zero, so it can gate
 a release.
 
+**One file, not a folder.** The shipped artifact is a single self-contained HTML file produced
+by `tools/pack.py`: the stylesheet, the reader script, both subset fonts and all twelve figures
+are inlined as `data:` URIs. Figures are re-encoded to lossless WebP for the embedded copy
+(702 KiB versus 1644 KiB for the PNGs, with no quality loss; lossy WebP at q90 was *larger* at
+974 KiB), and the committed PNGs stay the untouched source of truth. The packer refuses to write
+a file that still contains a non-`data:` resource reference, so a stray `assets/` path fails
+loudly instead of shipping a page that silently renders unstyled. Ordinary hyperlinks in the
+prose — the Hugging Face checkpoint URL in the abstract — are deliberately left as links, since
+they cost nothing offline.
+
 ## Failure modes and guards
 
 | Failure | Guard |
@@ -90,4 +104,6 @@ a release.
 | Translation skips a paragraph or equation | TASK-5 coverage cross-check against `.local/source/report.json` |
 | Wide table overflows the page on a phone | `build.py` wraps every `<table>` in a scrollable `.table-wrap`; narrow viewports give the table its intrinsic width |
 | A character is missing from the subset font | `tools/build.py --check-fonts` and `tools/fonts.py coverage` fail with the missing code points |
+| A packed file still references `assets/` | `tools/pack.py` raises `ValueError` listing the uninlined resource references |
+| A title is not a legal filename | `safe_filename` replaces Windows-illegal characters and strips trailing dots/spaces |
 | Absolute paths or machine-specific fonts leak into output | dist references only relative `assets/` paths |

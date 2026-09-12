@@ -16,6 +16,10 @@ All notable changes to this project are documented here. The format follows
 - HTML build pipeline (`tools/build.py`): per-section Markdown to a single A4 reader page with
   a folded-by-default TOC, CJK-safe heading anchors, light/dark themes, and a scroll wrapper
   for wide tables.
+- Single-file packer (`tools/pack.py`): inlines the subset fonts, all figures (re-encoded to
+  lossless WebP when `ffmpeg` is available), the stylesheet and the script as `data:` URIs, and
+  writes one self-contained HTML file named after the document title. It refuses to emit a file
+  that still references an external resource.
 - Font pipeline (`tools/fonts.py`): proxy-aware Source Han Sans SC download, subsetting to the
   exact characters used, glyph-coverage check, and the upstream OFL notice.
 - Coverage checker (`tools/coverage.py`) that cross-checks sections, figures, tables and

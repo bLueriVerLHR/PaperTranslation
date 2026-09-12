@@ -4,9 +4,9 @@ This project is initially built for translate papers from websites or pure PDF.
 
 ## What this is
 
-A reproducible pipeline that turns a research paper into a single A4-sized, offline-readable
-HTML page in Simplified Chinese, plus the working instance of that pipeline: a full
-translation of *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression*
+A reproducible pipeline that turns a research paper into a single self-contained A4-sized,
+offline-readable HTML page in Simplified Chinese, plus the working instance of that pipeline: a
+full translation of *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression*
 (51 pages, 12 figures, 5 tables, 17 numbered equations).
 
 The problem it solves: translating a long technical paper well needs many sessions, consistent
@@ -26,9 +26,14 @@ py -3.14 -m venv .local/venv
 
 .\.local\venv\Scripts\python.exe tools\extract.py     # PDF -> page text, rasters, figure crops
 .\.local\venv\Scripts\python.exe tools\build.py       # content -> dist/index.html
+.\.local\venv\Scripts\python.exe tools\pack.py        # dist/index.html -> one self-contained file
 ```
 
-Open `dist/index.html` directly from the filesystem (no server needed) or print it to A4 PDF.
+The deliverable is one self-contained file, `dist/<document title>.html`. It inlines the subset
+fonts, all figures, the stylesheet and the reader script as `data:` URIs, so it can be copied to
+a USB stick or another machine and opened by double-clicking, with no server and no sibling
+assets. `dist/index.html` plus `dist/assets/` remains as the intermediate build, which is easier
+to inspect and test. Print the packed file to get an A4 PDF.
 
 One-time font vendoring, only needed when the content introduces new characters:
 
@@ -55,7 +60,7 @@ One-time font vendoring, only needed when the content introduces new characters:
 | `src/templates/`, `src/styles/`, `src/scripts/` | Page template, theme/print CSS, reader enhancements |
 | `src/assets/figures/` | Figure crops extracted verbatim from the PDF |
 | `src/assets/fonts/` | Source Han Sans SC subset to the content characters, plus its OFL notice |
-| `tools/` | `extract.py`, `build.py`, `fonts.py`, `coverage.py` |
+| `tools/` | `extract.py`, `build.py`, `pack.py`, `fonts.py`, `coverage.py` |
 | `tests/` | pytest suite, including a sample fixture that exercises every rendering path |
 | `docs/` | Architecture and design notes |
 | `dist/` | Build output (generated, ignored) |
