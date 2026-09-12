@@ -71,8 +71,9 @@ def proxy_url(explicit: str | None = None) -> str | None:
 def collect_chars(content_dir: Path = CONTENT_DIR) -> set[str]:
     """Return the set of characters the CJK font must render.
 
-    Math and fenced code blocks are excluded: they are drawn with the math or
-    monospace font, not the CJK face.
+    Math is excluded: it is drawn with the math font. Pseudocode and fenced code stay
+    included, because the stylesheet lists the CJK face at the end of the monospace
+    fallback chain, so uncommon symbols come from the bundled subset.
     """
     chars: set[str] = set()
     for path in sorted(content_dir.glob("*.md")):

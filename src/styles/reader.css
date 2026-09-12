@@ -20,7 +20,7 @@
 :root {
   --font-serif: "Times New Roman", "Liberation Serif", "Nimbus Roman", "Noto Serif", serif;
   --font-cjk: "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
-  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace;
+  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, "DejaVu Sans Mono", "Source Han Sans SC", monospace;
 
   --paper: #ffffff;
   --ink: #1b1b1b;
