@@ -322,12 +322,13 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
 }
 
 /* ---------------------------------------------------------- narrow screens */
-@media (max-width: 760px) {
+@media screen and (max-width: 760px) {
   body { font-size: 15.5px; line-height: 1.8; }
   .page { margin: 0; padding: 1.2rem 1rem 3rem; box-shadow: none; }
   .title-block h1 { font-size: 1.4rem; }
   .equation { padding: 0 2.4em; }
   .toolbar { top: 8px; right: 8px; }
+  .body table { width: max-content; min-width: 100%; }
 }
 
 /* ------------------------------------------------------------------ print */
@@ -346,5 +347,9 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   .body p { orphans: 2; widows: 2; }
   a { color: #000; border-bottom: none; }
   .body figure { background: none; border: none; padding: 0; }
-  .body table { font-size: 9pt; }
+  /* Wide tables must shrink onto the page instead of scrolling: a scroll container
+     clips content in print and would hide the right-hand columns. */
+  .table-wrap { overflow: visible; }
+  .body table { font-size: 7.6pt; line-height: 1.35; }
+  .body th, .body td { padding: .18rem .28rem; overflow-wrap: anywhere; }
 }

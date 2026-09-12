@@ -45,6 +45,13 @@ def test_render_toc_empty() -> None:
     assert build.render_toc([]) == ""
 
 
+def test_wrap_tables_wraps_once() -> None:
+    html = "<p>x</p>\n<table><tr><td>1</td></tr></table>\n"
+    once = build.wrap_tables(html)
+    assert '<div class="table-wrap"><table>' in once
+    assert build.wrap_tables(once) == once
+
+
 def test_combine_toc_merges_sections(tmp_path: Path) -> None:
     (tmp_path / "01-a.md").write_text("## 甲\n\ntext\n", encoding="utf-8")
     (tmp_path / "02-b.md").write_text("## 乙\n\n## 丙\n", encoding="utf-8")
@@ -152,6 +159,7 @@ def test_sample_fixture_exercises_every_rendering_path(tmp_path: Path) -> None:
     assert "<figure>" in page
     assert "figure-03.png" in page
     assert "<table>" in page
+    assert '<div class="table-wrap">' in page
     assert "alg-keyword" in page
     assert 'class="footnote"' in page
 

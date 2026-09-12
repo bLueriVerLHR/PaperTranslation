@@ -139,6 +139,18 @@ def wrap_sections(sections: list[Section]) -> str:
     return "\n\n".join(chunks)
 
 
+def wrap_tables(html: str) -> str:
+    """Wrap every table in a scroll container so wide tables stay usable on phones."""
+    if 'class="table-wrap"' in html:
+        return html
+    return re.sub(
+        r"(<table\b.*?</table>)",
+        r'<div class="table-wrap">\1</div>',
+        html,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+
 def content_hash(sections: list[Section]) -> str:
     """Return a short digest over the section source files."""
     digest = hashlib.sha256()
@@ -194,7 +206,7 @@ def build(
         "{{TITLE}}": config["title"],
         "{{SUBTITLE}}": config["subtitle"],
         "{{TOC}}": combine_toc(sections),
-        "{{CONTENT}}": wrap_sections(sections),
+        "{{CONTENT}}": wrap_tables(wrap_sections(sections)),
         "{{BUILD_DATE}}": build_date or date.today().isoformat(),
         "{{CONTENT_HASH}}": digest,
     }
