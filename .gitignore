@@ -4,6 +4,7 @@
 .logs/
 .reports/
 .tmp/
+.pi/
 dist/
 
 # Python
