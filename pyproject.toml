@@ -1,0 +1,32 @@
+[project]
+name = "paper-translation"
+version = "0.1.0"
+description = "Reproducible pipeline that translates research papers into a single A4 HTML page."
+requires-python = ">=3.12"
+license = { text = "TBD" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+  "ignore::DeprecationWarning:",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["tools", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF", "S", "BLE"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tools"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

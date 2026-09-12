@@ -1,0 +1,7 @@
+# Pinned to the versions verified against Python 3.14 on 2026-09-12.
+PyMuPDF==1.26.4
+Markdown==3.9
+fonttools==4.60.1
+brotli==1.1.0
+pytest==8.4.2
+ruff==0.16.7

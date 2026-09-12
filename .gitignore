@@ -1,0 +1,32 @@
+# Local-only and generated content
+.tasks/
+.local/
+.logs/
+.reports/
+.tmp/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node (tooling only)
+node_modules/
+
+# Editors and OS noise
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets
+.env
+.env.*
+!.env.example
