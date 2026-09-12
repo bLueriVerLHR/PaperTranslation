@@ -87,3 +87,10 @@ Translated: abstract, Sections 1-6, Appendix B, Appendix C.
 Not translated, by project rule: References, Appendix A (author list), acknowledgement and
 format matter. Highlighting is expressed with committed CSS classes rather than a runtime
 highlighter, because the paper contains a single pseudocode block.
+
+## Licensing
+
+The pipeline code (under `tools/`, `tests/`, and the template/styles/script directories) is
+MIT-licensed; see `LICENSE`. The translated text and the extracted figures are **not** covered
+by that grant: they reproduce material from the original paper and remain the rights holder's
+property. Read `NOTICE.md` before redistributing anything.

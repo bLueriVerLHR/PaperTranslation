@@ -22,6 +22,9 @@ All notable changes to this project are documented here. The format follows
   equations against the source inventory and flags any remaining English prose.
 - Repository scaffold: isolated Python 3.14 environment, pytest and ruff configuration,
   AGENTS.md, CONTRIBUTING.md, and architecture notes under `docs/`.
+- Licensing: MIT for the pipeline code (`LICENSE`) with an explicit scope notice
+  (`NOTICE.md`) that the translated text and extracted figures are the original authors'
+  material and are excluded from the MIT grant.
 
 ### Fixed
 
