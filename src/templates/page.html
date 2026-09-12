@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{SUBTITLE}}">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/styles/reader.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content">
+  <header class="title-block">
+    <h1>{{TITLE}}</h1>
+    <p class="subtitle">{{SUBTITLE}}</p>
+    <p class="meta">原作 <span class="latin">DeepSeek-AI</span> · 简体中文译本 · 生成于 {{BUILD_DATE}}</p>
+  </header>
+
+  <details class="toc" id="toc">
+    <summary>目录</summary>
+    <nav aria-label="目录">
+{{TOC}}
+    </nav>
+  </details>
+
+  <article class="body">
+{{CONTENT}}
+  </article>
+
+  <footer class="colophon">
+    <p>本页由本地构建流水线生成，内容哈希 <code>{{CONTENT_HASH}}</code>。</p>
+    <p>参考文献、作者名单及致谢按项目约定保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="assets/scripts/reader.js"></script>
+</body>
+</html>
