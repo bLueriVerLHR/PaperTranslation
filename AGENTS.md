@@ -53,6 +53,7 @@ Run all pipeline commands with that interpreter, for example:
 | Format | `.\.local\venv\Scripts\python.exe -m ruff format .` |
 | Font download | `.\.local\venv\Scripts\python.exe tools\fonts.py download` |
 | Font subset | `.\.local\venv\Scripts\python.exe tools\fonts.py subset` |
+| Coverage check | `.\.local\venv\Scripts\python.exe tools\coverage.py` |
 | Font coverage check | `.\.local\venv\Scripts\python.exe tools\build.py --check-fonts` |
 
 ## Conventions
