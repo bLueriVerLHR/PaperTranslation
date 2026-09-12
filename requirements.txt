@@ -1,7 +1,11 @@
 # Pinned to the versions verified against Python 3.14 on 2026-09-12.
+# Runtime pipeline dependencies.
 PyMuPDF==1.26.4
 Markdown==3.9
-fonttools==4.60.1
-brotli==1.1.0
-pytest==8.4.2
+fonttools==4.65.0
+brotli==1.2.0
+
+# Development and QA tooling.
+pytest==9.1.1
 ruff==0.16.7
+pip-audit==2.10.1

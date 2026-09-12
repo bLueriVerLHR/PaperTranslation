@@ -63,6 +63,23 @@ serifs, so the reading experience is consistent without shipping a proprietary f
 is authored with semantic classes (`alg-keyword`, `alg-comment`, …) styled by the committed
 stylesheet.
 
+**Glyph substitution for characters the bundled face lacks.** Source Han Sans SC has no glyph
+for `⩽` (U+2A7D) or `⊲` (U+22B2), which the source uses inside pseudocode. Those were
+replaced with the covered near-equivalents `≤` and `◁`, and `ℝ` with plain `R` inside `<pre>`
+blocks. The monospace font stack ends with the subset CJK face so uncommon symbols resolve
+to a bundled glyph instead of a system fallback. MathML keeps the true `⩽` and `ℓ`, because
+math glyphs come from the math font, not the CJK face.
+
+**Inline math convention.** Inline MathML is used whenever the expression has structure
+(subscripts, superscripts, fractions, operators); a bare single variable may be written as
+`<i>X</i>`. This keeps the content files readable without weakening the output.
+
+**A coverage checker, not hope.** `tools/coverage.py` re-derives what the paper contains from
+`.local/source/report.json` plus a fixed expectation table, then asserts that every section
+heading, figure, table caption and numbered equation appears in `src/content/`, and that no
+paragraph outside math/code blocks is still English prose. It exits non-zero, so it can gate
+a release.
+
 ## Failure modes and guards
 
 | Failure | Guard |
@@ -71,4 +88,6 @@ stylesheet.
 | Template placeholder left unresolved | `build()` raises `ValueError` listing the placeholders |
 | Figure crop includes body text or clips a label | `tools/extract.py` grows the crop around drawing/image bounds; crops are reviewed once against page rasters |
 | Translation skips a paragraph or equation | TASK-5 coverage cross-check against `.local/source/report.json` |
+| Wide table overflows the page on a phone | `build.py` wraps every `<table>` in a scrollable `.table-wrap`; narrow viewports give the table its intrinsic width |
+| A character is missing from the subset font | `tools/build.py --check-fonts` and `tools/fonts.py coverage` fail with the missing code points |
 | Absolute paths or machine-specific fonts leak into output | dist references only relative `assets/` paths |
