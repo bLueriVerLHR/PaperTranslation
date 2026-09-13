@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Full Simplified Chinese translation of *A comprehensive survey and taxonomy of mamba:
+  Applications, Challenges, and Future Directions* (Miao et al., *Information Fusion* 130, 2026,
+  104094) as a second paper under `papers/mamba-survey/`: abstract, Sections 1-9, all 3 figures,
+  all 5 tables and all 5 numbered display equations as MathML.
 - Multi-paper layout: every translated paper now lives in `papers/<slug>/` with a `paper.json`
   manifest holding its identity, source PDF, printed section map and coverage expectations.
   `tools/paper.py` resolves the manifest, and `extract`, `build`, `pack`, `coverage` and `fonts`
@@ -39,6 +43,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Figure captions in the Elsevier style (`Fig. 1. ...`) are now detected, so two-column
+  publisher PDFs produce figure crops at all.
+- Two-column pages are rebuilt in true reading order (full-width blocks split the page into
+  bands, each band read left column first), instead of the interleaved order PyMuPDF returns;
+  a page's column count is declared per paper in its manifest.
 - Figure crops no longer clip the caption line, and subfigure labels sitting between the
   artwork and the caption are now included in the crop.
 - Dependency advisories in `fonttools`, `brotli` and `pytest` were resolved by upgrading;

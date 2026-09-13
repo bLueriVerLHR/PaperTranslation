@@ -20,6 +20,9 @@ Two papers are translated so far:
 | *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* (DeepSeek-AI, 51 pages) | abstract, Sections 1-6, Appendix B, Appendix C; 12 figures, 5 tables, 17 equations |
 | *A comprehensive survey and taxonomy of mamba: Applications, Challenges, and Future Directions* (Miao et al., Information Fusion 130, 2026, 23 pages) | abstract, Sections 1-9; 3 figures, 5 tables, 5 equations |
 
+In both, references, the author list, funding, CRediT and the competing-interest statement stay
+in the original.
+
 ## Quickstart
 
 ```powershell
