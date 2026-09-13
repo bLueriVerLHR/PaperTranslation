@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Full Simplified Chinese translation of *Neural Text Degeneration with Unlikelihood Training*
+  (Welleck et al., NeurIPS 2019) as a third paper under `papers/unlikelihood-training/`:
+  abstract, Sections 1-7 and Appendices A-E, with both figures, all 9 tables and all 23
+  numbered display equations as MathML. The paper's own title is used, not the Zotero
+  filename, which reads "Neural Text Generation with Unlikelihood Training".
 - Full Simplified Chinese translation of *A comprehensive survey and taxonomy of mamba:
   Applications, Challenges, and Future Directions* (Miao et al., *Information Fusion* 130, 2026,
   104094) as a second paper under `papers/mamba-survey/`: abstract, Sections 1-9, all 3 figures,

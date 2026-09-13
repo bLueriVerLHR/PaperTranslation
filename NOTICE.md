@@ -9,10 +9,13 @@ It does **not** cover the translated document itself.
 ## Material that is not ours to license
 
 - `papers/deepseek-v41-flash/` contains a Simplified Chinese translation of
-  *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* by DeepSeek-AI, and
+  *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* by DeepSeek-AI,
   `papers/mamba-survey/` contains a Simplified Chinese translation of *A comprehensive survey
   and taxonomy of mamba: Applications, Challenges, and Future Directions* by Qiguang Miao et
-  al. (Information Fusion 130, 2026, 104094). A translation is a derivative work, and the
+  al. (Information Fusion 130, 2026, 104094), and `papers/unlikelihood-training/` contains a
+  Simplified Chinese translation of *Neural Text Degeneration with Unlikelihood Training* by
+  Sean Welleck, Ilia Kulikov, Stephen Roller, Emily Dinan, Kyunghyun Cho and Jason Weston
+  (NeurIPS 2019). A translation is a derivative work, and the
   rights in the original text remain with its authors. This content is included for personal
   study and reading; it is not covered by the MIT grant, and redistributing it may require
   permission from the rights holder.

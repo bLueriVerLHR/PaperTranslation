@@ -5,10 +5,11 @@ Operating manual for coding agents in this repository.
 ## Project
 
 A reproducible pipeline that translates research papers (PDF or web) into a single
-A4-sized, offline-readable HTML page, one self-contained file per paper. Two papers are
+A4-sized, offline-readable HTML page, one self-contained file per paper. Three papers are
 translated so far: *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression*
-(DeepSeek-AI) and *A comprehensive survey and taxonomy of mamba: Applications, Challenges, and
-Future Directions* (Miao et al., Information Fusion 130, 2026).
+(DeepSeek-AI), *A comprehensive survey and taxonomy of mamba: Applications, Challenges, and
+Future Directions* (Miao et al., Information Fusion 130, 2026) and *Neural Text Degeneration
+with Unlikelihood Training* (Welleck et al., NeurIPS 2019).
 
 ## Layout
 
@@ -46,7 +47,8 @@ Run all pipeline commands with that interpreter, for example:
 
 ## Commands
 
-`$P` is a registered paper slug: `deepseek-v41-flash` or `mamba-survey`. When only one paper is
+`$P` is a registered paper slug: `deepseek-v41-flash`, `mamba-survey` or
+`unlikelihood-training`. When only one paper is
 registered, `--paper` may be omitted; with several it is required.
 
 | Task | Command |

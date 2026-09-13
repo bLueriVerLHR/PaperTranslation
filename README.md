@@ -13,15 +13,18 @@ that by hand in one document is error-prone, so each paper's source is split int
 file per section, the mechanical parts (extraction, MathML, layout, packaging) are
 automated, and a coverage checker proves nothing was dropped.
 
-Two papers are translated so far:
+Three papers are translated so far:
 
 | Paper | Scope |
 |---|---|
 | *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* (DeepSeek-AI, 51 pages) | abstract, Sections 1-6, Appendix B, Appendix C; 12 figures, 5 tables, 17 equations |
 | *A comprehensive survey and taxonomy of mamba: Applications, Challenges, and Future Directions* (Miao et al., Information Fusion 130, 2026, 23 pages) | abstract, Sections 1-9; 3 figures, 5 tables, 5 equations |
+| *Neural Text Degeneration with Unlikelihood Training* (Welleck et al., NeurIPS 2019, 18 pages) | abstract, Sections 1-7, Appendices A-E; 2 figures, 9 tables, 23 equations |
 
-In both, references, the author list, funding, CRediT and the competing-interest statement stay
-in the original.
+In all of them, references and the author list stay in the original; the DeepSeek and mamba
+translations also leave the funding, CRediT and competing-interest blocks untranslated. The
+unlikelihood paper keeps its English model outputs (Tables 1, 4 and the Appendix E prompts)
+verbatim, because that degenerate text is the object of study.
 
 ## Quickstart
 
@@ -36,12 +39,13 @@ The source PDFs are not committed. Each paper's manifest names where it expects 
 ```
 .local/source/deepseek-v41-flash/DeepSeek_V41_Tech_Report.pdf
 .local/source/mamba-survey/paper.pdf
+.local/source/unlikelihood-training/paper.pdf
 ```
 
 Then, per paper:
 
 ```powershell
-$P = "deepseek-v41-flash"   # or: mamba-survey
+$P = "deepseek-v41-flash"   # or: mamba-survey, unlikelihood-training
 
 .\.local\venv\Scripts\python.exe tools\extract.py --paper $P   # PDF -> page text, rasters, figure crops
 .\.local\venv\Scripts\python.exe tools\build.py   --paper $P   # content -> dist/build/<slug>/index.html
