@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Multi-paper layout: every translated paper now lives in `papers/<slug>/` with a `paper.json`
+  manifest holding its identity, source PDF, printed section map and coverage expectations.
+  `tools/paper.py` resolves the manifest, and `extract`, `build`, `pack`, `coverage` and `fonts`
+  all take `--paper <slug>`. Adding a paper no longer requires touching tool code.
+- `tools/build.py` emits the intermediate build to `dist/build/<slug>/`, so the top level of
+  `dist/` holds only the shipped deliverables, one self-contained HTML file per paper.
+- `papers/deepseek-v41-flash/` and `papers/mamba-survey/` as the two registered papers.
 - Full Simplified Chinese translation of *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache
   Compression*: abstract, Sections 1-6, Appendix B and Appendix C, with all 12 figures, 5
   tables and 17 numbered display equations as MathML.

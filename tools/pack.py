@@ -1,14 +1,14 @@
-"""Pack the built reader page into one self-contained HTML file.
+"""Pack one paper's built reader page into a single self-contained HTML file.
 
-The multi-file build under ``dist/`` is convenient to test and inspect, but the shipped
-deliverable should be a single file that can be copied anywhere and opened offline. This tool
+The multi-file build under ``dist/build/<slug>/`` is convenient to test and inspect, but the
+shipped deliverable is a single file that can be copied anywhere and opened offline. This tool
 inlines the stylesheet, the reader script, the subset fonts and every figure as ``data:`` URIs,
-then writes ``dist/<title>.html``.
+then writes ``dist/<title>.html`` - exactly one file per registered paper.
 
 Figures are re-encoded to lossless WebP for the embedded copy when ``ffmpeg`` is available:
 measured at 43% of the PNG size with no quality loss. The committed PNGs under
-``src/assets/figures/`` are never modified, and the pack silently falls back to them when
-``ffmpeg`` is missing.
+``papers/<slug>/assets/figures/`` are never modified, and the pack silently falls back to them
+when ``ffmpeg`` is missing.
 """
 
 from __future__ import annotations
@@ -26,14 +26,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python tools/pack.py` to import the package
     sys.path.insert(0, str(ROOT))
 
-from tools import build  # noqa: E402  (must follow the sys.path bootstrap above)
-
-DIST_DIR = ROOT / "dist"
+from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
 
 STYLESHEET_TAG = '<link rel="stylesheet" href="assets/styles/reader.css">'
 SCRIPT_TAG = '<script src="assets/scripts/reader.js"></script>'
 
-_ILLEGAL_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _FONT_URL_RE = re.compile(r'url\("\.\./fonts/([^"]+)"\)')
 _IMAGE_RE = re.compile(r'src="assets/figures/([^"]+)"')
 # Resources the browser must fetch to render the page (images, scripts, stylesheets).
@@ -48,15 +45,8 @@ MIME_TYPES = {".woff2": "font/woff2", ".png": "image/png", ".webp": "image/webp"
 
 
 def safe_filename(title: str) -> str:
-    """Turn a document title into a filename that is legal on Windows.
-
-    Windows-illegal characters and control characters become ``-``; CJK is preserved.
-    """
-    name = _ILLEGAL_FILENAME_CHARS.sub("-", title)
-    name = re.sub(r"\s+", " ", name).strip()
-    name = name.rstrip(". ")
-    name = re.sub(r"-{2,}", "-", name).strip("- ")
-    return name or "paper"
+    """Return a filename-safe document title (see :func:`tools.paper.safe_filename`)."""
+    return paper.safe_filename(title)
 
 
 def data_uri(data: bytes, mime: str) -> str:
@@ -145,7 +135,7 @@ def inline_images(html: str, figures_dir: Path, use_webp: bool = True) -> str:
 
 
 def pack(
-    dist: Path = DIST_DIR,
+    dist: Path,
     out: Path | None = None,
     use_webp: bool = True,
     title: str | None = None,
@@ -173,7 +163,7 @@ def pack(
     if leftovers:
         raise ValueError(f"assets were not inlined: {leftovers}")
 
-    document_title = title or build.load_config()["title"]
+    document_title = title or "paper"
     target = out or dist / f"{safe_filename(document_title)}.html"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(html, encoding="utf-8")
@@ -183,7 +173,8 @@ def pack(
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dist", type=Path, default=DIST_DIR)
+    parser.add_argument("--paper", default=None, help="registered paper slug")
+    parser.add_argument("--dist", type=Path, default=None, help="override the build directory")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--title", default=None, help="override the filename title")
     parser.add_argument(
@@ -191,9 +182,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    target = pack(args.dist, args.out, use_webp=not args.no_webp, title=args.title)
+    current = paper.resolve(args.paper)
+    dist = args.dist or current.dist_dir
+    title = args.title or current.title
+    if args.out is not None:
+        out = args.out
+    elif args.dist is not None:
+        out = dist / f"{safe_filename(title)}.html"
+    else:
+        out = current.output_path
+
+    target = pack(dist, out, use_webp=not args.no_webp, title=title)
     size = target.stat().st_size
     text = target.read_text(encoding="utf-8")
+    print(f"paper            : {current.slug}")
     print(f"packed {target}")
     print(f"  size             : {size / 1024 / 1024:.2f} MiB")
     print(

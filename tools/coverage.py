@@ -1,16 +1,15 @@
-"""Check that the translation covers every source element and leaves no English prose.
+"""Check that a translation covers every source element and leaves no English prose.
 
-This is the automated half of the TASK-5 QA pass. It verifies, against the extraction
-inventory and a fixed expectation table, that:
+This is the automated half of the QA pass. It verifies, against the extraction inventory and
+the paper manifest's expectation table, that:
 
-* every expected section heading is present in ``src/content/``;
+* every expected section heading is present in the paper's content directory;
 * every extracted figure is referenced by a content file;
 * every numbered display equation carries a matching ``(N)`` marker;
-* every table caption is present;
+* every expected table caption is present;
 * no paragraph or caption outside math/code blocks is still English prose.
 
-Exit code is 0 when everything checks out and 1 otherwise, so the QA step can gate a
-release.
+Exit code is 0 when everything checks out and 1 otherwise, so the QA step can gate a release.
 """
 
 from __future__ import annotations
@@ -23,23 +22,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT_DIR = ROOT / "src" / "content"
-REPORT_PATH = ROOT / ".local" / "source" / "report.json"
+if str(ROOT) not in sys.path:  # allow `python tools/coverage.py` to import the package
+    sys.path.insert(0, str(ROOT))
 
-EXPECTED_HEADINGS = [
-    "## 摘要",
-    "## 1 引言",
-    "## 2 架构",
-    "## 3 通用基础设施",
-    "## 4 预训练",
-    "## 5 后训练",
-    "## 6 结论、局限与未来方向",
-    "## 附录 B 评估细节",
-    "## 附录 C 推理强度控制中的指数 token 惩罚",
-]
-EXPECTED_FIGURES = list(range(1, 13))
-EXPECTED_TABLES = list(range(1, 6))
-EXPECTED_EQUATIONS = list(range(1, 18))
+from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
 
 _MATH_OR_CODE_RE = re.compile(
     r"<math\b.*?</math>|<pre\b.*?</pre>|```.*?```|<table\b.*?</table>",
@@ -70,15 +56,15 @@ class Report:
         )
 
 
-def read_content(content_dir: Path = CONTENT_DIR) -> dict[str, str]:
+def read_content(content_dir: Path) -> dict[str, str]:
     """Return ``{filename: text}`` for every content file."""
     return {p.name: p.read_text(encoding="utf-8") for p in sorted(content_dir.glob("*.md"))}
 
 
-def extracted_figures(report_path: Path = REPORT_PATH) -> list[int]:
-    """Return the figure numbers the extractor found in the source PDF."""
-    if not report_path.exists():
-        return list(EXPECTED_FIGURES)
+def extracted_figures(report_path: Path | None, expected: list[int]) -> list[int]:
+    """Return the figure numbers the extractor found, falling back to the expectations."""
+    if report_path is None or not report_path.exists():
+        return list(expected)
     data = json.loads(report_path.read_text(encoding="utf-8"))
     return [int(fig["number"]) for fig in data.get("figures", [])]
 
@@ -96,25 +82,32 @@ def find_english_prose(text: str) -> list[tuple[int, str]]:
     return results
 
 
-def check(content_dir: Path = CONTENT_DIR, report_path: Path = REPORT_PATH) -> Report:
-    """Run every coverage check and return the aggregated report."""
+def check(
+    content_dir: Path,
+    expectations: paper.Expectations,
+    report_path: Path | None = None,
+) -> Report:
+    """Run every coverage check for one paper and return the aggregated report."""
     documents = read_content(content_dir)
     joined = "\n".join(documents.values())
     report = Report()
 
-    for heading in EXPECTED_HEADINGS:
+    for heading in expectations.headings:
         if not any(heading in text for text in documents.values()):
             report.missing_headings.append(heading)
 
-    for number in extracted_figures(report_path):
+    # The manifest is the source of truth; a stale or missing extraction report can only add
+    # figures to check, never remove one.
+    found = set(extracted_figures(report_path, expectations.figures))
+    for number in sorted(found | set(expectations.figures)):
         if f"figure-{number:02d}.png" not in joined:
             report.missing_figures.append(number)
 
-    for number in EXPECTED_TABLES:
+    for number in expectations.tables:
         if f"表 {number} |" not in joined:
             report.missing_tables.append(number)
 
-    for number in EXPECTED_EQUATIONS:
+    for number in expectations.equations:
         if f'<span class="eqno">({number})</span>' not in joined:
             report.missing_equations.append(number)
 
@@ -128,13 +121,14 @@ def check(content_dir: Path = CONTENT_DIR, report_path: Path = REPORT_PATH) -> R
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--content-dir", type=Path, default=CONTENT_DIR)
-    parser.add_argument("--report", type=Path, default=REPORT_PATH)
+    parser.add_argument("--paper", default=None, help="registered paper slug")
     args = parser.parse_args(argv)
 
-    result = check(args.content_dir, args.report)
+    current = paper.resolve(args.paper)
+    result = check(current.content_dir, current.expectations, current.report_path)
 
-    print(f"content files        : {len(list(args.content_dir.glob('*.md')))}")
+    print(f"paper                : {current.slug} ({current.title})")
+    print(f"content files        : {len(list(current.content_dir.glob('*.md')))}")
     print(f"missing headings     : {len(result.missing_headings)} {result.missing_headings}")
     print(f"missing figures      : {len(result.missing_figures)} {result.missing_figures}")
     print(f"missing tables       : {len(result.missing_tables)} {result.missing_tables}")

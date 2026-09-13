@@ -1,15 +1,15 @@
-"""Build the reader page from the per-section Markdown content.
+"""Build one paper's reader page from its per-section Markdown content.
 
-The build is a pure function of committed inputs: it reads ``src/content/*.md``, the
-page template, styles, scripts, figures, and subset fonts, then writes ``dist/``. No
-network access and no runtime math renderer are involved; equations are MathML authored
-directly in the content files.
+The build is a pure function of committed inputs: it reads ``papers/<slug>/content/*.md``, the
+shared page template, styles, scripts, that paper's figure crops, and the shared subset fonts,
+then writes an intermediate ``dist/build/<slug>/``. No network access and no runtime math
+renderer are involved; equations are MathML authored directly in the content files.
 
 Usage
 -----
-``python tools/build.py``
-    Build ``dist/index.html`` and ``dist/assets/``.
-``python tools/build.py --check-fonts``
+``python tools/build.py --paper <slug>``
+    Build ``dist/build/<slug>/index.html`` and its ``assets/``.
+``python tools/build.py --paper <slug> --check-fonts``
     Build, then fail if the committed subset font cannot render a content character.
 """
 
@@ -28,19 +28,15 @@ from pathlib import Path
 import markdown
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT_DIR = ROOT / "src" / "content"
+if str(ROOT) not in sys.path:  # allow `python tools/build.py` to import the package
+    sys.path.insert(0, str(ROOT))
+
+from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
+
 TEMPLATE_PATH = ROOT / "src" / "templates" / "page.html"
 STYLES_DIR = ROOT / "src" / "styles"
 SCRIPTS_DIR = ROOT / "src" / "scripts"
-ASSETS_DIR = ROOT / "src" / "assets"
-CONFIG_PATH = ROOT / "src" / "page.json"
-DIST_DIR = ROOT / "dist"
-
-DEFAULT_CONFIG = {
-    "title": "DeepSeek-V4.1-Flash",
-    "subtitle": "技术报告 · 简体中文译本",
-    "author": "DeepSeek-AI",
-}
+FONTS_DIR = ROOT / "src" / "assets" / "fonts"
 
 
 @dataclass
@@ -66,14 +62,6 @@ def slugify(value: str, separator: str = "-") -> str:
     return value.strip(separator) or "section"
 
 
-def load_config() -> dict[str, str]:
-    """Read page metadata, falling back to defaults."""
-    config = dict(DEFAULT_CONFIG)
-    if CONFIG_PATH.exists():
-        config.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
-    return config
-
-
 def make_markdown() -> markdown.Markdown:
     """Create a configured Markdown instance with a CJK-safe TOC."""
     return markdown.Markdown(
@@ -90,7 +78,7 @@ def make_markdown() -> markdown.Markdown:
     )
 
 
-def read_sections(content_dir: Path = CONTENT_DIR) -> list[Section]:
+def read_sections(content_dir: Path) -> list[Section]:
     """Render every content file to HTML, in filename order."""
     sections: list[Section] = []
     for path in sorted(content_dir.glob("*.md")):
@@ -162,23 +150,28 @@ def content_hash(sections: list[Section]) -> str:
 
 def copy_assets(
     dist: Path,
-    styles_dir: Path = STYLES_DIR,
-    scripts_dir: Path = SCRIPTS_DIR,
-    assets_dir: Path = ASSETS_DIR,
+    styles_dir: Path | None = STYLES_DIR,
+    scripts_dir: Path | None = SCRIPTS_DIR,
+    figures_dir: Path | None = None,
+    fonts_dir: Path | None = FONTS_DIR,
 ) -> dict[str, list[str]]:
-    """Copy styles, scripts, figures, and fonts into the build output."""
+    """Copy styles, scripts, figures, and fonts into the build output.
+
+    A ``None`` directory means this build has no such asset set; missing directories are
+    skipped rather than treated as an error.
+    """
     plan = {
         "styles": (styles_dir, "assets/styles"),
         "scripts": (scripts_dir, "assets/scripts"),
-        "figures": (assets_dir / "figures", "assets/figures"),
-        "fonts": (assets_dir / "fonts", "assets/fonts"),
+        "figures": (figures_dir, "assets/figures"),
+        "fonts": (fonts_dir, "assets/fonts"),
     }
     copied: dict[str, list[str]] = {}
     for key, (source, relative) in plan.items():
         target = dist / relative
         target.mkdir(parents=True, exist_ok=True)
         names: list[str] = []
-        if source.exists():
+        if source is not None and source.exists():
             for path in sorted(source.iterdir()):
                 if path.is_file():
                     shutil.copy2(path, target / path.name)
@@ -187,24 +180,39 @@ def copy_assets(
     return copied
 
 
+def metadata_for(slug: str | None) -> dict[str, str]:
+    """Return the page metadata (title, subtitle, author) of a registered paper."""
+    current = paper.resolve(slug)
+    return {
+        "title": current.title,
+        "subtitle": current.subtitle,
+        "author": current.author,
+    }
+
+
 def build(
-    dist: Path = DIST_DIR,
-    build_date: str | None = None,
-    content_dir: Path = CONTENT_DIR,
+    dist: Path,
+    content_dir: Path,
     template_path: Path = TEMPLATE_PATH,
-    styles_dir: Path = STYLES_DIR,
-    scripts_dir: Path = SCRIPTS_DIR,
-    assets_dir: Path = ASSETS_DIR,
+    styles_dir: Path | None = STYLES_DIR,
+    scripts_dir: Path | None = SCRIPTS_DIR,
+    figures_dir: Path | None = None,
+    fonts_dir: Path | None = FONTS_DIR,
+    metadata: dict[str, str] | None = None,
+    paper_slug: str | None = None,
+    build_date: str | None = None,
 ) -> dict[str, object]:
-    """Build the reader page and return a manifest of what was produced."""
+    """Build one reader page and return a manifest of what was produced."""
     sections = read_sections(content_dir)
-    config = load_config()
+    if metadata is None:
+        metadata = metadata_for(paper_slug)
     template = template_path.read_text(encoding="utf-8")
     digest = content_hash(sections)
 
     replacements = {
-        "{{TITLE}}": config["title"],
-        "{{SUBTITLE}}": config["subtitle"],
+        "{{TITLE}}": metadata.get("title", ""),
+        "{{SUBTITLE}}": metadata.get("subtitle", ""),
+        "{{AUTHOR}}": metadata.get("author", ""),
         "{{TOC}}": combine_toc(sections),
         "{{CONTENT}}": wrap_tables(wrap_sections(sections)),
         "{{BUILD_DATE}}": build_date or date.today().isoformat(),
@@ -219,9 +227,11 @@ def build(
         raise ValueError(f"unresolved template placeholders: {sorted(set(leftovers))}")
 
     dist.mkdir(parents=True, exist_ok=True)
-    copied = copy_assets(dist, styles_dir, scripts_dir, assets_dir)
+    copied = copy_assets(dist, styles_dir, scripts_dir, figures_dir, fonts_dir)
     (dist / "index.html").write_text(page, encoding="utf-8")
     manifest = {
+        "paper": paper_slug,
+        "title": metadata.get("title", ""),
         "content_hash": digest,
         "sections": [s.path.name for s in sections],
         "assets": copied,
@@ -235,25 +245,35 @@ def build(
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dist", type=Path, default=DIST_DIR)
+    parser.add_argument("--paper", default=None, help="registered paper slug")
+    parser.add_argument("--dist", type=Path, default=None, help="override the output directory")
     parser.add_argument("--check-fonts", action="store_true")
     parser.add_argument("--build-date", default=None)
     args = parser.parse_args(argv)
 
-    manifest = build(args.dist, args.build_date)
-    print(f"built {args.dist / 'index.html'}")
+    current = paper.resolve(args.paper)
+    dist = args.dist or current.dist_dir
+
+    manifest = build(
+        dist=dist,
+        content_dir=current.content_dir,
+        figures_dir=current.figures_dir,
+        metadata=metadata_for(current.slug),
+        paper_slug=current.slug,
+        build_date=args.build_date,
+    )
+    print(f"paper        : {current.slug} ({current.title})")
+    print(f"built        : {dist / 'index.html'}")
     print(f"  sections    : {len(manifest['sections'])} -> {', '.join(manifest['sections'])}")
     print(f"  figures     : {len(manifest['assets']['figures'])}")
     print(f"  fonts       : {len(manifest['assets']['fonts'])}")
     print(f"  content hash: {manifest['content_hash']}")
 
     if args.check_fonts:
-        # Imported here so `python tools/build.py` works without the package being on
-        # sys.path at module import time.
-        sys.path.insert(0, str(ROOT))
+        # Imported here so the CLI stays usable without importing fontTools for plain builds.
         from tools import fonts
 
-        return fonts.main(["coverage"])
+        return fonts.main(["coverage", "--paper", current.slug])
     return 0
 
 

@@ -10,7 +10,7 @@ Subcommands
 ``download``
     Fetch Source Han Sans SC (falling back to Noto Sans SC subsets) into ``.local/fonts/``.
 ``subset``
-    Subset the vendored font to the characters used by ``src/content/``.
+    Subset the vendored font to the characters used by every paper's content.
 ``coverage``
     Report characters used by the content that the subset font cannot render.
 """
@@ -25,13 +25,18 @@ import shutil
 import sys
 import urllib.request
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
 
 from fontTools import subset
 from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTENT_DIR = ROOT / "src" / "content"
+if str(ROOT) not in sys.path:  # allow `python tools/fonts.py` to import the package
+    sys.path.insert(0, str(ROOT))
+
+from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
+
 FONT_DIR = ROOT / ".local" / "fonts"
 OUT_DIR = ROOT / "src" / "assets" / "fonts"
 LICENSE_PATH = OUT_DIR / "OFL.txt"
@@ -68,7 +73,18 @@ def proxy_url(explicit: str | None = None) -> str | None:
     return None
 
 
-def collect_chars(content_dir: Path = CONTENT_DIR) -> set[str]:
+def content_dirs(slug: str | None = None) -> list[Path]:
+    """Return the content directories to collect characters from.
+
+    Without ``slug`` every registered paper contributes, so the single shared subset covers
+    all of them; with ``slug`` only that paper does.
+    """
+    if slug:
+        return [paper.load(slug).content_dir]
+    return [p.content_dir for p in paper.all_papers()]
+
+
+def collect_chars(dirs: Iterable[Path] | None = None) -> set[str]:
     """Return the set of characters the CJK font must render.
 
     Math is excluded: it is drawn with the math font. Pseudocode and fenced code stay
@@ -76,12 +92,13 @@ def collect_chars(content_dir: Path = CONTENT_DIR) -> set[str]:
     fallback chain, so uncommon symbols come from the bundled subset.
     """
     chars: set[str] = set()
-    for path in sorted(content_dir.glob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        text = _FENCE_RE.sub(" ", text)
-        text = _MATH_RE.sub(" ", text)
-        text = _TAG_RE.sub(" ", text)
-        chars.update(text)
+    for directory in content_dirs() if dirs is None else dirs:
+        for path in sorted(Path(directory).glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            text = _FENCE_RE.sub(" ", text)
+            text = _MATH_RE.sub(" ", text)
+            text = _TAG_RE.sub(" ", text)
+            chars.update(text)
     chars.discard("\r")
     chars.discard("\n")
     return chars
@@ -213,20 +230,22 @@ def cmd_subset(args: argparse.Namespace) -> int:
 
 def cmd_coverage(args: argparse.Namespace) -> int:
     """Report content characters the committed subset font cannot render."""
-    needed = cjk_chars(collect_chars())
     regular = OUT_DIR / "source-han-sans-sc-regular.woff2"
     if not regular.exists():
         print(f"missing {regular}; run `fonts.py subset`", file=sys.stderr)
         return 1
     with TTFont(io.BytesIO(regular.read_bytes())) as font:
         available = set(font.getBestCmap().keys())
-    missing = sorted(c for c in needed if ord(c) not in available)
-    print(f"cjk-ish characters needed : {len(needed)}")
-    print(f"missing from subset       : {len(missing)}")
-    if missing:
-        print("  " + " ".join(f"{c!r}(U+{ord(c):04X})" for c in missing[:60]))
-        return 1
-    return 0
+
+    failed = False
+    for directory in content_dirs(args.paper):
+        needed = cjk_chars(collect_chars([directory]))
+        missing = sorted(c for c in needed if ord(c) not in available)
+        print(f"{directory.parent.name:<24} cjk needed {len(needed):>5}  missing {len(missing)}")
+        if missing:
+            print("  " + " ".join(f"{c!r}(U+{ord(c):04X})" for c in missing[:60]))
+            failed = True
+    return 1 if failed else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -243,6 +262,7 @@ def main(argv: list[str] | None = None) -> int:
     subset_cmd.set_defaults(func=cmd_subset)
 
     coverage = sub.add_parser("coverage", help="check glyph coverage of the content")
+    coverage.add_argument("--paper", default=None, help="limit the check to one paper slug")
     coverage.set_defaults(func=cmd_coverage)
 
     args = parser.parse_args(argv)

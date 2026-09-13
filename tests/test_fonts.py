@@ -17,7 +17,7 @@ def test_collect_chars_skips_math_and_code(tmp_path: Path) -> None:
         '<figure><img src="a.png"><figcaption>中文乙</figcaption></figure>\n',
         encoding="utf-8",
     )
-    chars = fonts.collect_chars(tmp_path)
+    chars = fonts.collect_chars([tmp_path])
     assert "中" in chars
     assert "甲" in chars
     assert "乙" in chars
@@ -27,7 +27,7 @@ def test_collect_chars_skips_math_and_code(tmp_path: Path) -> None:
 
 def test_collect_chars_drops_newlines(tmp_path: Path) -> None:
     (tmp_path / "01.md").write_text("甲\r\n乙\n", encoding="utf-8")
-    chars = fonts.collect_chars(tmp_path)
+    chars = fonts.collect_chars([tmp_path])
     assert "\n" not in chars and "\r" not in chars
 
 
@@ -37,11 +37,7 @@ def test_cjk_chars_filters_ascii() -> None:
 
 
 @pytest.mark.skipif(
-    not (
-        Path(__file__).resolve().parents[1]
-        / "src/assets/fonts"
-        / "source-han-sans-sc-regular.woff2"
-    ).exists(),
+    not (Path(__file__).resolve().parents[1] / "src/assets/fonts").exists(),
     reason="subset font not built yet",
 )
 def test_coverage_reports_no_missing_chars() -> None:

@@ -11,6 +11,7 @@ from tools import build, pack
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_CONTENT = Path(__file__).resolve().parent / "fixtures" / "sample-content"
+FIXTURE_FIGURES = Path(__file__).resolve().parent / "fixtures" / "assets" / "figures"
 
 
 def _build_fixture(dist: Path) -> None:
@@ -21,7 +22,9 @@ def _build_fixture(dist: Path) -> None:
         template_path=REPO_ROOT / "src" / "templates" / "page.html",
         styles_dir=REPO_ROOT / "src" / "styles",
         scripts_dir=REPO_ROOT / "src" / "scripts",
-        assets_dir=REPO_ROOT / "src" / "assets",
+        figures_dir=FIXTURE_FIGURES,
+        fonts_dir=REPO_ROOT / "src" / "assets" / "fonts",
+        metadata={"title": "样例标题", "subtitle": "样例副标题", "author": "样例作者"},
     )
 
 
@@ -103,6 +106,15 @@ def test_pack_produces_one_self_contained_file(tmp_path: Path) -> None:
 def test_pack_rejects_missing_build(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         pack.pack(dist=tmp_path / "nope")
+
+
+def test_pack_writes_the_registered_output_name(tmp_path: Path) -> None:
+    """The deliverable is named after the paper title, one file per paper."""
+    from tools import paper
+
+    current = paper.load("deepseek-v41-flash")
+    assert current.output_name == "示例标题 2.1：把中文标题保留下来.html"
+    assert current.output_path.parent.name == "dist"
 
 
 @pytest.mark.skipif(pack.ffmpeg_path() is None, reason="ffmpeg not installed")

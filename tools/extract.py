@@ -1,17 +1,20 @@
-"""Extract source text, page rasters, and figure crops from the report PDF.
+"""Extract source text, page rasters, and figure crops from a paper's PDF.
 
 The tool is idempotent: re-running it on an unchanged PDF reports the assets as
 unchanged instead of rewriting them.
 
+The paper to extract is a registered manifest under ``papers/`` (see ``tools/paper.py``); it
+supplies the source PDF path, the printed section map, and every output location.
+
 Outputs
 -------
-``.local/source/pages/page-NN.txt``
+``.local/source/<slug>/pages/page-NN.txt``
     Per-page plain text in reading order (PyMuPDF ``sort=True``).
-``.local/source/pages-png/page-NN.png``
+``.local/source/<slug>/pages-png/page-NN.png``
     Per-page raster at ``--page-dpi`` for visual inspection of formulas.
-``src/assets/figures/figure-NN.png``
+``papers/<slug>/assets/figures/figure-NN.png``
     Cropped figure regions, committed because the deliverable needs them.
-``.local/source/report.json``
+``.local/source/<slug>/report.json``
     Machine-readable inventory: page count, sections, figures, equations.
 """
 
@@ -20,36 +23,21 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import fitz
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PDF = ROOT / ".local" / "source" / "DeepSeek_V41_Tech_Report.pdf"
-PAGES_DIR = ROOT / ".local" / "source" / "pages"
-PAGES_PNG_DIR = ROOT / ".local" / "source" / "pages-png"
-FIGURES_DIR = ROOT / "src" / "assets" / "figures"
-REPORT_PATH = ROOT / ".local" / "source" / "report.json"
+if str(ROOT) not in sys.path:  # allow `python tools/extract.py` to import the package
+    sys.path.insert(0, str(ROOT))
+
+from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
 
 CAPTION_RE = re.compile(r"^Figure\s+(\d+)\s*[|:]")
 EQUATION_RE = re.compile(r"\(\s*(\d{1,2})\s*\)\s*$")
 HEADING_RE = re.compile(r"^(?:\d+(?:\.\d+)*|[A-C])\.?\s+\S")
-
-# Section boundaries as printed in the table of contents (1-based PDF pages).
-SECTION_MAP: list[tuple[str, int, int]] = [
-    ("00-front", 1, 3),
-    ("01-introduction", 4, 6),
-    ("02-architecture", 7, 15),
-    ("03-infrastructures", 16, 19),
-    ("04-pretraining", 20, 24),
-    ("05-posttraining", 25, 36),
-    ("06-conclusion", 37, 45),
-    ("07-references", 38, 45),
-    ("08-appendix-a-authors", 46, 47),
-    ("09-appendix-b", 47, 49),
-    ("10-appendix-c", 49, 51),
-]
 
 FIG_PAD = 6.0  # points of padding around an auto-detected figure region
 CLUSTER_GAP = 14.0  # points; content rects closer than this belong to one figure
@@ -96,6 +84,7 @@ class EquationRecord:
 class Report:
     """Full extraction inventory."""
 
+    slug: str
     pdf: str
     page_count: int
     body_font_size: float
@@ -199,9 +188,7 @@ def _figure_region(page: fitz.Page, caption: fitz.Rect) -> fitz.Rect:
     return fitz.Rect(page.rect.x0 + 12, top, page.rect.x1 - 12, caption.y0 - 2) & page.rect
 
 
-def extract_figures(
-    doc: fitz.Document, dpi: int, out_dir: Path = FIGURES_DIR
-) -> list[FigureRecord]:
+def extract_figures(doc: fitz.Document, dpi: int, out_dir: Path) -> list[FigureRecord]:
     """Detect figure captions and crop the region above each one."""
     records: list[FigureRecord] = []
     seen: set[int] = set()
@@ -238,16 +225,16 @@ def extract_figures(
     return records
 
 
-def extract_pages(doc: fitz.Document, page_dpi: int) -> None:
+def extract_pages(doc: fitz.Document, page_dpi: int, pages_dir: Path, pages_png_dir: Path) -> None:
     """Write per-page text and raster images."""
     for pno in range(doc.page_count):
         page = doc[pno]
         text = page.get_text("text", sort=True)
         _write_if_changed(
-            PAGES_DIR / f"page-{pno + 1:02d}.txt", text.replace("\n", "\r\n").encode("utf-8")
+            pages_dir / f"page-{pno + 1:02d}.txt", text.replace("\n", "\r\n").encode("utf-8")
         )
         pixmap = page.get_pixmap(matrix=fitz.Matrix(page_dpi / 72, page_dpi / 72), alpha=False)
-        _write_if_changed(PAGES_PNG_DIR / f"page-{pno + 1:02d}.png", pixmap.tobytes("png"))
+        _write_if_changed(pages_png_dir / f"page-{pno + 1:02d}.png", pixmap.tobytes("png"))
 
 
 def find_equations(doc: fitz.Document) -> list[EquationRecord]:
@@ -268,26 +255,36 @@ def find_equations(doc: fitz.Document) -> list[EquationRecord]:
     return [found[k] for k in sorted(found)]
 
 
-def build_sections(doc: fitz.Document) -> list[dict[str, object]]:
-    """Write section text files from the printed page ranges."""
-    out_dir = ROOT / ".local" / "source" / "sections"
-    sections: list[dict[str, object]] = []
-    for name, first, last in SECTION_MAP:
-        last = min(last, doc.page_count)
-        if first > last:
+def build_sections(
+    doc: fitz.Document, sections: list[paper.SectionRange], out_dir: Path
+) -> list[dict[str, object]]:
+    """Write section text files from the manifest's printed page ranges."""
+    written: list[dict[str, object]] = []
+    for section in sections:
+        last = min(section.last_page, doc.page_count)
+        if section.first_page > last:
             continue
-        chunks = [doc[p - 1].get_text("text", sort=True) for p in range(first, last + 1)]
+        chunks = [
+            doc[p - 1].get_text("text", sort=True) for p in range(section.first_page, last + 1)
+        ]
         text = "".join(chunks)
-        _write_if_changed(out_dir / f"{name}.txt", text.replace("\n", "\r\n").encode("utf-8"))
+        _write_if_changed(
+            out_dir / f"{section.name}.txt", text.replace("\n", "\r\n").encode("utf-8")
+        )
         headings = [
             line.strip()
             for line in text.splitlines()
             if HEADING_RE.match(line.strip()) and len(line.strip()) < 90
         ]
-        sections.append(
-            {"name": name, "first_page": first, "last_page": last, "headings": headings}
+        written.append(
+            {
+                "name": section.name,
+                "first_page": section.first_page,
+                "last_page": last,
+                "headings": headings,
+            }
         )
-    return sections
+    return written
 
 
 def probe(doc: fitz.Document) -> None:
@@ -306,7 +303,8 @@ def probe(doc: fitz.Document) -> None:
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pdf", type=Path, default=DEFAULT_PDF)
+    parser.add_argument("--paper", default=None, help="registered paper slug")
+    parser.add_argument("--pdf", type=Path, default=None, help="override the source PDF path")
     parser.add_argument("--figure-dpi", type=int, default=300)
     parser.add_argument("--page-dpi", type=int, default=200)
     parser.add_argument("--probe", action="store_true", help="print heading candidates and exit")
@@ -314,18 +312,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--figures-only", action="store_true", help="rebuild figures only")
     args = parser.parse_args(argv)
 
-    if not args.pdf.exists():
-        parser.error(f"source PDF not found: {args.pdf}")
+    current = paper.resolve(args.paper)
+    pdf_path = args.pdf or current.source_pdf
+    if not pdf_path.exists():
+        parser.error(f"source PDF not found: {pdf_path}")
 
-    doc = fitz.open(args.pdf)
+    doc = fitz.open(pdf_path)
     if args.probe:
         probe(doc)
         return 0
 
     body_size = _body_font_size(doc)
     if not args.skip_pages:
-        extract_pages(doc, args.page_dpi)
-    figures = extract_figures(doc, args.figure_dpi)
+        extract_pages(doc, args.page_dpi, current.pages_dir, current.pages_png_dir)
+    figures = extract_figures(doc, args.figure_dpi, current.figures_dir)
     if args.figures_only:
         changed = sum(1 for f in figures if f.changed)
         print(f"figures          : {len(figures)} ({changed} written)")
@@ -334,21 +334,24 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  figure {fig.number:>2} p{fig.page:<3} {fig.width}x{fig.height} {flag}")
         return 0
     equations = find_equations(doc)
-    sections = build_sections(doc)
+    sections = build_sections(doc, current.sections, current.sections_dir)
 
     report = Report(
-        pdf=str(args.pdf),
+        slug=current.slug,
+        pdf=_display_path(pdf_path),
         page_count=doc.page_count,
         body_font_size=body_size,
         figures=figures,
         equations=equations,
         sections=sections,
     )
-    REPORT_PATH.write_text(
+    current.report_path.parent.mkdir(parents=True, exist_ok=True)
+    current.report_path.write_text(
         json.dumps(asdict(report), indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
     changed = sum(1 for f in figures if f.changed)
+    print(f"paper            : {current.slug} ({current.title})")
     print(f"pages            : {report.page_count}")
     print(f"body font size   : {body_size}")
     print(
@@ -358,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
         flag = "written" if fig.changed else "same   "
         print(f"  figure {fig.number:>2} p{fig.page:<3} {fig.width}x{fig.height} {flag}")
     print(f"equations        : {len(equations)} -> {[e.number for e in equations]}")
-    print(f"report           : {REPORT_PATH.relative_to(ROOT)}")
+    print(f"report           : {_display_path(current.report_path)}")
     return 0
 
 

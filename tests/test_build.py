@@ -10,6 +10,8 @@ from tools import build
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_CONTENT = Path(__file__).resolve().parent / "fixtures" / "sample-content"
+FIXTURE_FIGURES = Path(__file__).resolve().parent / "fixtures" / "assets" / "figures"
+FIXTURE_METADATA = {"title": "样例标题", "subtitle": "样例副标题", "author": "样例作者"}
 
 
 def test_slugify_ascii() -> None:
@@ -69,7 +71,6 @@ def test_build_end_to_end(tmp_path: Path) -> None:
         '<span class="eqno">(1)</span></div>\n',
         encoding="utf-8",
     )
-    assets = tmp_path / "assets"
     dist = tmp_path / "dist"
 
     manifest = build.build(
@@ -79,11 +80,14 @@ def test_build_end_to_end(tmp_path: Path) -> None:
         template_path=REPO_ROOT / "src" / "templates" / "page.html",
         styles_dir=tmp_path / "no-styles",
         scripts_dir=tmp_path / "no-scripts",
-        assets_dir=assets,
+        figures_dir=None,
+        fonts_dir=None,
+        metadata=FIXTURE_METADATA,
     )
 
     page = (dist / "index.html").read_text(encoding="utf-8")
     assert "这是一个测试。" in page
+    assert "样例作者" in page
     assert '<a href="#1-引言">1 引言</a>' in page
     assert "<math" in page
     assert "{{" not in page
@@ -104,7 +108,9 @@ def test_build_rejects_unknown_placeholder(tmp_path: Path) -> None:
             template_path=template,
             styles_dir=tmp_path / "s",
             scripts_dir=tmp_path / "j",
-            assets_dir=tmp_path / "a",
+            figures_dir=None,
+            fonts_dir=None,
+            metadata=FIXTURE_METADATA,
         )
 
 
@@ -121,7 +127,9 @@ def test_build_is_additive_across_sections(tmp_path: Path) -> None:
         template_path=REPO_ROOT / "src" / "templates" / "page.html",
         styles_dir=tmp_path / "s",
         scripts_dir=tmp_path / "j",
-        assets_dir=tmp_path / "a",
+        figures_dir=None,
+        fonts_dir=None,
+        metadata=FIXTURE_METADATA,
     )
     (content / "03-c.md").write_text("## 丙\n\n第三段。\n", encoding="utf-8")
     build.build(
@@ -130,7 +138,9 @@ def test_build_is_additive_across_sections(tmp_path: Path) -> None:
         template_path=REPO_ROOT / "src" / "templates" / "page.html",
         styles_dir=tmp_path / "s",
         scripts_dir=tmp_path / "j",
-        assets_dir=tmp_path / "a",
+        figures_dir=None,
+        fonts_dir=None,
+        metadata=FIXTURE_METADATA,
     )
 
     page = (dist / "index.html").read_text(encoding="utf-8")
@@ -146,7 +156,9 @@ def test_sample_fixture_exercises_every_rendering_path(tmp_path: Path) -> None:
         template_path=REPO_ROOT / "src" / "templates" / "page.html",
         styles_dir=REPO_ROOT / "src" / "styles",
         scripts_dir=REPO_ROOT / "src" / "scripts",
-        assets_dir=REPO_ROOT / "src" / "assets",
+        figures_dir=FIXTURE_FIGURES,
+        fonts_dir=REPO_ROOT / "src" / "assets" / "fonts",
+        metadata=FIXTURE_METADATA,
     )
     page = (dist / "index.html").read_text(encoding="utf-8")
 

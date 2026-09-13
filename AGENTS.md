@@ -5,25 +5,29 @@ Operating manual for coding agents in this repository.
 ## Project
 
 A reproducible pipeline that translates research papers (PDF or web) into a single
-A4-sized, offline-readable HTML page. The current instance translates
-*DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* into Simplified Chinese.
+A4-sized, offline-readable HTML page, one self-contained file per paper. Two papers are
+translated so far: *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression*
+(DeepSeek-AI) and *A comprehensive survey and taxonomy of mamba: Applications, Challenges, and
+Future Directions* (Miao et al., Information Fusion 130, 2026).
 
 ## Layout
 
 ```
-src/content/       Translated sections, one Markdown file per section (the source of truth)
-src/glossary.md    Terminology table shared across sections
-src/templates/     HTML page template
-src/styles/        CSS (theme + print/A4)
-src/scripts/       Progressive-enhancement JS for the reader page
-src/assets/        Committed inputs: extracted figures, subset fonts (+ OFL notice)
-tools/             Python pipeline (extract, build, fonts)
-tests/             pytest suite
-docs/              Architecture and design notes (committed)
-dist/              Build output (generated, ignored)
-.local/            Isolated venv, source PDF, downloaded fonts (ignored)
-.tasks/            Local task documents (ignored, never committed)
-.reports/          Test/scan reports (ignored)
+papers/<slug>/paper.json   Manifest: title, author, source PDF, section map, expectations
+papers/<slug>/content/     Translated sections, one Markdown file per section (source of truth)
+papers/<slug>/glossary.md  Terminology table shared across that paper's sections
+papers/<slug>/assets/      Committed inputs for that paper: figure crops extracted from the PDF
+src/templates/             HTML page template (shared by every paper)
+src/styles/                CSS (theme + print/A4)
+src/scripts/               Progressive-enhancement JS for the reader page
+src/assets/fonts/          Shared subset fonts (+ OFL notice), covering every paper's characters
+tools/                     Python pipeline (extract, build, pack, fonts, coverage, paper)
+tests/                     pytest suite
+docs/                      Architecture and design notes (committed)
+dist/                      Build output (generated, ignored): dist/<title>.html plus dist/build/
+.local/                    Isolated venv, source PDFs, downloaded fonts (ignored)
+.tasks/                    Local task documents (ignored, never committed)
+.reports/                  Test/scan reports (ignored)
 ```
 
 ## Environment
@@ -38,24 +42,27 @@ py -3.14 -m venv .local/venv
 Run all pipeline commands with that interpreter, for example:
 
 ```powershell
-.\.local\venv\Scripts\python.exe tools\build.py
+.\.local\venv\Scripts\python.exe tools\build.py --paper mamba-survey
 ```
 
 ## Commands
 
+`$P` is a registered paper slug: `deepseek-v41-flash` or `mamba-survey`. When only one paper is
+registered, `--paper` may be omitted; with several it is required.
+
 | Task | Command |
 |---|---|
 | Install deps | `.\.local\venv\Scripts\python.exe -m pip install -r requirements.txt` |
-| Extract source | `.\.local\venv\Scripts\python.exe tools\extract.py` |
-| Build page | `.\.local\venv\Scripts\python.exe tools\build.py` |
-| Pack single file | `.\.local\venv\Scripts\python.exe tools\pack.py` |
+| Extract source | `.\.local\venv\Scripts\python.exe tools\extract.py --paper $P` |
+| Build page | `.\.local\venv\Scripts\python.exe tools\build.py --paper $P` |
+| Pack single file | `.\.local\venv\Scripts\python.exe tools\pack.py --paper $P` |
 | Tests | `.\.local\venv\Scripts\python.exe -m pytest` |
 | Lint | `.\.local\venv\Scripts\python.exe -m ruff check .` |
 | Format | `.\.local\venv\Scripts\python.exe -m ruff format .` |
 | Font download | `.\.local\venv\Scripts\python.exe tools\fonts.py download` |
 | Font subset | `.\.local\venv\Scripts\python.exe tools\fonts.py subset` |
-| Coverage check | `.\.local\venv\Scripts\python.exe tools\coverage.py` |
-| Font coverage check | `.\.local\venv\Scripts\python.exe tools\build.py --check-fonts` |
+| Coverage check | `.\.local\venv\Scripts\python.exe tools\coverage.py --paper $P` |
+| Font coverage check | `.\.local\venv\Scripts\python.exe tools\build.py --paper $P --check-fonts` |
 
 ## Conventions
 
@@ -65,13 +72,15 @@ Run all pipeline commands with that interpreter, for example:
   translate ahead of the source order.
 - Math is authored as MathML directly in the content files. Do not introduce LaTeX or
   runtime math renderers into the delivered page.
-- Keep the raw English source, the source PDF, and downloaded upstream fonts out of git
+- Keep the raw English source, the source PDFs, and downloaded upstream fonts out of git
   (they live under `.local/`).
 - References and the author list are intentionally not translated.
+- A new paper is added by writing `papers/<slug>/paper.json`; do not add per-paper constants to
+  the tools.
 - Run `ruff format` and `ruff check` before every commit.
 
 ## Do not touch
 
-- `src/assets/figures/` images: they are extracted verbatim from the source PDF; regenerate
+- `papers/*/assets/figures/` images: they are extracted verbatim from the source PDFs; regenerate
   them with `tools/extract.py` instead of editing by hand.
 - `.tasks/`, `.local/`, `.logs/`, `.reports/`, `.tmp/`: local-only state.
