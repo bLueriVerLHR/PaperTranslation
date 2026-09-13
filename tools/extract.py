@@ -35,7 +35,9 @@ if str(ROOT) not in sys.path:  # allow `python tools/extract.py` to import the p
 
 from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
 
-CAPTION_RE = re.compile(r"^Figure\s+(\d+)\s*[|:]")
+# Caption styles seen in practice: "Figure 1 | ..." / "Figure 1: ..." (DeepSeek) and
+# "Fig. 1. ..." (Elsevier).
+CAPTION_RE = re.compile(r"^(?:Figure|Fig\.?)\s+(\d+)\s*[|:.]")
 EQUATION_RE = re.compile(r"\(\s*(\d{1,2})\s*\)\s*$")
 HEADING_RE = re.compile(r"^(?:\d+(?:\.\d+)*|[A-C])\.?\s+\S")
 

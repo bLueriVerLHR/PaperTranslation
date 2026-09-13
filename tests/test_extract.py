@@ -44,6 +44,27 @@ def test_figure_crop_covers_art_and_excludes_caption(tmp_path: Path) -> None:
     doc.close()
 
 
+def test_figure_extraction_accepts_elsevier_caption_style(tmp_path: Path) -> None:
+    """Elsevier prints ``Fig. 1. Caption`` rather than ``Figure 1 | Caption``."""
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.draw_rect(fitz.Rect(100, 120, 500, 300), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
+    page.insert_text((72, 360), "Fig. 1. The layout of Mamba-2 and Mamba model.", fontsize=10)
+    records = extract.extract_figures(doc, dpi=72, out_dir=tmp_path)
+    assert [r.number for r in records] == [1]
+    assert records[0].bbox[1] <= 120
+    doc.close()
+
+
+def test_body_text_mentioning_a_figure_is_not_a_caption(tmp_path: Path) -> None:
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.draw_rect(fitz.Rect(100, 120, 500, 300), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
+    page.insert_text((72, 360), "Fig. 1 shows the layout of the Mamba block.", fontsize=10)
+    assert extract.extract_figures(doc, dpi=72, out_dir=tmp_path) == []
+    doc.close()
+
+
 def test_figure_extraction_is_idempotent(tmp_path: Path) -> None:
     doc = _synthetic_pdf()
     extract.extract_figures(doc, dpi=72, out_dir=tmp_path)
