@@ -144,6 +144,7 @@ kept under `dist/build/<slug>/` because it is easier to inspect and test; the to
 | A tool is run without a slug while several papers exist | `paper.resolve()` refuses and lists the registered slugs |
 | Translation skips a paragraph or equation | `tools/coverage.py` cross-check against the manifest plus `.local/source/<slug>/report.json` |
 | Wide table overflows the page on a phone | `build.py` wraps every `<table>` in a scrollable `.table-wrap`; narrow viewports give the table its intrinsic width |
+| A display equation keeps a scroll container in print | The print stylesheet sets `.equation { overflow: visible }`, beside the `.table-wrap` rule: otherwise the printer draws a scrollbar over the equation number and clips wide formulas |
 | A packed file still references `assets/` | `tools/pack.py` raises `ValueError` listing the uninlined resource references |
 | A title is not a legal filename | `paper.safe_filename` replaces Windows-illegal characters and strips trailing dots/spaces |
 | A font byte or `@font-face` sneaks back into the deliverable | `tests/test_pack.py` asserts the packed page has neither; `tests/test_build.py` asserts the copied stylesheet has no `@font-face` |

@@ -62,6 +62,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Display equations no longer keep a scroll container in the print stylesheet. The printer drew
+  a scrollbar widget at the right margin on top of the equation number, hiding it, and clipped
+  any formula wider than the column. `.equation` now sets `overflow: visible` in print, mirroring
+  the existing `.table-wrap` rule; all three papers regain every equation number.
 - Figure captions in the Elsevier style (`Fig. 1. ...`) are now detected, so two-column
   publisher PDFs produce figure crops at all.
 - Two-column pages are rebuilt in true reading order (full-width blocks split the page into

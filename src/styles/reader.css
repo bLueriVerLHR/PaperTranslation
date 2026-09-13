@@ -343,6 +343,10 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   /* Wide tables must shrink onto the page instead of scrolling: a scroll container
      clips content in print and would hide the right-hand columns. */
   .table-wrap { overflow: visible; }
+  /* Same reasoning for display equations: a scroll container makes the printer draw a
+     scrollbar widget over the right margin, which covers the equation number, and clips
+     any formula wider than the column. */
+  .equation { overflow: visible; }
   .body table { font-size: 7.6pt; line-height: 1.35; }
   .body th, .body td { padding: .18rem .28rem; overflow-wrap: anywhere; }
 }
