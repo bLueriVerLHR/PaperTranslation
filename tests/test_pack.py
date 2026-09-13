@@ -23,7 +23,6 @@ def _build_fixture(dist: Path) -> None:
         styles_dir=REPO_ROOT / "src" / "styles",
         scripts_dir=REPO_ROOT / "src" / "scripts",
         figures_dir=FIXTURE_FIGURES,
-        fonts_dir=REPO_ROOT / "src" / "assets" / "fonts",
         metadata={"title": "样例标题", "subtitle": "样例副标题", "author": "样例作者"},
     )
 
@@ -43,19 +42,6 @@ def test_safe_filename_collapses_and_falls_back() -> None:
     assert pack.safe_filename("a    b") == "a b"
     assert pack.safe_filename("???") == "paper"
     assert pack.safe_filename("   ") == "paper"
-
-
-def test_inline_css_embeds_fonts_and_keeps_missing_ones(tmp_path: Path) -> None:
-    fonts = tmp_path / "fonts"
-    fonts.mkdir()
-    (fonts / "a.woff2").write_bytes(b"wOF2data")
-    css = (
-        '@font-face { src: url("../fonts/a.woff2") format("woff2"); }\n'
-        '@font-face { src: url("../fonts/missing.woff2") format("woff2"); }\n'
-    )
-    result = pack.inline_css(css, fonts)
-    assert "data:font/woff2;base64,d09GMmRhdGE=" in result
-    assert 'url("../fonts/missing.woff2")' in result
 
 
 def test_inline_images_embeds_figures(tmp_path: Path) -> None:
@@ -98,8 +84,10 @@ def test_pack_produces_one_self_contained_file(tmp_path: Path) -> None:
     html = target.read_text(encoding="utf-8")
     assert "assets/" not in html
     assert "<style>" in html and "<script>" in html
-    assert "data:font/woff2;base64," in html
     assert "data:image/png;base64," in html
+    # Fonts stay out of the file: the CSS only names families for the browser to resolve.
+    assert "@font-face" not in html
+    assert "data:font/" not in html
     assert not re.search(r'(?:src|href)="(?!#)(?!data:)', html)
 
 

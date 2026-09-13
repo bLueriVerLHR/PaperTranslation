@@ -1,26 +1,19 @@
 /* Reader stylesheet: A4 page, light/dark themes, MathML, print rules. */
 
 /* ------------------------------------------------------------------ fonts */
-@font-face {
-  font-family: "Source Han Sans SC";
-  src: url("../fonts/source-han-sans-sc-regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Source Han Sans SC";
-  src: url("../fonts/source-han-sans-sc-bold.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* No webfont ships with the page: the deliverable must stay small, so every glyph is
+   resolved by the browser through the stacks below. Latin is asked for first so it renders
+   in a serif, and Simplified Chinese follows in a sans face, each list ordered by priority
+   and ending in a generic family. Families that are not installed are simply skipped. */
 
 /* ------------------------------------------------------------------ theme */
 :root {
-  --font-serif: "Times New Roman", "Liberation Serif", "Nimbus Roman", "Noto Serif", serif;
-  --font-cjk: "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
-  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, "DejaVu Sans Mono", "Source Han Sans SC", monospace;
+  --font-serif: "Times New Roman", "Liberation Serif", "Nimbus Roman", "Noto Serif",
+    "Source Han Sans SC", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", serif;
+  --font-cjk: "Times New Roman", "Liberation Serif", "Noto Serif", "Source Han Sans SC",
+    "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, "DejaVu Sans Mono",
+    "Microsoft YaHei", "PingFang SC", monospace;
 
   --paper: #ffffff;
   --ink: #1b1b1b;

@@ -20,12 +20,11 @@ papers/<slug>/assets/      Committed inputs for that paper: figure crops extract
 src/templates/             HTML page template (shared by every paper)
 src/styles/                CSS (theme + print/A4)
 src/scripts/               Progressive-enhancement JS for the reader page
-src/assets/fonts/          Shared subset fonts (+ OFL notice), covering every paper's characters
-tools/                     Python pipeline (extract, build, pack, fonts, coverage, paper)
+tools/                     Python pipeline (extract, build, pack, coverage, paper)
 tests/                     pytest suite
 docs/                      Architecture and design notes (committed)
 dist/                      Build output (generated, ignored): dist/<title>.html plus dist/build/
-.local/                    Isolated venv, source PDFs, downloaded fonts (ignored)
+.local/                    Isolated venv and source PDFs (ignored)
 .tasks/                    Local task documents (ignored, never committed)
 .reports/                  Test/scan reports (ignored)
 ```
@@ -59,10 +58,7 @@ registered, `--paper` may be omitted; with several it is required.
 | Tests | `.\.local\venv\Scripts\python.exe -m pytest` |
 | Lint | `.\.local\venv\Scripts\python.exe -m ruff check .` |
 | Format | `.\.local\venv\Scripts\python.exe -m ruff format .` |
-| Font download | `.\.local\venv\Scripts\python.exe tools\fonts.py download` |
-| Font subset | `.\.local\venv\Scripts\python.exe tools\fonts.py subset` |
 | Coverage check | `.\.local\venv\Scripts\python.exe tools\coverage.py --paper $P` |
-| Font coverage check | `.\.local\venv\Scripts\python.exe tools\build.py --paper $P --check-fonts` |
 
 ## Conventions
 
@@ -72,8 +68,10 @@ registered, `--paper` may be omitted; with several it is required.
   translate ahead of the source order.
 - Math is authored as MathML directly in the content files. Do not introduce LaTeX or
   runtime math renderers into the delivered page.
-- Keep the raw English source, the source PDFs, and downloaded upstream fonts out of git
-  (they live under `.local/`).
+- No font is embedded, downloaded or vendored. The stylesheet only names font families in
+  priority order and the browser resolves every glyph from the reader's own fonts, so do not
+  add `@font-face`, `data:font/` URIs or a bundled face back into the page.
+- Keep the raw English source and the source PDFs out of git (they live under `.local/`).
 - References and the author list are intentionally not translated.
 - A new paper is added by writing `papers/<slug>/paper.json`; do not add per-paper constants to
   the tools.

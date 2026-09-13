@@ -5,7 +5,7 @@
 A small, reproducible pipeline that turns a research paper into a single A4-sized HTML reading
 page in Simplified Chinese. It is deliberately not a general translation engine: translation is
 authored by an agent one section at a time, while the pipeline guarantees that the mechanical
-parts — source extraction, layout, math markup, fonts, and packaging — are deterministic and
+parts — source extraction, layout, math markup and packaging — are deterministic and
 re-runnable for every registered paper.
 
 ## Papers are data, not code
@@ -21,7 +21,7 @@ papers/<slug>/assets/figures/     figure crops, committed
 ```
 
 Everything identical across papers stays shared under `src/`: the page template, the theme and
-print stylesheet, the reader script, and the single subset font. Adding a paper therefore means
+print stylesheet, and the reader script. Adding a paper therefore means
 writing a manifest — no tool changes, no new constants. `tools/paper.py` loads the manifest and
 derives every path (`content_dir`, `figures_dir`, `dist_dir`, `output_path`, …), so a slug is
 the only paper-specific argument any tool takes.
@@ -60,10 +60,10 @@ papers/<slug>/assets/figures/figure-NN.png      figure crops (committed)
 papers/<slug>/content/NN-name.md                one file per section, MathML inline
 papers/<slug>/glossary.md                       shared terminology
         |
-        |  tools/build.py --paper <slug>  +  tools/fonts.py
+        |  tools/build.py --paper <slug>
         v
 dist/build/<slug>/index.html                    reader page (intermediate)
-dist/build/<slug>/assets/{styles,scripts,figures,fonts}/
+dist/build/<slug>/assets/{styles,scripts,figures}/
 dist/build/<slug>/manifest.json                 content hash + asset inventory
         |
         |  tools/pack.py --paper <slug>
@@ -87,27 +87,27 @@ review and diffing tractable. The build concatenates them in filename order.
 characters, which would collapse every Chinese heading to an empty anchor. `tools/build.py`
 registers a slugify that keeps `\w` (which includes CJK) and falls back to `section`.
 
-**Subset, committed fonts; offline build.** Source Han Sans SC is tens of megabytes. The
-content uses a few thousand distinct characters, so `tools/fonts.py subset` walks every paper's
-content, produces small WOFF2 files covering the union, and commits them under
-`src/assets/fonts/`. The subset is shared rather than per paper: the fonts are small, and one
-copy keeps `pack.py` and the stylesheet identical for every document. The build itself never
-touches the network; `fonts.py coverage` fails the build when content introduces a character the
-subset cannot render.
-
-**Latin text is not bundled.** Times New Roman is a system font and cannot be
-redistributed. The stylesheet requests it first and falls back through metric-compatible
-serifs, so the reading experience is consistent without shipping a proprietary font.
+**No font is embedded; the browser picks it.** The stylesheet only names font families in
+priority order: Times New Roman and metric-compatible serifs for Latin, then Source Han Sans SC,
+Noto Sans SC, Microsoft YaHei, PingFang SC and Hiragino Sans GB for Simplified Chinese, and a
+monospace chain that ends in the same CJK families for code. Every glyph is resolved from the
+reading machine's own fonts, so nothing is downloaded at load time, no font license travels with
+the deliverable, and each packed page is about a megabyte smaller than a bundled CJK subset
+would make it. An earlier revision subset Source Han Sans SC with `fontTools`, committed it
+under `src/assets/fonts/`, and gated the build on a glyph-coverage check; that was dropped once
+exact glyph fidelity stopped being worth the bytes and the vendored license. The trade-off is
+that a reader without any listed CJK family gets whatever their system substitutes.
 
 **Highlighting is declarative.** Highlighted pseudocode is authored with semantic classes
 (`alg-keyword`, `alg-comment`, …) styled by the committed stylesheet, rather than by adding a
 runtime highlighter or a Pygments dependency.
 
-**Glyph substitution for characters the bundled face lacks.** Source Han Sans SC has no glyph
+**Glyph substitution for symbols no CJK face covers.** Source Han Sans SC has no glyph
 for `⩽` (U+2A7D) or `⊲` (U+22B2), which the DeepSeek source uses inside pseudocode. Those were
 replaced with the covered near-equivalents `≤` and `◁`, and `ℝ` with plain `R` inside `<pre>`
-blocks. The monospace font stack ends with the subset CJK face so uncommon symbols resolve
-to a bundled glyph instead of a system fallback. MathML keeps the true `⩽` and `ℓ`, because
+blocks. The substitutions stay: a system CJK face is no more likely to carry those code points.
+The monospace stack ends with the CJK families so uncommon symbols resolve
+to a Chinese face instead of a random fallback. MathML keeps the true `⩽` and `ℓ`, because
 math glyphs come from the math font, not the CJK face.
 
 **Inline math convention.** Inline MathML is used whenever the expression has structure
@@ -122,8 +122,9 @@ paragraph outside math/code blocks may still be English prose. It exits non-zero
 a release.
 
 **One file, not a folder.** The shipped artifact is a single self-contained HTML file produced
-by `tools/pack.py`: the stylesheet, the reader script, the subset fonts and every figure are
-inlined as `data:` URIs. Figures are re-encoded to lossless WebP for the embedded copy (702 KiB
+by `tools/pack.py`: the stylesheet, the reader script and every figure are inlined as `data:`
+URIs. Fonts are deliberately left out, so no font bytes enter the single file: the reader's own
+fonts supply every glyph. Figures are re-encoded to lossless WebP for the embedded copy (702 KiB
 versus 1644 KiB for the DeepSeek PNGs, with no quality loss; lossy WebP at q90 was *larger* at
 974 KiB), and the committed PNGs stay the untouched source of truth. The packer refuses to write
 a file that still contains a non-`data:` resource reference, so a stray `assets/` path fails
@@ -136,7 +137,7 @@ kept under `dist/build/<slug>/` because it is easier to inspect and test; the to
 
 | Failure | Guard |
 |---|---|
-| Content introduces a CJK glyph missing from the subset font | `build.py --check-fonts` fails with the missing code points |
+| Content uses a CJK glyph the reader's fonts lack | Nothing to guard: glyphs come from the reader's system, and the browser falls back on its own |
 | Template placeholder left unresolved | `build()` raises `ValueError` listing the placeholders |
 | Figure crop includes body text or clips a label | `tools/extract.py` grows the crop around drawing/image bounds; crops are reviewed once against page rasters |
 | A manifest is malformed or a page range is impossible | `tools/paper.py` raises `PaperError` naming the paper and the field |
@@ -145,4 +146,5 @@ kept under `dist/build/<slug>/` because it is easier to inspect and test; the to
 | Wide table overflows the page on a phone | `build.py` wraps every `<table>` in a scrollable `.table-wrap`; narrow viewports give the table its intrinsic width |
 | A packed file still references `assets/` | `tools/pack.py` raises `ValueError` listing the uninlined resource references |
 | A title is not a legal filename | `paper.safe_filename` replaces Windows-illegal characters and strips trailing dots/spaces |
+| A font byte or `@font-face` sneaks back into the deliverable | `tests/test_pack.py` asserts the packed page has neither; `tests/test_build.py` asserts the copied stylesheet has no `@font-face` |
 | Absolute paths or machine-specific fonts leak into output | dist references only relative `assets/` paths |

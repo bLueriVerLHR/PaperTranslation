@@ -2,8 +2,12 @@
 
 The multi-file build under ``dist/build/<slug>/`` is convenient to test and inspect, but the
 shipped deliverable is a single file that can be copied anywhere and opened offline. This tool
-inlines the stylesheet, the reader script, the subset fonts and every figure as ``data:`` URIs,
-then writes ``dist/<title>.html`` - exactly one file per registered paper.
+inlines the stylesheet, the reader script and every figure as ``data:`` URIs, then writes
+``dist/<title>.html`` - exactly one file per registered paper.
+
+Fonts are deliberately *not* embedded: the stylesheet only names font families, so the browser
+resolves each glyph from the reader's own fonts. That keeps the single file roughly a megabyte
+smaller than a bundled CJK subset would, at the cost of exact glyph fidelity.
 
 Figures are re-encoded to lossless WebP for the embedded copy when ``ffmpeg`` is available:
 measured at 43% of the PNG size with no quality loss. The committed PNGs under
@@ -31,7 +35,6 @@ from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above
 STYLESHEET_TAG = '<link rel="stylesheet" href="assets/styles/reader.css">'
 SCRIPT_TAG = '<script src="assets/scripts/reader.js"></script>'
 
-_FONT_URL_RE = re.compile(r'url\("\.\./fonts/([^"]+)"\)')
 _IMAGE_RE = re.compile(r'src="assets/figures/([^"]+)"')
 # Resources the browser must fetch to render the page (images, scripts, stylesheets).
 _RESOURCE_RE = re.compile(
@@ -41,7 +44,7 @@ _RESOURCE_RE = re.compile(
 # Ordinary hyperlinks in the prose; they do not affect offline rendering.
 _CONTENT_LINK_RE = re.compile(r'<a\b[^>]*href="(?!#)(?!data:)([^"]+)"', re.IGNORECASE)
 
-MIME_TYPES = {".woff2": "font/woff2", ".png": "image/png", ".webp": "image/webp"}
+MIME_TYPES = {".png": "image/png", ".webp": "image/webp"}
 
 
 def safe_filename(title: str) -> str:
@@ -106,18 +109,6 @@ def content_links(html: str) -> list[str]:
     return sorted(set(_CONTENT_LINK_RE.findall(html)))
 
 
-def inline_css(css: str, fonts_dir: Path) -> str:
-    """Replace ``url("../fonts/...")`` references with embedded data URIs."""
-
-    def replace(match: re.Match[str]) -> str:
-        font = fonts_dir / match.group(1)
-        if not font.exists():
-            return match.group(0)
-        return f'url("{file_data_uri(font)}")'
-
-    return _FONT_URL_RE.sub(replace, css)
-
-
 def inline_images(html: str, figures_dir: Path, use_webp: bool = True) -> str:
     """Replace ``src="assets/figures/..."`` references with embedded data URIs."""
     cache: dict[str, str] = {}
@@ -148,7 +139,7 @@ def pack(
 
     stylesheet = dist / "assets" / "styles" / "reader.css"
     if stylesheet.exists():
-        css = inline_css(stylesheet.read_text(encoding="utf-8"), dist / "assets" / "fonts")
+        css = stylesheet.read_text(encoding="utf-8")
         html = html.replace(STYLESHEET_TAG, f"<style>\n{css}\n</style>")
 
     script = dist / "assets" / "scripts" / "reader.js"
@@ -201,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"  figures          : {'lossless WebP' if not args.no_webp and ffmpeg_path() else 'PNG'}"
     )
+    print("  fonts            : system stacks only (no embedded webfont)")
     print(f"  resource refs    : {len(external_resource_refs(text))} (must be 0)")
     print(f"  content links    : {len(content_links(text))} (left as written; not fetched)")
     return 0

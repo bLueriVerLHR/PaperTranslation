@@ -1,16 +1,14 @@
 """Build one paper's reader page from its per-section Markdown content.
 
 The build is a pure function of committed inputs: it reads ``papers/<slug>/content/*.md``, the
-shared page template, styles, scripts, that paper's figure crops, and the shared subset fonts,
-then writes an intermediate ``dist/build/<slug>/``. No network access and no runtime math
-renderer are involved; equations are MathML authored directly in the content files.
+shared page template, styles, scripts and that paper's figure crops, then writes an intermediate
+``dist/build/<slug>/``. No network access and no runtime math renderer are involved; equations
+are MathML authored directly in the content files, and fonts are left to the browser.
 
 Usage
 -----
 ``python tools/build.py --paper <slug>``
     Build ``dist/build/<slug>/index.html`` and its ``assets/``.
-``python tools/build.py --paper <slug> --check-fonts``
-    Build, then fail if the committed subset font cannot render a content character.
 """
 
 from __future__ import annotations
@@ -36,7 +34,6 @@ from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above
 TEMPLATE_PATH = ROOT / "src" / "templates" / "page.html"
 STYLES_DIR = ROOT / "src" / "styles"
 SCRIPTS_DIR = ROOT / "src" / "scripts"
-FONTS_DIR = ROOT / "src" / "assets" / "fonts"
 
 
 @dataclass
@@ -153,9 +150,8 @@ def copy_assets(
     styles_dir: Path | None = STYLES_DIR,
     scripts_dir: Path | None = SCRIPTS_DIR,
     figures_dir: Path | None = None,
-    fonts_dir: Path | None = FONTS_DIR,
 ) -> dict[str, list[str]]:
-    """Copy styles, scripts, figures, and fonts into the build output.
+    """Copy styles, scripts and figures into the build output.
 
     A ``None`` directory means this build has no such asset set; missing directories are
     skipped rather than treated as an error.
@@ -164,7 +160,6 @@ def copy_assets(
         "styles": (styles_dir, "assets/styles"),
         "scripts": (scripts_dir, "assets/scripts"),
         "figures": (figures_dir, "assets/figures"),
-        "fonts": (fonts_dir, "assets/fonts"),
     }
     copied: dict[str, list[str]] = {}
     for key, (source, relative) in plan.items():
@@ -197,7 +192,6 @@ def build(
     styles_dir: Path | None = STYLES_DIR,
     scripts_dir: Path | None = SCRIPTS_DIR,
     figures_dir: Path | None = None,
-    fonts_dir: Path | None = FONTS_DIR,
     metadata: dict[str, str] | None = None,
     paper_slug: str | None = None,
     build_date: str | None = None,
@@ -227,7 +221,7 @@ def build(
         raise ValueError(f"unresolved template placeholders: {sorted(set(leftovers))}")
 
     dist.mkdir(parents=True, exist_ok=True)
-    copied = copy_assets(dist, styles_dir, scripts_dir, figures_dir, fonts_dir)
+    copied = copy_assets(dist, styles_dir, scripts_dir, figures_dir)
     (dist / "index.html").write_text(page, encoding="utf-8")
     manifest = {
         "paper": paper_slug,
@@ -247,7 +241,6 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--paper", default=None, help="registered paper slug")
     parser.add_argument("--dist", type=Path, default=None, help="override the output directory")
-    parser.add_argument("--check-fonts", action="store_true")
     parser.add_argument("--build-date", default=None)
     args = parser.parse_args(argv)
 
@@ -266,14 +259,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"built        : {dist / 'index.html'}")
     print(f"  sections    : {len(manifest['sections'])} -> {', '.join(manifest['sections'])}")
     print(f"  figures     : {len(manifest['assets']['figures'])}")
-    print(f"  fonts       : {len(manifest['assets']['fonts'])}")
     print(f"  content hash: {manifest['content_hash']}")
-
-    if args.check_fonts:
-        # Imported here so the CLI stays usable without importing fontTools for plain builds.
-        from tools import fonts
-
-        return fonts.main(["coverage", "--paper", current.slug])
     return 0
 
 

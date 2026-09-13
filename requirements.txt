@@ -2,8 +2,6 @@
 # Runtime pipeline dependencies.
 PyMuPDF==1.26.4
 Markdown==3.9
-fonttools==4.65.0
-brotli==1.2.0
 
 # Development and QA tooling.
 pytest==9.1.1

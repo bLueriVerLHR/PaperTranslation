@@ -3,7 +3,7 @@
 The pipeline serves any number of translated papers. Everything that differs between them
 lives in ``papers/<slug>/paper.json`` plus that folder's ``content/``, ``glossary.md`` and
 ``assets/figures/``; everything that is the same for all papers (template, styles, reader
-script, subset fonts) stays shared under ``src/``.
+script) stays shared under ``src/``.
 
 A manifest looks like this::
 

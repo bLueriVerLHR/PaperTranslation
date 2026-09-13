@@ -81,7 +81,6 @@ def test_build_end_to_end(tmp_path: Path) -> None:
         styles_dir=tmp_path / "no-styles",
         scripts_dir=tmp_path / "no-scripts",
         figures_dir=None,
-        fonts_dir=None,
         metadata=FIXTURE_METADATA,
     )
 
@@ -109,7 +108,6 @@ def test_build_rejects_unknown_placeholder(tmp_path: Path) -> None:
             styles_dir=tmp_path / "s",
             scripts_dir=tmp_path / "j",
             figures_dir=None,
-            fonts_dir=None,
             metadata=FIXTURE_METADATA,
         )
 
@@ -128,7 +126,6 @@ def test_build_is_additive_across_sections(tmp_path: Path) -> None:
         styles_dir=tmp_path / "s",
         scripts_dir=tmp_path / "j",
         figures_dir=None,
-        fonts_dir=None,
         metadata=FIXTURE_METADATA,
     )
     (content / "03-c.md").write_text("## 丙\n\n第三段。\n", encoding="utf-8")
@@ -139,7 +136,6 @@ def test_build_is_additive_across_sections(tmp_path: Path) -> None:
         styles_dir=tmp_path / "s",
         scripts_dir=tmp_path / "j",
         figures_dir=None,
-        fonts_dir=None,
         metadata=FIXTURE_METADATA,
     )
 
@@ -157,7 +153,6 @@ def test_sample_fixture_exercises_every_rendering_path(tmp_path: Path) -> None:
         styles_dir=REPO_ROOT / "src" / "styles",
         scripts_dir=REPO_ROOT / "src" / "scripts",
         figures_dir=FIXTURE_FIGURES,
-        fonts_dir=REPO_ROOT / "src" / "assets" / "fonts",
         metadata=FIXTURE_METADATA,
     )
     page = (dist / "index.html").read_text(encoding="utf-8")
@@ -185,3 +180,9 @@ def test_sample_fixture_exercises_every_rendering_path(tmp_path: Path) -> None:
     assert (dist / "assets" / "styles" / "reader.css").exists()
     assert (dist / "assets" / "scripts" / "reader.js").exists()
     assert (dist / "assets" / "figures" / "figure-03.png").exists()
+    assert not (dist / "assets" / "fonts").exists()
+
+    # The stylesheet asks the browser for fonts by name and embeds no font bytes.
+    assert "@font-face" not in (dist / "assets" / "styles" / "reader.css").read_text(
+        encoding="utf-8"
+    )

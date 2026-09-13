@@ -10,7 +10,7 @@ offline-readable HTML page in Simplified Chinese, plus the translated papers the
 The problem it solves: translating a long technical paper well needs many sessions, consistent
 terminology, faithful math, and a layout that survives both a phone and a printed page. Doing
 that by hand in one document is error-prone, so each paper's source is split into one Markdown
-file per section, the mechanical parts (extraction, MathML, fonts, layout, packaging) are
+file per section, the mechanical parts (extraction, MathML, layout, packaging) are
 automated, and a coverage checker proves nothing was dropped.
 
 Two papers are translated so far:
@@ -48,20 +48,17 @@ $P = "deepseek-v41-flash"   # or: mamba-survey
 .\.local\venv\Scripts\python.exe tools\pack.py    --paper $P   # -> dist/<title>.html
 ```
 
-The deliverable is one self-contained file per paper, `dist/<document title>.html`. It inlines
-the subset fonts, all figures, the stylesheet and the reader script as `data:` URIs, so it can
-be copied to a USB stick or another machine and opened by double-clicking, with no server and
-no sibling assets. The multi-file build under `dist/build/<slug>/` remains available, because
-it is easier to inspect and test. Print the packed file to get an A4 PDF.
+The deliverable is one self-contained file per paper, `dist/<document title>.html`. It inlines all
+figures, the stylesheet and the reader script as `data:` URIs, so it can be copied to a USB stick
+or another machine and opened by double-clicking, with no server and no sibling assets. The
+multi-file build under `dist/build/<slug>/` remains available, because it is easier to inspect
+and test. Print the packed file to get an A4 PDF.
 
-One-time font vendoring, only needed when the content introduces new characters:
-
-```powershell
-.\.local\venv\Scripts\python.exe tools\fonts.py download   # Source Han Sans SC -> .local/fonts
-.\.local\venv\Scripts\python.exe tools\fonts.py subset     # -> src/assets/fonts (committed)
-```
-
-The subset covers the union of every paper's characters, so it is shared rather than per paper.
+Fonts are **not** embedded, in the packed file or anywhere else. The stylesheet only names font
+families in priority order, so the browser resolves every glyph from the fonts installed on the
+reading machine; nothing is fetched and nothing is redistributed. That keeps each packed file
+roughly a megabyte smaller than bundling a CJK subset would, at the cost of exact glyph
+fidelity. See `NOTICE.md` for the font policy.
 
 ## Quality gates
 
@@ -69,7 +66,6 @@ The subset covers the union of every paper's characters, so it is shared rather 
 .\.local\venv\Scripts\python.exe -m pytest                      # unit tests
 .\.local\venv\Scripts\python.exe -m ruff check .                # lint
 .\.local\venv\Scripts\python.exe tools\coverage.py --paper $P   # every section/figure/table/equation present, no English prose left
-.\.local\venv\Scripts\python.exe tools\build.py --paper $P --check-fonts   # zero missing CJK glyphs
 ```
 
 ## Repository layout
@@ -81,13 +77,12 @@ The subset covers the union of every paper's characters, so it is shared rather 
 | `papers/<slug>/glossary.md` | Binding terminology table shared across that paper's sections |
 | `papers/<slug>/assets/figures/` | Figure crops extracted verbatim from that paper's PDF |
 | `src/templates/`, `src/styles/`, `src/scripts/` | Page template, theme/print CSS, reader enhancements (shared) |
-| `src/assets/fonts/` | Source Han Sans SC subset to the content characters, plus its OFL notice (shared) |
 | `tools/paper.py` | Manifest loading and every path derived from a paper slug |
-| `tools/` | `extract.py`, `build.py`, `pack.py`, `fonts.py`, `coverage.py` |
+| `tools/` | `extract.py`, `build.py`, `pack.py`, `coverage.py` |
 | `tests/` | pytest suite, including a sample fixture that exercises every rendering path |
 | `docs/` | Architecture and design notes |
 | `dist/` | Build output (generated, ignored) |
-| `.local/` | Isolated venv, source PDFs, downloaded fonts (ignored) |
+| `.local/` | Isolated venv and source PDFs (ignored) |
 
 Adding a paper means creating `papers/<slug>/paper.json` with its title, source PDF, section
 map and expectations; no tool code changes.
@@ -99,7 +94,8 @@ map and expectations; no tool code changes.
 - Equations and formulas are written in HTML not latex for adapting mobile view.
 - Default font for alphabet is Times New Roman.
 - Codes and pseudo codes using monospace font with syntax highlights.
-- Chinese font use Source Han Sans.
+- Chinese font use Source Han Sans, Noto Sans SC, Microsoft YaHei or PingFang SC, whichever the
+  reader has installed first. Nothing is embedded or downloaded at page load.
 - Citations, Reference, Acknowledgement and format stuffs are not needed to be translated.
 - Need a table of content which is folded by default.
 

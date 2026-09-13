@@ -25,12 +25,13 @@ If you intend to publish or redistribute this repository, publish the pipeline a
 translated content and figures out of the public copy, or obtain the rights holder's
 permission first.
 
-## Bundled third-party font
+## Fonts are not bundled
 
-`src/assets/fonts/` contains a subset of Source Han Sans SC (Adobe), which is licensed under
-the SIL Open Font License, Version 1.1. The full license text ships beside it as
-`src/assets/fonts/OFL.txt`. The subsetting tool (`tools/fonts.py`) only removes glyphs; it does
-not change the license of the font.
+No font ships with this repository. The reader stylesheet only names font families in priority
+order — Times New Roman and metric-compatible serifs for Latin, then Source Han Sans SC, Noto
+Sans SC, Microsoft YaHei and PingFang SC for Simplified Chinese — and the browser resolves each
+glyph from the fonts installed on the reading machine. Nothing is downloaded at page load
+either, so a packed file stays fully offline while carrying no font license obligations.
 
 ## Python dependencies
 

@@ -41,6 +41,25 @@ All notable changes to this project are documented here. The format follows
   (`NOTICE.md`) that the translated text and extracted figures are the original authors'
   material and are excluded from the MIT grant.
 
+### Changed
+
+- The packed deliverable no longer embeds a font. `src/styles/reader.css` only names font
+  families in priority order — Times New Roman plus metric-compatible serifs for Latin, then
+  Source Han Sans SC, Noto Sans SC, Microsoft YaHei, PingFang SC and Hiragino Sans GB for
+  Simplified Chinese — and the browser resolves every glyph from the reader's installed fonts.
+  The DeepSeek deliverable drops from 2.13 MiB to 1.07 MiB, the mamba survey from 2.49 MiB to
+  1.43 MiB.
+- `tools/pack.py` inlines the stylesheet, the reader script and the figures only, and
+  `tools/build.py` no longer copies fonts into `dist/build/<slug>/assets/`.
+
+### Removed
+
+- Bundled subset fonts and everything that existed to produce and check them:
+  `src/assets/fonts/` (including `OFL.txt`), `tools/fonts.py`, `tests/test_fonts.py`, the
+  `build.py --check-fonts` gate, and the font download/subset/coverage rows in the command
+  tables. `fonttools` and `brotli` leave `requirements.txt` with them. No font is redistributed
+  any more, so `NOTICE.md` loses its OFL section.
+
 ### Fixed
 
 - Figure captions in the Elsevier style (`Fig. 1. ...`) are now detected, so two-column
