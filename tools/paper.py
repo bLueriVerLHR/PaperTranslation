@@ -12,6 +12,7 @@ A manifest looks like this::
       "subtitle": "副标题",
       "author": "DeepSeek-AI",
       "source": {"pdf": ".local/source/<slug>/paper.pdf"},
+      "columns": 2,
       "sections": [{"name": "00-front", "first": 1, "last": 3}],
       "expectations": {"headings": ["## 摘要"], "figures": [1], "tables": [1], "equations": [1]}
     }
@@ -86,6 +87,7 @@ class Paper:
     source_pdf: Path
     sections: list[SectionRange]
     expectations: Expectations
+    columns: int = 1
 
     @property
     def content_dir(self) -> Path:
@@ -227,6 +229,10 @@ def load(slug: str) -> Paper:
     if not pdf_path.is_absolute():
         pdf_path = ROOT / pdf_path
 
+    columns = data.get("columns", 1)
+    if not isinstance(columns, int) or columns < 1:
+        raise PaperError(f"{MANIFEST_NAME} for {slug!r}: 'columns' must be a positive integer")
+
     return Paper(
         slug=slug,
         directory=path.parent,
@@ -236,6 +242,7 @@ def load(slug: str) -> Paper:
         source_pdf=pdf_path,
         sections=_parse_sections(data.get("sections"), slug),
         expectations=_parse_expectations(data.get("expectations", {}), slug),
+        columns=int(columns),
     )
 
 

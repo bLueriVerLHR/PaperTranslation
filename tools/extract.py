@@ -116,6 +116,48 @@ def _block_texts(page: fitz.Page) -> list[tuple[fitz.Rect, str]]:
     return out
 
 
+def _page_text(page: fitz.Page, columns: int = 1) -> str:
+    """Return one page's text in reading order.
+
+    ``columns=1`` uses PyMuPDF's own ordering, which is correct for single-column papers.
+    Multi-column papers interleave their columns under that ordering, so a two-column page is
+    rebuilt explicitly: full-width blocks split the page into horizontal bands, and each band is
+    read left column first, then right column.
+    """
+    if columns < 2:
+        return page.get_text("text", sort=True)
+
+    mid = (page.rect.x0 + page.rect.x1) / 2
+    left: list[tuple[fitz.Rect, str]] = []
+    right: list[tuple[fitz.Rect, str]] = []
+    spanning: list[tuple[fitz.Rect, str]] = []
+    for rect, text in _block_texts(page):
+        if rect.x0 < mid - 2 and rect.x1 > mid + 2:
+            spanning.append((rect, text))
+        elif (rect.x0 + rect.x1) / 2 < mid:
+            left.append((rect, text))
+        else:
+            right.append((rect, text))
+    spanning.sort(key=lambda block: block[0].y0)
+
+    bounds: list[tuple[float, float]] = []
+    top = page.rect.y0
+    for rect, _text in spanning:
+        bounds.append((top, rect.y0))
+        top = rect.y1
+    bounds.append((top, page.rect.y1))
+
+    lines: list[str] = []
+    for index, (band_top, band_bottom) in enumerate(bounds):
+        for column in (left, right):
+            for rect, text in sorted(column, key=lambda block: block[0].y0):
+                if band_top - 1 <= rect.y0 < band_bottom:
+                    lines.append(text.strip())
+        if index < len(spanning):
+            lines.append(spanning[index][1].strip())
+    return "\n".join(lines) + "\n"
+
+
 def _body_font_size(doc: fitz.Document) -> float:
     """Return the dominant span font size across the document (weighted by chars)."""
     totals: dict[float, int] = {}
@@ -227,11 +269,13 @@ def extract_figures(doc: fitz.Document, dpi: int, out_dir: Path) -> list[FigureR
     return records
 
 
-def extract_pages(doc: fitz.Document, page_dpi: int, pages_dir: Path, pages_png_dir: Path) -> None:
+def extract_pages(
+    doc: fitz.Document, page_dpi: int, pages_dir: Path, pages_png_dir: Path, columns: int = 1
+) -> None:
     """Write per-page text and raster images."""
     for pno in range(doc.page_count):
         page = doc[pno]
-        text = page.get_text("text", sort=True)
+        text = _page_text(page, columns)
         _write_if_changed(
             pages_dir / f"page-{pno + 1:02d}.txt", text.replace("\n", "\r\n").encode("utf-8")
         )
@@ -239,11 +283,11 @@ def extract_pages(doc: fitz.Document, page_dpi: int, pages_dir: Path, pages_png_
         _write_if_changed(pages_png_dir / f"page-{pno + 1:02d}.png", pixmap.tobytes("png"))
 
 
-def find_equations(doc: fitz.Document) -> list[EquationRecord]:
+def find_equations(doc: fitz.Document, columns: int = 1) -> list[EquationRecord]:
     """Locate numbered display equations from line-final ``(N)`` markers."""
     found: dict[int, EquationRecord] = {}
     for pno in range(doc.page_count):
-        for line in doc[pno].get_text("text", sort=True).splitlines():
+        for line in _page_text(doc[pno], columns).splitlines():
             match = EQUATION_RE.search(line)
             if not match:
                 continue
@@ -258,7 +302,7 @@ def find_equations(doc: fitz.Document) -> list[EquationRecord]:
 
 
 def build_sections(
-    doc: fitz.Document, sections: list[paper.SectionRange], out_dir: Path
+    doc: fitz.Document, sections: list[paper.SectionRange], out_dir: Path, columns: int = 1
 ) -> list[dict[str, object]]:
     """Write section text files from the manifest's printed page ranges."""
     written: list[dict[str, object]] = []
@@ -266,9 +310,7 @@ def build_sections(
         last = min(section.last_page, doc.page_count)
         if section.first_page > last:
             continue
-        chunks = [
-            doc[p - 1].get_text("text", sort=True) for p in range(section.first_page, last + 1)
-        ]
+        chunks = [_page_text(doc[p - 1], columns) for p in range(section.first_page, last + 1)]
         text = "".join(chunks)
         _write_if_changed(
             out_dir / f"{section.name}.txt", text.replace("\n", "\r\n").encode("utf-8")
@@ -326,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
 
     body_size = _body_font_size(doc)
     if not args.skip_pages:
-        extract_pages(doc, args.page_dpi, current.pages_dir, current.pages_png_dir)
+        extract_pages(doc, args.page_dpi, current.pages_dir, current.pages_png_dir, current.columns)
     figures = extract_figures(doc, args.figure_dpi, current.figures_dir)
     if args.figures_only:
         changed = sum(1 for f in figures if f.changed)
@@ -335,8 +377,8 @@ def main(argv: list[str] | None = None) -> int:
             flag = "written" if fig.changed else "same   "
             print(f"  figure {fig.number:>2} p{fig.page:<3} {fig.width}x{fig.height} {flag}")
         return 0
-    equations = find_equations(doc)
-    sections = build_sections(doc, current.sections, current.sections_dir)
+    equations = find_equations(doc, current.columns)
+    sections = build_sections(doc, current.sections, current.sections_dir, current.columns)
 
     report = Report(
         slug=current.slug,
@@ -355,6 +397,7 @@ def main(argv: list[str] | None = None) -> int:
     changed = sum(1 for f in figures if f.changed)
     print(f"paper            : {current.slug} ({current.title})")
     print(f"pages            : {report.page_count}")
+    print(f"columns          : {current.columns}")
     print(f"body font size   : {body_size}")
     print(
         f"figures          : {len(figures)} ({changed} written, {len(figures) - changed} unchanged)"

@@ -106,6 +106,22 @@ def test_expectations_tolerate_omitted_keys(papers_root: Path) -> None:
     assert loaded.expectations == paper.Expectations()
 
 
+def test_columns_default_to_one(papers_root: Path) -> None:
+    _write(papers_root, "demo", _manifest())
+    assert paper.load("demo").columns == 1
+
+
+def test_columns_are_read_from_the_manifest(papers_root: Path) -> None:
+    _write(papers_root, "demo", _manifest(columns=2))
+    assert paper.load("demo").columns == 2
+
+
+def test_columns_reject_nonsense(papers_root: Path) -> None:
+    _write(papers_root, "demo", _manifest(columns=0))
+    with pytest.raises(paper.PaperError, match="'columns' must be a positive integer"):
+        paper.load("demo")
+
+
 def test_available_lists_registered_slugs(papers_root: Path) -> None:
     _write(papers_root, "beta", _manifest())
     _write(papers_root, "alpha", _manifest())

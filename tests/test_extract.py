@@ -81,6 +81,46 @@ def test_find_equations_reads_trailing_numbers() -> None:
     doc.close()
 
 
+def test_page_text_orders_two_columns_left_first() -> None:
+    """Two-column pages must read left column first, not interleaved line by line."""
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    page.insert_text((330, 100), "R1", fontsize=11)
+    page.insert_text((330, 130), "R2", fontsize=11)
+    page.insert_text((40, 100), "L1", fontsize=11)
+    page.insert_text((40, 130), "L2", fontsize=11)
+    text = extract._page_text(page, columns=2)
+    assert text.index("L1") < text.index("L2") < text.index("R1") < text.index("R2")
+    doc.close()
+
+
+def test_page_text_keeps_single_column_order() -> None:
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    page.insert_text((40, 100), "first", fontsize=11)
+    page.insert_text((40, 130), "second", fontsize=11)
+    text = extract._page_text(page, columns=1)
+    assert text.index("first") < text.index("second")
+    doc.close()
+
+
+def test_page_text_bands_around_a_full_width_block() -> None:
+    """A full-width block splits the page: bands above and below are read in column order."""
+    doc = fitz.open()
+    page = doc.new_page(width=600, height=800)
+    caption = "SPANNING CAPTION LONG ENOUGH TO CROSS THE MIDDLE OF THE PAGE"
+    page.insert_textbox(fitz.Rect(20, 290, 580, 330), caption, fontsize=11)
+    page.insert_textbox(fitz.Rect(20, 60, 280, 200), "L1 line one\nL1 line two", fontsize=11)
+    page.insert_textbox(fitz.Rect(320, 60, 580, 200), "R1 line one\nR1 line two", fontsize=11)
+    page.insert_textbox(fitz.Rect(20, 400, 280, 540), "L2 line one\nL2 line two", fontsize=11)
+    page.insert_textbox(fitz.Rect(320, 400, 580, 540), "R2 line one\nR2 line two", fontsize=11)
+
+    text = extract._page_text(page, columns=2)
+    order = [text.index(token) for token in ("L1", "R1", "SPANNING", "L2", "R2")]
+    assert order == sorted(order), text
+    doc.close()
+
+
 def test_write_if_changed_reports_changes(tmp_path: Path) -> None:
     target = tmp_path / "a.bin"
     assert extract._write_if_changed(target, b"one") is True
