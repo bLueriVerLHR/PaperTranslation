@@ -1,32 +1,30 @@
 # Notices and scope of the license
 
-The MIT license in `LICENSE` covers the **software** in this repository: the pipeline under
-`tools/`, the tests under `tests/`, and the page template, stylesheet, and reader script under
-`src/templates/`, `src/styles/`, and `src/scripts/`.
+The MIT license in `LICENSE` covers everything in this repository: the pipeline under `tools/`,
+the tests under `tests/`, the page template, stylesheet and reader script under `src/templates/`,
+`src/styles/` and `src/scripts/`, and the documentation beside them.
 
-It does **not** cover the translated document itself.
+## No paper material is published here
 
-## Material that is not ours to license
+The repository was built to translate papers, and it deliberately ships none of the material that
+came out of one:
 
-- `papers/deepseek-v41-flash/` contains a Simplified Chinese translation of
-  *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* by DeepSeek-AI,
-  `papers/mamba-survey/` contains a Simplified Chinese translation of *A comprehensive survey
-  and taxonomy of mamba: Applications, Challenges, and Future Directions* by Qiguang Miao et
-  al. (Information Fusion 130, 2026, 104094), and `papers/unlikelihood-training/` contains a
-  Simplified Chinese translation of *Neural Text Degeneration with Unlikelihood Training* by
-  Sean Welleck, Ilia Kulikov, Stephen Roller, Emily Dinan, Kyunghyun Cho and Jason Weston
-  (NeurIPS 2019). A translation is a derivative work, and the
-  rights in the original text remain with its authors. This content is included for personal
-  study and reading; it is not covered by the MIT grant, and redistributing it may require
-  permission from the rights holder.
-- `papers/*/assets/figures/` contains figure images extracted verbatim from those papers' PDFs.
-  They are the original authors' material for the same reason.
-- The translated text also reproduces the papers' numerical results, benchmark names, model
-  names, and citation markers, which remain attributed to their sources.
+- **No translation.** `papers/<slug>/content/*.md` would be a Simplified Chinese translation of
+  another author's paper. A translation is a derivative work, and the rights in the original text
+  stay with its authors.
+- **No figures.** `papers/<slug>/assets/figures/*.png` are figure crops extracted verbatim from
+  the source PDFs.
+- **No source document.** Neither the PDFs nor the page text and rasters derived from them are
+  committed.
 
-If you intend to publish or redistribute this repository, publish the pipeline and keep the
-translated content and figures out of the public copy, or obtain the rights holder's
-permission first.
+`papers/` is therefore listed in `.gitignore`, and a fresh clone contains the pipeline without a
+single paper in it. The material lives only on the machine that produced it: the source PDF goes
+to `.local/source/<slug>/`, `tools/extract.py` regenerates the figure crops and the page text
+from it, and `tools/build.py` needs a manifest you write yourself.
+
+If you intend to read, publish or redistribute a translation or a figure produced with this
+pipeline, ask the rights holder of the original paper first. The MIT grant in this repository
+does not extend to that material, because that material is not in this repository.
 
 ## Fonts are not bundled
 

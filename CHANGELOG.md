@@ -43,10 +43,21 @@ All notable changes to this project are documented here. The format follows
 - Repository scaffold: isolated Python 3.14 environment, pytest and ruff configuration,
   AGENTS.md, CONTRIBUTING.md, and architecture notes under `docs/`.
 - Licensing: MIT for the pipeline code (`LICENSE`) with an explicit scope notice
-  (`NOTICE.md`) that the translated text and extracted figures are the original authors'
-  material and are excluded from the MIT grant.
+  (`NOTICE.md`): no paper-derived material is published, and the MIT grant covers only what is
+  actually in the repository.
+- Every translation produced above was authored locally and is not committed; `papers/` is
+  ignored from now on (see **Changed**).
 
 ### Changed
+
+- The repository now publishes the pipeline only. `papers/` is `git`-ignored, so translations,
+  glossaries, manifests and figure crops are no longer part of the working tree, the commit
+  history or the remote: a translation is a derivative work of the paper it translates, and a
+  figure crop is a verbatim extract from that paper's PDF. The published clone has the tools and
+  no content, and `tools/extract.py` regenerates the figures from a PDF the user supplies.
+  `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `docs/architecture.md` and `NOTICE.md` state the
+  boundary; `tests/test_paper.py` and `tests/test_coverage.py` skip the registered-paper
+  assertions when `papers/` is empty, so the suite is green in a fresh clone.
 
 - The packed deliverable no longer embeds a font. `src/styles/reader.css` only names font
   families in priority order — Times New Roman plus metric-compatible serifs for Latin, then
@@ -59,6 +70,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
+- Every paper-derived file left the repository: `papers/deepseek-v41-flash/`,
+  `papers/mamba-survey/` and `papers/unlikelihood-training/` — 33 translated sections, three
+  glossaries, three manifests and 17 figure crops (3.9 MiB) — purged from all 27 commits, not
+  just from the working tree. They stay on the machine that produced them.
 - Bundled subset fonts and everything that existed to produce and check them:
   `src/assets/fonts/` (including `OFL.txt`), `tools/fonts.py`, `tests/test_fonts.py`, the
   `build.py --check-fonts` gate, and the font download/subset/coverage rows in the command
@@ -85,4 +100,4 @@ All notable changes to this project are documented here. The format follows
 
 - `gitleaks` scan over the working tree and the full commit history reports no leaks.
 
-[Unreleased]: https://example.invalid/PaperTranslation/compare/v0.0.0...HEAD
+[Unreleased]: https://github.com/bLueriVerLHR/PaperTranslation/compare/v0.0.0...HEAD

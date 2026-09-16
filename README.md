@@ -13,18 +13,27 @@ that by hand in one document is error-prone, so each paper's source is split int
 file per section, the mechanical parts (extraction, MathML, layout, packaging) are
 automated, and a coverage checker proves nothing was dropped.
 
-Three papers are translated so far:
+## What this repository publishes
 
-| Paper | Scope |
-|---|---|
-| *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* (DeepSeek-AI, 51 pages) | abstract, Sections 1-6, Appendix B, Appendix C; 12 figures, 5 tables, 17 equations |
-| *A comprehensive survey and taxonomy of mamba: Applications, Challenges, and Future Directions* (Miao et al., Information Fusion 130, 2026, 23 pages) | abstract, Sections 1-9; 3 figures, 5 tables, 5 equations |
-| *Neural Text Degeneration with Unlikelihood Training* (Welleck et al., NeurIPS 2019, 18 pages) | abstract, Sections 1-7, Appendices A-E; 2 figures, 9 tables, 23 equations |
+**The pipeline, and nothing that came out of a paper.** Everything under `papers/` derives from
+somebody else's work, so none of it is committed:
 
-In all of them, references and the author list stay in the original; the DeepSeek and mamba
-translations also leave the funding, CRediT and competing-interest blocks untranslated. The
-unlikelihood paper keeps its English model outputs (Tables 1, 4 and the Appendix E prompts)
-verbatim, because that degenerate text is the object of study.
+- no translated text — a translation is a derivative work of the original, and the rights stay
+  with its authors;
+- no figure crops — they are cut verbatim out of the source PDF;
+- no source PDF, no extracted page text and no per-page rasters.
+
+`papers/` is in `.gitignore` and must stay empty in the published repository, so a fresh clone
+has the tools and no paper to run them on. Three papers were translated with this pipeline so
+far — *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* (DeepSeek-AI), *A
+comprehensive survey and taxonomy of mamba: Applications, Challenges, and Future Directions*
+(Miao et al., *Information Fusion* 130, 2026, 104094) and *Neural Text Degeneration with
+Unlikelihood Training* (Welleck et al., NeurIPS 2019) — and their content, glossaries, manifests
+and figures exist only on the machine that produced them. Read `NOTICE.md` before publishing any
+of it.
+
+To translate a paper locally you create `papers/<slug>/paper.json` yourself; the manifest is the
+only thing that differs between papers, and `docs/architecture.md` documents its schema.
 
 ## Quickstart
 
@@ -33,8 +42,8 @@ py -3.14 -m venv .local/venv
 .\.local\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-The source PDFs are not committed. Each paper's manifest names where it expects its PDF, under
-`.local/source/<slug>/`:
+Neither the papers nor the source PDFs are committed. Each paper's manifest names where it
+expects its PDF, under `.local/source/<slug>/`:
 
 ```
 .local/source/deepseek-v41-flash/DeepSeek_V41_Tech_Report.pdf
@@ -76,10 +85,10 @@ fidelity. See `NOTICE.md` for the font policy.
 
 | Path | Purpose |
 |---|---|
-| `papers/<slug>/paper.json` | The manifest: title, author, source PDF, printed section map, coverage expectations |
-| `papers/<slug>/content/*.md` | The translation, one Markdown file per section (source of truth) |
-| `papers/<slug>/glossary.md` | Binding terminology table shared across that paper's sections |
-| `papers/<slug>/assets/figures/` | Figure crops extracted verbatim from that paper's PDF |
+| `papers/<slug>/paper.json` | The manifest: title, author, source PDF, printed section map, coverage expectations (local only) |
+| `papers/<slug>/content/*.md` | The translation, one Markdown file per section, source of truth (local only) |
+| `papers/<slug>/glossary.md` | Binding terminology table shared across that paper's sections (local only) |
+| `papers/<slug>/assets/figures/` | Figure crops extracted verbatim from that paper's PDF (local only) |
 | `src/templates/`, `src/styles/`, `src/scripts/` | Page template, theme/print CSS, reader enhancements (shared) |
 | `tools/paper.py` | Manifest loading and every path derived from a paper slug |
 | `tools/` | `extract.py`, `build.py`, `pack.py`, `coverage.py` |
@@ -87,6 +96,8 @@ fidelity. See `NOTICE.md` for the font policy.
 | `docs/` | Architecture and design notes |
 | `dist/` | Build output (generated, ignored) |
 | `.local/` | Isolated venv and source PDFs (ignored) |
+
+Every `papers/` row above is `git`-ignored on purpose and never published; see `NOTICE.md`.
 
 Adding a paper means creating `papers/<slug>/paper.json` with its title, source PDF, section
 map and expectations; no tool code changes.
@@ -115,7 +126,8 @@ the best way. Keep isolation environment.
 
 ## Licensing
 
-The pipeline code (under `tools/`, `tests/`, and the template/styles/script directories) is
-MIT-licensed; see `LICENSE`. The translated text and the extracted figures are **not** covered
-by that grant: they reproduce material from the original papers and remain the rights holders'
-property. Read `NOTICE.md` before redistributing anything.
+Everything committed here — the pipeline under `tools/`, the tests, the template, styles and
+script directories, and the documentation — is MIT-licensed; see `LICENSE`. The translated text
+and the figures this pipeline produces are **not** part of the repository and are **not**
+covered by that grant: they reproduce material from the original papers and remain the rights
+holders' property. Read `NOTICE.md` before redistributing anything.

@@ -8,6 +8,17 @@ authored by an agent one section at a time, while the pipeline guarantees that t
 parts — source extraction, layout, math markup and packaging — are deterministic and
 re-runnable for every registered paper.
 
+## The published boundary
+
+This repository ships the pipeline only. A translation is a derivative work of the paper it
+translates and a figure crop is a verbatim extract from that paper's PDF, so the whole of
+`papers/` is `git`-ignored: a fresh clone has the tools and no content. The source PDF, the
+per-page rasters, the extracted section text and the finished translation all stay on the
+machine that produced them, and `tools/extract.py` rebuilds the mechanical parts from a PDF the
+user supplies. That keeps the MIT grant in `LICENSE` honest — it covers code and documentation,
+not other people's papers — and it means the figures a page references may not exist yet in a
+clone, which is why `build.copy_assets` skips a missing directory instead of failing.
+
 ## Papers are data, not code
 
 The pipeline serves any number of papers. Everything that differs between them lives under
@@ -17,7 +28,7 @@ The pipeline serves any number of papers. Everything that differs between them l
 papers/<slug>/paper.json          identity, source PDF, section map, coverage expectations
 papers/<slug>/content/*.md        the translation, one file per section
 papers/<slug>/glossary.md         binding terminology for this paper
-papers/<slug>/assets/figures/     figure crops, committed
+papers/<slug>/assets/figures/     figure crops (local only, never committed)
 ```
 
 Everything identical across papers stays shared under `src/`: the page template, the theme and
@@ -53,7 +64,7 @@ typo fails loudly with the paper and field named.
 .local/source/<slug>/pages/page-NN.txt          per-page text, reading order
 .local/source/<slug>/pages-png/page-NN.png      per-page raster for formula reading
 .local/source/<slug>/sections/*.txt             section-level text
-papers/<slug>/assets/figures/figure-NN.png      figure crops (committed)
+papers/<slug>/assets/figures/figure-NN.png      figure crops (local only, never committed)
         |
         |  authored translation
         v
@@ -146,6 +157,7 @@ kept under `dist/build/<slug>/` because it is easier to inspect and test; the to
 | Wide table overflows the page on a phone | `build.py` wraps every `<table>` in a scrollable `.table-wrap`; narrow viewports give the table its intrinsic width |
 | A display equation keeps a scroll container in print | The print stylesheet sets `.equation { overflow: visible }`, beside the `.table-wrap` rule: otherwise the printer draws a scrollbar over the equation number and clips wide formulas |
 | A packed file still references `assets/` | `tools/pack.py` raises `ValueError` listing the uninlined resource references |
+| A translation, figure crop or manifest is committed | `.gitignore` ignores all of `papers/`; reviews keep `git ls-files papers` empty, in the tree and in history |
 | A title is not a legal filename | `paper.safe_filename` replaces Windows-illegal characters and strips trailing dots/spaces |
 | A font byte or `@font-face` sneaks back into the deliverable | `tests/test_pack.py` asserts the packed page has neither; `tests/test_build.py` asserts the copied stylesheet has no `@font-face` |
 | Absolute paths or machine-specific fonts leak into output | dist references only relative `assets/` paths |

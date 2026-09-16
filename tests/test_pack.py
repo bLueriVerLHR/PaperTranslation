@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -96,12 +97,32 @@ def test_pack_rejects_missing_build(tmp_path: Path) -> None:
         pack.pack(dist=tmp_path / "nope")
 
 
-def test_pack_writes_the_registered_output_name(tmp_path: Path) -> None:
+def test_pack_writes_the_registered_output_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The deliverable is named after the paper title, one file per paper."""
     from tools import paper
 
-    current = paper.load("deepseek-v41-flash")
-    assert current.output_name == "示例标题 2.1：把中文标题保留下来.html"
+    root = tmp_path / "papers"
+    (root / "demo").mkdir(parents=True)
+    (root / "demo" / paper.MANIFEST_NAME).write_text(
+        json.dumps(
+            {
+                "title": "示例标题：把中文/标题保留下来?",
+                "subtitle": "副标题",
+                "author": "某人",
+                "source": {"pdf": ".local/source/demo/paper.pdf"},
+                "sections": [{"name": "00-front", "first": 1, "last": 1}],
+                "expectations": {"headings": ["## 摘要"]},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paper, "PAPERS_DIR", root)
+
+    current = paper.load("demo")
+    assert current.output_name == "示例标题：把中文-标题保留下来.html"
     assert current.output_path.parent.name == "dist"
 
 

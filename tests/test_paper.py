@@ -158,9 +158,10 @@ def test_safe_filename_keeps_cjk_and_strips_trailing_dot() -> None:
 
 
 def test_registered_papers_are_loadable() -> None:
-    """Every committed manifest in the repository must be valid."""
+    """Every local manifest must be valid; a published clone has none, so it skips."""
     real = paper.available()
-    assert real, "no papers are registered under papers/"
+    if not real:
+        pytest.skip("no papers are registered: papers/ is local-only and git-ignored")
     for slug in real:
         loaded = paper.load(slug)
         assert loaded.title and loaded.subtitle and loaded.author

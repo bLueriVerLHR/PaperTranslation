@@ -1,3 +1,12 @@
+# Paper material: local-only, never published.
+#
+# Everything under papers/ derives from someone else's paper: the figure crops are verbatim
+# extracts from the source PDF, the content is a translation (a derivative work) of the original
+# text, and the manifests carry the papers' identity and section maps. None of it is covered by
+# LICENSE, so it stays out of the public repository. The pipeline regenerates the figures from a
+# PDF you supply yourself, and `git ls-files papers` must stay empty.
+papers/
+
 # Local-only and generated content
 .tasks/
 .local/
