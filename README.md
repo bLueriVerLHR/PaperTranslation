@@ -38,7 +38,7 @@ only thing that differs between papers, and `docs/architecture.md` documents its
 ## Quickstart
 
 ```powershell
-py -3.14 -m venv .local/venv
+py -3.14 -m venv .local/venv          # Python 3.12+ works; 3.14 is what the pins are verified on
 .\.local\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
@@ -49,27 +49,37 @@ expects its PDF, under `.local/source/<slug>/`:
 .local/source/deepseek-v41-flash/DeepSeek_V41_Tech_Report.pdf
 .local/source/mamba-survey/paper.pdf
 .local/source/unlikelihood-training/paper.pdf
+.local/source/on-device-llm-survey/paper.pdf
 ```
 
 Then, per paper:
 
 ```powershell
-$P = "deepseek-v41-flash"   # or: mamba-survey, unlikelihood-training
+$P = "deepseek-v41-flash"   # or: mamba-survey, unlikelihood-training, on-device-llm-survey
 
 .\.local\venv\Scripts\python.exe tools\extract.py --paper $P   # PDF -> page text, rasters, figure crops
-.\.local\venv\Scripts\python.exe tools\build.py   --paper $P   # content -> dist/build/<slug>/index.html
-.\.local\venv\Scripts\python.exe tools\pack.py    --paper $P   # -> dist/<title>.html
+.\.local\venv\Scripts\python.exe tools\build.py   --paper $P   # content -> dist/<slug>/index.html
 ```
 
-The deliverable is one self-contained file per paper, `dist/<document title>.html`. It inlines all
-figures, the stylesheet and the reader script as `data:` URIs, so it can be copied to a USB stick
-or another machine and opened by double-clicking, with no server and no sibling assets. The
-multi-file build under `dist/build/<slug>/` remains available, because it is easier to inspect
-and test. Print the packed file to get an A4 PDF.
+The deliverable is one folder per paper: `dist/<slug>/index.html` beside a real
+`assets/` tree (`assets/styles/reader.css`, `assets/scripts/reader.js`, `assets/figures/*.png`).
+Everything is reached by relative path, so the folder can be copied to a USB stick or another
+machine and opened by double-clicking `index.html`, with no server. Print the page to get an A4
+PDF. The folder keeps figures as ordinary image files rather than base64 payloads, which saves
+roughly a third of the bytes and keeps every asset inspectable and cacheable.
 
-Fonts are **not** embedded, in the packed file or anywhere else. The stylesheet only names font
+If you really need a single file - to mail one attachment, or to open the page on a device that
+cannot follow relative paths - fold the folder on demand. This is an export, not the shipped
+format:
+
+```powershell
+.\.local\venv\Scripts\python.exe tools\pack.py --paper $P --out dist\$P.html
+# add --figures-as-files to inline only the CSS and JS and leave figures beside the page
+```
+
+Fonts are **not** embedded, in the folder or in an exported file. The stylesheet only names font
 families in priority order, so the browser resolves every glyph from the fonts installed on the
-reading machine; nothing is fetched and nothing is redistributed. That keeps each packed file
+reading machine; nothing is fetched and nothing is redistributed. That keeps each deliverable
 roughly a megabyte smaller than bundling a CJK subset would, at the cost of exact glyph
 fidelity. See `NOTICE.md` for the font policy.
 
@@ -91,16 +101,18 @@ fidelity. See `NOTICE.md` for the font policy.
 | `papers/<slug>/assets/figures/` | Figure crops extracted verbatim from that paper's PDF (local only) |
 | `src/templates/`, `src/styles/`, `src/scripts/` | Page template, theme/print CSS, reader enhancements (shared) |
 | `tools/paper.py` | Manifest loading and every path derived from a paper slug |
-| `tools/` | `extract.py`, `build.py`, `pack.py`, `coverage.py` |
+| `tools/` | `extract.py`, `build.py`, `coverage.py`, plus `pack.py` for the optional single-file export |
 | `tests/` | pytest suite, including a sample fixture that exercises every rendering path |
 | `docs/` | Architecture and design notes |
-| `dist/` | Build output (generated, ignored) |
+| `dist/<slug>/` | Per-paper deliverable folder (generated, ignored) |
 | `.local/` | Isolated venv and source PDFs (ignored) |
 
 Every `papers/` row above is `git`-ignored on purpose and never published; see `NOTICE.md`.
 
 Adding a paper means creating `papers/<slug>/paper.json` with its title, source PDF, section
-map and expectations; no tool code changes.
+map and expectations; no tool code changes. The slug is also the deliverable folder name
+`dist/<slug>/`, so it must be a lowercase English identifier — the Chinese title lives in the
+manifest's `title` field, which is only used for display.
 
 ## Destination Format
 

@@ -1,11 +1,11 @@
-# Contributing
+﻿# Contributing
 
 ## Environment setup
 
 ```powershell
 git clone <repo-url>
 cd PaperTranslation
-py -3.14 -m venv .local/venv
+py -3.14 -m venv .local/venv          # Python 3.12+ works; 3.14 is what the pins are verified on
 .\.local\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
@@ -15,6 +15,7 @@ them under `.local/source/<slug>/` before running `tools/extract.py`:
 ```
 .local/source/deepseek-v41-flash/DeepSeek_V41_Tech_Report.pdf
 .local/source/mamba-survey/paper.pdf
+.local/source/on-device-llm-survey/paper.pdf
 ```
 
 ## What must never be committed
@@ -22,7 +23,7 @@ them under `.local/source/<slug>/` before running `tools/extract.py`:
 The published repository is the pipeline only. A translation is a derivative work of someone
 else's paper and a figure crop is a verbatim extract from it, so `papers/` is `git`-ignored:
 no manifest, no `content/*.md`, no `glossary.md`, no `assets/figures/`, and no extracted page
-text or rasters. Work in `papers/<slug>/` freely — it stays on your machine — and check that
+text or rasters. Work in `papers/<slug>/` freely â€” it stays on your machine â€” and check that
 `git ls-files papers` is empty before you push. `.local/` holds the source PDFs and is ignored for
 the same reason. If you publish a translation of your own, get the rights holder's permission
 first; see `NOTICE.md`.
@@ -33,7 +34,10 @@ first; see `NOTICE.md`.
 2. Create a branch: `feature/<short-description>` (Conventional Branch 1.1.0).
 3. Translate/edit one section file under `papers/<slug>/content/` at a time, updating
    `papers/<slug>/glossary.md` when new terminology is introduced.
-4. Build and inspect: `.\.local\venv\Scripts\python.exe tools\build.py --paper <slug>`.
+4. Build and inspect: `.\.local\venv\Scripts\python.exe tools\build.py --paper <slug>`, then
+   open `dist/<slug>/index.html`. The built folder is the deliverable: `index.html` beside a
+   real `assets/` tree, with no base64 payloads. `tools/pack.py --out <file>` is an opt-in
+   single-file export for mailing one attachment, not the shipped format.
 5. Run tests: `.\.local\venv\Scripts\python.exe -m pytest`.
 6. Commit with Conventional Commits, e.g. `fix(print): stop clipping wide equations`.
 

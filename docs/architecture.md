@@ -2,8 +2,8 @@
 
 ## What this repository is
 
-A small, reproducible pipeline that turns a research paper into a single A4-sized HTML reading
-page in Simplified Chinese. It is deliberately not a general translation engine: translation is
+A small, reproducible pipeline that turns a research paper into an A4-sized HTML reading page
+in Simplified Chinese. It is deliberately not a general translation engine: translation is
 authored by an agent one section at a time, while the pipeline guarantees that the mechanical
 parts — source extraction, layout, math markup and packaging — are deterministic and
 re-runnable for every registered paper.
@@ -34,8 +34,14 @@ papers/<slug>/assets/figures/     figure crops (local only, never committed)
 Everything identical across papers stays shared under `src/`: the page template, the theme and
 print stylesheet, and the reader script. Adding a paper therefore means
 writing a manifest — no tool changes, no new constants. `tools/paper.py` loads the manifest and
-derives every path (`content_dir`, `figures_dir`, `dist_dir`, `output_path`, …), so a slug is
+derives every path (`content_dir`, `figures_dir`, `output_dir`, `output_path`, …), so a slug is
 the only paper-specific argument any tool takes.
+
+Because the slug is also the deliverable folder name, `paper.load` validates it against
+`SLUG_RE = ^[a-z0-9]+(?:-[a-z0-9]+)*$` and raises `PaperError` otherwise. That keeps every
+`dist/<slug>/` path an English, ASCII, path-safe folder name (the user's requirement), and it
+removes the need for the earlier `safe_filename` helper that sanitised Windows-illegal
+characters out of a Chinese title.
 
 The manifest schema:
 
@@ -73,13 +79,13 @@ papers/<slug>/glossary.md                       shared terminology
         |
         |  tools/build.py --paper <slug>
         v
-dist/build/<slug>/index.html                    reader page (intermediate)
-dist/build/<slug>/assets/{styles,scripts,figures}/
-dist/build/<slug>/manifest.json                 content hash + asset inventory
+dist/<slug>/index.html                          reader page (the deliverable)
+dist/<slug>/assets/{styles,scripts,figures}/    real files, referenced by relative path
+dist/<slug>/manifest.json                       content hash + asset inventory
         |
-        |  tools/pack.py --paper <slug>
+        |  tools/pack.py --paper <slug> --out <file>      (optional single-file export)
         v
-dist/<title>.html                               single self-contained deliverable, one per paper
+<file>                                          one self-contained file, for mailing a copy
 ```
 
 ## Key decisions
@@ -103,7 +109,7 @@ priority order: Times New Roman and metric-compatible serifs for Latin, then Sou
 Noto Sans SC, Microsoft YaHei, PingFang SC and Hiragino Sans GB for Simplified Chinese, and a
 monospace chain that ends in the same CJK families for code. Every glyph is resolved from the
 reading machine's own fonts, so nothing is downloaded at load time, no font license travels with
-the deliverable, and each packed page is about a megabyte smaller than a bundled CJK subset
+the deliverable, and each deliverable is about a megabyte smaller than a bundled CJK subset
 would make it. An earlier revision subset Source Han Sans SC with `fontTools`, committed it
 under `src/assets/fonts/`, and gated the build on a glyph-coverage check; that was dropped once
 exact glyph fidelity stopped being worth the bytes and the vendored license. The trade-off is
@@ -132,17 +138,30 @@ hide a missing figure), every table caption and every numbered equation must app
 paragraph outside math/code blocks may still be English prose. It exits non-zero, so it can gate
 a release.
 
-**One file, not a folder.** The shipped artifact is a single self-contained HTML file produced
-by `tools/pack.py`: the stylesheet, the reader script and every figure are inlined as `data:`
-URIs. Fonts are deliberately left out, so no font bytes enter the single file: the reader's own
-fonts supply every glyph. Figures are re-encoded to lossless WebP for the embedded copy (702 KiB
-versus 1644 KiB for the DeepSeek PNGs, with no quality loss; lossy WebP at q90 was *larger* at
-974 KiB), and the committed PNGs stay the untouched source of truth. The packer refuses to write
-a file that still contains a non-`data:` resource reference, so a stray `assets/` path fails
-loudly instead of shipping a page that silently renders unstyled. Ordinary hyperlinks in the
-prose are deliberately left as links, since they cost nothing offline. The multi-file build is
-kept under `dist/build/<slug>/` because it is easier to inspect and test; the top level of
-`dist/` holds only the deliverables.
+**A folder, not a base64 blob.** The shipped artifact is a folder per paper, `dist/<slug>/`,
+holding `index.html` beside a real `assets/` tree: `assets/styles/reader.css`,
+`assets/scripts/reader.js` and `assets/figures/*.png`, all reached by relative path. That is a
+reversal of the earlier "one file, not a folder" design, and the reason is cost: base64 inflates
+every embedded byte by about a third, makes the images opaque to diffing and browser caching,
+and turns each small figure edit into a whole-payload rewrite. As files, the figures are
+byte-identical to what `tools/extract.py` produced, the stylesheet and script are readable and
+cacheable, and printing `index.html` to A4 still needs no server. The page opens straight from
+`file://`, so offline reading is unaffected.
+
+For the case where a folder is genuinely awkward — mailing one attachment, or a device that
+cannot follow relative paths — `tools/pack.py` folds the folder into one file on demand:
+`--out` is required, the stylesheet and reader script are inlined, and figures are embedded as
+`data:` URIs. It compares a lossless WebP re-encode against the original and embeds whichever is
+smaller, so a tiny PNG stays a PNG. `--figures-as-files` inlines only the CSS and JS and leaves
+the images in a sibling `figures/` folder. The packer refuses to write a file that still
+contains a non-`data:` resource reference, so a stray `assets/` path fails loudly instead of
+shipping a page that silently renders unstyled. Ordinary hyperlinks in the prose are
+deliberately left as links, since they cost nothing offline. Fonts are never embedded, in the
+folder or in an export.
+
+`build.copy_assets` deletes any file in the target asset directory that this build did not just
+write, so a figure dropped from `papers/<slug>/assets/figures/` cannot linger in the shipped
+folder and ship an image the page no longer references.
 
 ## Failure modes and guards
 
@@ -157,7 +176,9 @@ kept under `dist/build/<slug>/` because it is easier to inspect and test; the to
 | Wide table overflows the page on a phone | `build.py` wraps every `<table>` in a scrollable `.table-wrap`; narrow viewports give the table its intrinsic width |
 | A display equation keeps a scroll container in print | The print stylesheet sets `.equation { overflow: visible }`, beside the `.table-wrap` rule: otherwise the printer draws a scrollbar over the equation number and clips wide formulas |
 | A packed file still references `assets/` | `tools/pack.py` raises `ValueError` listing the uninlined resource references |
+| A figure dropped from the sources lingers in the deliverable | `build.copy_assets` removes target files this build did not write; `tests/test_pack.py::test_build_removes_stale_figure_crops` covers it |
+| A slug is not a legal English folder name | `paper.load` rejects it against `SLUG_RE` with `invalid paper slug ...` |
 | A translation, figure crop or manifest is committed | `.gitignore` ignores all of `papers/`; reviews keep `git ls-files papers` empty, in the tree and in history |
-| A title is not a legal filename | `paper.safe_filename` replaces Windows-illegal characters and strips trailing dots/spaces |
-| A font byte or `@font-face` sneaks back into the deliverable | `tests/test_pack.py` asserts the packed page has neither; `tests/test_build.py` asserts the copied stylesheet has no `@font-face` |
+| A font byte or `@font-face` sneaks back into the deliverable | `tests/test_pack.py` asserts the built page and the exported file have neither; `tests/test_build.py` asserts the copied stylesheet has no `@font-face` |
+| Base64 payloads creep back into the built page | `tests/test_build.py` asserts the page contains no `base64` and no `data:image`, and that figures are referenced as `src="assets/figures/figure-NN.png"` |
 | Absolute paths or machine-specific fonts leak into output | dist references only relative `assets/` paths |

@@ -1,18 +1,22 @@
-"""Pack one paper's built reader page into a single self-contained HTML file.
+"""Optional: fold one paper's built folder into a single self-contained HTML file.
 
-The multi-file build under ``dist/build/<slug>/`` is convenient to test and inspect, but the
-shipped deliverable is a single file that can be copied anywhere and opened offline. This tool
-inlines the stylesheet, the reader script and every figure as ``data:`` URIs, then writes
-``dist/<title>.html`` - exactly one file per registered paper.
+The shipped deliverable is a *folder*: ``dist/<slug>/index.html`` beside a real ``assets/``
+tree, which every browser opens straight from ``file://``. That is what ``tools/build.py``
+produces and it is the layout the project ships.
+
+This tool exists only for the case where a folder is awkward - mailing one file to a reader,
+or opening it from a device that cannot follow relative paths. It reads the built folder and
+inlines the stylesheet, the reader script and every figure as ``data:`` URIs, producing a
+single file that needs no siblings. Because base64 costs roughly a third more bytes than the
+binary it carries, this is deliberately opt-in and never the default: pass ``--out`` to say
+where the file goes.
+
+``--figures=file`` keeps the images as files in a sibling ``figures/`` folder and inlines only
+the stylesheet and the script, which is the cheapest way to get a one-*page* file when the
+images can travel next to it.
 
 Fonts are deliberately *not* embedded: the stylesheet only names font families, so the browser
-resolves each glyph from the reader's own fonts. That keeps the single file roughly a megabyte
-smaller than a bundled CJK subset would, at the cost of exact glyph fidelity.
-
-Figures are re-encoded to lossless WebP for the embedded copy when ``ffmpeg`` is available:
-measured at 43% of the PNG size with no quality loss. The committed PNGs under
-``papers/<slug>/assets/figures/`` are never modified, and the pack silently falls back to them
-when ``ffmpeg`` is missing.
+resolves each glyph from the reader's own fonts.
 """
 
 from __future__ import annotations
@@ -44,12 +48,7 @@ _RESOURCE_RE = re.compile(
 # Ordinary hyperlinks in the prose; they do not affect offline rendering.
 _CONTENT_LINK_RE = re.compile(r'<a\b[^>]*href="(?!#)(?!data:)([^"]+)"', re.IGNORECASE)
 
-MIME_TYPES = {".png": "image/png", ".webp": "image/webp"}
-
-
-def safe_filename(title: str) -> str:
-    """Return a filename-safe document title (see :func:`tools.paper.safe_filename`)."""
-    return paper.safe_filename(title)
+MIME_TYPES = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg"}
 
 
 def data_uri(data: bytes, mime: str) -> str:
@@ -69,11 +68,16 @@ def ffmpeg_path() -> str | None:
     return shutil.which("ffmpeg")
 
 
-def figure_data_uri(png: Path, use_webp: bool = True) -> str:
-    """Return a data URI for a figure, preferring a lossless WebP re-encode."""
+def figure_data_uri(image: Path, use_webp: bool = True) -> str:
+    """Return a data URI for a figure, preferring a lossless WebP re-encode.
+
+    WebP only wins for large raster crops; the small PNGs this pipeline commonly produces are
+    often smaller untouched, so the re-encode is compared against the original and the smaller
+    of the two is embedded. Nothing is written back to the source figure.
+    """
     if use_webp and (ffmpeg := ffmpeg_path()):
         with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / (png.stem + ".webp")
+            target = Path(tmp) / (image.stem + ".webp")
             result = subprocess.run(  # noqa: S603 - fixed argv, resolved ffmpeg path
                 [
                     ffmpeg,
@@ -82,7 +86,7 @@ def figure_data_uri(png: Path, use_webp: bool = True) -> str:
                     "error",
                     "-y",
                     "-i",
-                    str(png),
+                    str(image),
                     "-c:v",
                     "libwebp",
                     "-lossless",
@@ -94,9 +98,13 @@ def figure_data_uri(png: Path, use_webp: bool = True) -> str:
                 capture_output=True,
                 check=False,
             )
-            if result.returncode == 0 and target.exists() and target.stat().st_size > 0:
+            if (
+                result.returncode == 0
+                and target.exists()
+                and 0 < target.stat().st_size < image.stat().st_size
+            ):
                 return file_data_uri(target)
-    return file_data_uri(png)
+    return file_data_uri(image)
 
 
 def external_resource_refs(html: str) -> list[str]:
@@ -127,11 +135,11 @@ def inline_images(html: str, figures_dir: Path, use_webp: bool = True) -> str:
 
 def pack(
     dist: Path,
-    out: Path | None = None,
+    out: Path,
     use_webp: bool = True,
-    title: str | None = None,
+    figures_as_files: bool = False,
 ) -> Path:
-    """Inline every asset of ``dist/index.html`` and write one self-contained file."""
+    """Fold ``dist/index.html`` and its assets into a single file at ``out``."""
     page_path = dist / "index.html"
     if not page_path.exists():
         raise FileNotFoundError(f"no built page at {page_path}; run tools/build.py first")
@@ -148,53 +156,69 @@ def pack(
             SCRIPT_TAG, f"<script>\n{script.read_text(encoding='utf-8')}\n</script>"
         )
 
-    html = inline_images(html, dist / "assets" / "figures", use_webp)
+    if figures_as_files:
+        # The images travel beside the page, so rewrite the references before the leftover check:
+        # `figures/...` is a sibling path by design, not an asset that failed to inline.
+        target_figures = out.parent / "figures"
+        target_figures.mkdir(parents=True, exist_ok=True)
+        source_figures = dist / "assets" / "figures"
+        if source_figures.exists():
+            for figure in sorted(source_figures.iterdir()):
+                if figure.is_file():
+                    shutil.copy2(figure, target_figures / figure.name)
+        html = html.replace('src="assets/figures/', 'src="figures/')
+    else:
+        html = inline_images(html, dist / "assets" / "figures", use_webp)
 
     leftovers = external_resource_refs(html)
+    if figures_as_files:
+        # In this mode `figures/...` is the intended sibling path; only a leftover `assets/`
+        # reference means the rewrite missed something.
+        leftovers = [ref for ref in leftovers if ref.startswith("assets/")]
     if leftovers:
         raise ValueError(f"assets were not inlined: {leftovers}")
 
-    document_title = title or "paper"
-    target = out or dist / f"{safe_filename(document_title)}.html"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(html, encoding="utf-8")
-    return target
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html, encoding="utf-8")
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--paper", default=None, help="registered paper slug")
-    parser.add_argument("--dist", type=Path, default=None, help="override the build directory")
-    parser.add_argument("--out", type=Path, default=None)
-    parser.add_argument("--title", default=None, help="override the filename title")
+    parser.add_argument("--dist", type=Path, default=None, help="override the built folder")
+    parser.add_argument("--out", type=Path, required=True, help="where to write the single file")
+    parser.add_argument(
+        "--figures-as-files",
+        action="store_true",
+        help="leave the figures as files in a sibling figures/ folder instead of embedding them",
+    )
     parser.add_argument(
         "--no-webp", action="store_true", help="embed the original PNGs instead of lossless WebP"
     )
     args = parser.parse_args(argv)
 
     current = paper.resolve(args.paper)
-    dist = args.dist or current.dist_dir
-    title = args.title or current.title
-    if args.out is not None:
-        out = args.out
-    elif args.dist is not None:
-        out = dist / f"{safe_filename(title)}.html"
-    else:
-        out = current.output_path
+    dist = args.dist or current.output_dir
+    if args.dist is not None and args.out.parent == dist:
+        parser.error("--out must be outside the built folder when --dist is given")
 
-    target = pack(dist, out, use_webp=not args.no_webp, title=title)
+    target = pack(
+        dist,
+        args.out,
+        use_webp=not args.no_webp,
+        figures_as_files=args.figures_as_files,
+    )
     size = target.stat().st_size
     text = target.read_text(encoding="utf-8")
     print(f"paper            : {current.slug}")
-    print(f"packed {target}")
+    print(f"folded           : {target}")
     print(f"  size             : {size / 1024 / 1024:.2f} MiB")
-    print(
-        f"  figures          : {'lossless WebP' if not args.no_webp and ffmpeg_path() else 'PNG'}"
-    )
-    print("  fonts            : system stacks only (no embedded webfont)")
+    print(f"  figures          : {'files in figures/' if args.figures_as_files else 'embedded'}")
     print(f"  resource refs    : {len(external_resource_refs(text))} (must be 0)")
     print(f"  content links    : {len(content_links(text))} (left as written; not fetched)")
+    print("note             : the folder under dist/<slug>/ is the deliverable; this is an export")
     return 0
 
 

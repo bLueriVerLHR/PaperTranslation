@@ -1,14 +1,16 @@
 """Build one paper's reader page from its per-section Markdown content.
 
 The build is a pure function of committed inputs: it reads ``papers/<slug>/content/*.md``, the
-shared page template, styles, scripts and that paper's figure crops, then writes an intermediate
-``dist/build/<slug>/``. No network access and no runtime math renderer are involved; equations
-are MathML authored directly in the content files, and fonts are left to the browser.
+shared page template, styles, scripts and that paper's figure crops, then writes the deliverable
+folder ``dist/<slug>/`` - ``index.html`` beside a real ``assets/`` tree, all referenced by
+relative path so the page opens straight from ``file://``. No network access and no runtime math
+renderer are involved; equations are MathML authored directly in the content files, and fonts
+are left to the browser.
 
 Usage
 -----
 ``python tools/build.py --paper <slug>``
-    Build ``dist/build/<slug>/index.html`` and its ``assets/``.
+    Build ``dist/<slug>/index.html`` and its ``assets/``.
 """
 
 from __future__ import annotations
@@ -154,7 +156,8 @@ def copy_assets(
     """Copy styles, scripts and figures into the build output.
 
     A ``None`` directory means this build has no such asset set; missing directories are
-    skipped rather than treated as an error.
+    skipped rather than treated as an error. Existing files are overwritten in place and a
+    stale asset of the same name is replaced, so the copied tree always matches the sources.
     """
     plan = {
         "styles": (styles_dir, "assets/styles"),
@@ -171,6 +174,11 @@ def copy_assets(
                 if path.is_file():
                     shutil.copy2(path, target / path.name)
                     names.append(path.name)
+        # The output folder is the deliverable, so a figure crop left behind by an earlier
+        # build must not survive: it would ship an image the page no longer references.
+        for stale in sorted(target.iterdir()):
+            if stale.is_file() and stale.name not in names:
+                stale.unlink()
         copied[key] = names
     return copied
 
@@ -245,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     current = paper.resolve(args.paper)
-    dist = args.dist or current.dist_dir
+    dist = args.dist or current.output_dir
 
     manifest = build(
         dist=dist,
@@ -257,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"paper        : {current.slug} ({current.title})")
     print(f"built        : {dist / 'index.html'}")
+    print(f"  assets      : assets/{{{','.join(sorted(manifest['assets']))}}}")
     print(f"  sections    : {len(manifest['sections'])} -> {', '.join(manifest['sections'])}")
     print(f"  figures     : {len(manifest['assets']['figures'])}")
     print(f"  content hash: {manifest['content_hash']}")

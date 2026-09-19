@@ -65,8 +65,8 @@ def test_derived_paths_are_repo_relative(papers_root: Path) -> None:
     assert loaded.figures_dir == papers_root / "demo" / "assets" / "figures"
     assert loaded.source_dir.name == "demo"
     assert loaded.report_path.name == "report.json"
-    assert loaded.dist_dir.parts[-2:] == ("build", "demo")
-    assert loaded.output_name == "示例论文.html"
+    assert loaded.output_dir.parts[-2:] == ("dist", "demo")
+    assert loaded.output_path.name == "index.html"
 
 
 def test_load_rejects_unknown_slug(papers_root: Path) -> None:
@@ -145,16 +145,12 @@ def test_resolve_reports_when_nothing_is_registered(papers_root: Path) -> None:
         paper.resolve(None)
 
 
-def test_safe_filename_replaces_illegal_characters() -> None:
-    assert paper.safe_filename('a<b>c:d"e/f\\g|h?i*j') == "a-b-c-d-e-f-g-h-i-j"
-
-
-def test_safe_filename_keeps_cjk_and_strips_trailing_dot() -> None:
-    assert paper.safe_filename("示例标题 2.1：把中文标题保留下来") == (
-        "示例标题 2.1：把中文标题保留下来"
-    )
-    assert paper.safe_filename("标题... ") == "标题"
-    assert paper.safe_filename("   ") == "paper"
+def test_slug_is_validated_as_a_folder_name(papers_root: Path) -> None:
+    """The slug becomes dist/<slug>/, so a non-English or punctuated slug must fail loudly."""
+    for bad in ("Demo", "demo_paper", "样例论文", "demo paper", "demo.paper"):
+        _write(papers_root, bad, _manifest())
+        with pytest.raises(paper.PaperError, match="invalid paper slug"):
+            paper.load(bad)
 
 
 def test_registered_papers_are_loadable() -> None:

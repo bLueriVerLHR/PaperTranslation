@@ -1,14 +1,13 @@
-"""Unit and integration tests for the single-file packer."""
+"""Unit and integration tests for the folder layout and the optional single-file export."""
 
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import pytest
 
-from tools import build, pack
+from tools import build, pack, paper
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_CONTENT = Path(__file__).resolve().parent / "fixtures" / "sample-content"
@@ -28,31 +27,96 @@ def _build_fixture(dist: Path) -> None:
     )
 
 
-def test_safe_filename_replaces_illegal_characters() -> None:
-    assert pack.safe_filename('a<b>c:d"e/f\\g|h?i*j') == "a-b-c-d-e-f-g-h-i-j"
+def _manifest(**overrides: object) -> dict[str, object]:
+    data: dict[str, object] = {
+        "title": "示例论文",
+        "subtitle": "副标题",
+        "author": "某人",
+        "source": {"pdf": ".local/source/demo/paper.pdf"},
+        "sections": [{"name": "00-front", "first": 1, "last": 2}],
+        "expectations": {"headings": ["## 摘要"]},
+    }
+    data.update(overrides)
+    return data
 
 
-def test_safe_filename_keeps_cjk_and_strips_trailing_dot() -> None:
-    assert pack.safe_filename("示例标题 2.1：把中文标题保留下来") == (
-        "示例标题 2.1：把中文标题保留下来"
+def _register(root: Path, slug: str, **overrides: object) -> None:
+    directory = root / slug
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / paper.MANIFEST_NAME).write_text(
+        json.dumps(_manifest(**overrides), ensure_ascii=False), encoding="utf-8"
     )
-    assert pack.safe_filename("标题... ") == "标题"
 
 
-def test_safe_filename_collapses_and_falls_back() -> None:
-    assert pack.safe_filename("a    b") == "a b"
-    assert pack.safe_filename("???") == "paper"
-    assert pack.safe_filename("   ") == "paper"
+def test_deliverable_is_a_folder_named_after_the_slug(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """dist/<slug>/ holds the reader page; the English slug names the folder, not the title."""
+    root = tmp_path / "papers"
+    root.mkdir()
+    monkeypatch.setattr(paper, "PAPERS_DIR", root)
+    monkeypatch.setattr(paper, "DIST_DIR", tmp_path / "dist")
+    _register(root, "on-device-llm-survey")
+
+    current = paper.load("on-device-llm-survey")
+    assert current.output_dir == tmp_path / "dist" / "on-device-llm-survey"
+    assert current.output_path == current.output_dir / "index.html"
 
 
-def test_inline_images_embeds_figures(tmp_path: Path) -> None:
-    figures = tmp_path / "figures"
-    figures.mkdir()
-    (figures / "figure-01.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-    html = '<img src="assets/figures/figure-01.png" alt="x"><img src="assets/figures/none.png">'
-    result = pack.inline_images(html, figures, use_webp=False)
-    assert result.count("data:image/png;base64,") == 1
-    assert 'src="assets/figures/none.png"' in result
+def test_slug_must_be_an_english_folder_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "papers"
+    root.mkdir()
+    monkeypatch.setattr(paper, "PAPERS_DIR", root)
+    for bad in ("Demo_Paper", "样例论文", "demo paper", "-demo", "demo-"):
+        _register(root, bad)
+        with pytest.raises(paper.PaperError, match="invalid paper slug"):
+            paper.load(bad)
+
+
+def test_build_writes_page_and_real_assets(tmp_path: Path) -> None:
+    """The build output is a deliverable folder: index.html beside assets/, no data URIs."""
+    dist = tmp_path / "dist" / "on-device-llm-survey"
+    _build_fixture(dist)
+
+    page = (dist / "index.html").read_text(encoding="utf-8")
+    assert (dist / "assets" / "styles" / "reader.css").is_file()
+    assert (dist / "assets" / "scripts" / "reader.js").is_file()
+    assert (dist / "assets" / "figures" / "figure-03.png").is_file()
+    # Figures stay relative file references; nothing is base64-encoded into the page.
+    assert 'src="assets/figures/figure-03.png"' in page
+    assert "base64" not in page
+    assert "data:image" not in page
+
+
+def test_build_removes_stale_figure_crops(tmp_path: Path) -> None:
+    """A figure dropped from the sources must not survive in the shipped folder."""
+    dist = tmp_path / "dist" / "demo"
+    _build_fixture(dist)
+    stale = dist / "assets" / "figures" / "figure-99.png"
+    stale.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    _build_fixture(dist)
+    assert not stale.exists()
+    assert (dist / "assets" / "figures" / "figure-03.png").is_file()
+
+
+def test_build_manifest_lists_the_assets(tmp_path: Path) -> None:
+    dist = tmp_path / "dist" / "demo"
+    manifest = build.build(
+        dist=dist,
+        build_date="2026-01-01",
+        content_dir=FIXTURE_CONTENT,
+        template_path=REPO_ROOT / "src" / "templates" / "page.html",
+        styles_dir=REPO_ROOT / "src" / "styles",
+        scripts_dir=REPO_ROOT / "src" / "scripts",
+        figures_dir=FIXTURE_FIGURES,
+        metadata={"title": "样例标题", "subtitle": "副标题", "author": "作者"},
+    )
+    assert manifest["assets"]["figures"] == ["figure-03.png"]
+    assert manifest["assets"]["styles"] == ["reader.css"]
+    assert manifest["assets"]["scripts"] == ["reader.js"]
 
 
 def test_external_resource_refs_ignores_prose_hyperlinks() -> None:
@@ -75,62 +139,65 @@ def test_external_resource_refs_flags_uninlined_assets() -> None:
     ]
 
 
-def test_pack_produces_one_self_contained_file(tmp_path: Path) -> None:
-    dist = tmp_path / "dist"
-    _build_fixture(dist)
-    target = pack.pack(dist=dist, use_webp=False, title="测试标题")
+def test_inline_images_embeds_figures(tmp_path: Path) -> None:
+    figures = tmp_path / "figures"
+    figures.mkdir()
+    (figures / "figure-01.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    html = '<img src="assets/figures/figure-01.png" alt="x"><img src="assets/figures/none.png">'
+    result = pack.inline_images(html, figures, use_webp=False)
+    assert result.count("data:image/png;base64,") == 1
+    assert 'src="assets/figures/none.png"' in result
 
-    assert target.name == "测试标题.html"
-    assert pack.external_resource_refs(target.read_text(encoding="utf-8")) == []
+
+def test_export_folds_the_folder_into_one_file(tmp_path: Path) -> None:
+    dist = tmp_path / "dist" / "demo"
+    _build_fixture(dist)
+    target = pack.pack(dist=dist, out=tmp_path / "export.html", use_webp=False)
+
+    assert target == tmp_path / "export.html"
     html = target.read_text(encoding="utf-8")
-    assert "assets/" not in html
+    assert pack.external_resource_refs(html) == []
     assert "<style>" in html and "<script>" in html
     assert "data:image/png;base64," in html
     # Fonts stay out of the file: the CSS only names families for the browser to resolve.
     assert "@font-face" not in html
     assert "data:font/" not in html
-    assert not re.search(r'(?:src|href)="(?!#)(?!data:)', html)
+
+
+def test_export_can_leave_figures_as_files(tmp_path: Path) -> None:
+    """--figures-as-files inlines the stylesheet and script only, keeping images binary."""
+    dist = tmp_path / "dist" / "demo"
+    _build_fixture(dist)
+    target = pack.pack(dist=dist, out=tmp_path / "export" / "index.html", figures_as_files=True)
+
+    html = target.read_text(encoding="utf-8")
+    assert "base64" not in html
+    assert 'src="figures/figure-03.png"' in html
+    assert (target.parent / "figures" / "figure-03.png").is_file()
+    # The only remaining resource references are the intended sibling figure files.
+    assert pack.external_resource_refs(html) == ["figures/figure-03.png"]
 
 
 def test_pack_rejects_missing_build(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
-        pack.pack(dist=tmp_path / "nope")
+        pack.pack(dist=tmp_path / "nope", out=tmp_path / "x.html")
 
 
-def test_pack_writes_the_registered_output_name(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The deliverable is named after the paper title, one file per paper."""
-    from tools import paper
-
-    root = tmp_path / "papers"
-    (root / "demo").mkdir(parents=True)
-    (root / "demo" / paper.MANIFEST_NAME).write_text(
-        json.dumps(
-            {
-                "title": "示例标题：把中文/标题保留下来?",
-                "subtitle": "副标题",
-                "author": "某人",
-                "source": {"pdf": ".local/source/demo/paper.pdf"},
-                "sections": [{"name": "00-front", "first": 1, "last": 1}],
-                "expectations": {"headings": ["## 摘要"]},
-            },
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(paper, "PAPERS_DIR", root)
-
-    current = paper.load("demo")
-    assert current.output_name == "示例标题：把中文-标题保留下来.html"
-    assert current.output_path.parent.name == "dist"
+def test_pack_main_requires_an_output_path(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit):
+        pack.main(["--paper", "demo", "--out"])
 
 
 @pytest.mark.skipif(pack.ffmpeg_path() is None, reason="ffmpeg not installed")
-def test_lossless_webp_is_smaller_than_png(tmp_path: Path) -> None:
-    dist = tmp_path / "dist"
-    _build_fixture(dist)
-    png = pack.pack(dist=dist, out=tmp_path / "png.html", use_webp=False).stat().st_size
-    webp = pack.pack(dist=dist, out=tmp_path / "webp.html", use_webp=True).stat().st_size
-    assert webp < png
-    assert "data:image/webp;base64," in (tmp_path / "webp.html").read_text(encoding="utf-8")
+def test_embedded_figure_is_never_larger_than_the_source(tmp_path: Path) -> None:
+    """A tiny PNG is embedded as-is: the lossless WebP re-encode would be larger."""
+    image = tmp_path / "small.png"
+    image.write_bytes(
+        bytes.fromhex(
+            "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+            "1f15c4890000000a49444154789c6300010000050001"
+        )
+        + b"\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    plain = pack.figure_data_uri(image, use_webp=False)
+    assert len(pack.figure_data_uri(image, use_webp=True)) <= len(plain)

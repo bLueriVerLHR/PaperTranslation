@@ -182,6 +182,11 @@ def test_sample_fixture_exercises_every_rendering_path(tmp_path: Path) -> None:
     assert (dist / "assets" / "figures" / "figure-03.png").exists()
     assert not (dist / "assets" / "fonts").exists()
 
+    # Figures stay real files referenced by relative path; the page embeds no base64 payload.
+    assert 'src="assets/figures/figure-03.png"' in page
+    assert "base64" not in page
+    assert "data:image" not in page
+
     # The stylesheet asks the browser for fonts by name and embeds no font bytes.
     assert "@font-face" not in (dist / "assets" / "styles" / "reader.css").read_text(
         encoding="utf-8"

@@ -1,17 +1,21 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 Operating manual for coding agents in this repository.
 
 ## Project
 
-A reproducible pipeline that translates research papers (PDF or web) into a single
-A4-sized, offline-readable HTML page, one self-contained file per paper. Only the pipeline is
-published: `papers/` is git-ignored, so no translation, figure crop, manifest or extracted
-source text enters the repository or its history. Three papers were translated with it locally:
-*DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* (DeepSeek-AI), *A comprehensive
-survey and taxonomy of mamba: Applications, Challenges, and Future Directions* (Miao et al.,
-Information Fusion 130, 2026) and *Neural Text Degeneration with Unlikelihood Training* (Welleck
-et al., NeurIPS 2019).
+A reproducible pipeline that translates research papers (PDF or web) into an A4-sized,
+offline-readable HTML page. Each paper gets its own folder, `dist/<slug>/`, holding
+`index.html` beside a real `assets/` tree (stylesheet, reader script, figure crops), all
+referenced by relative path so the page opens straight from `file://` with no server and no
+base64 payloads. Only the pipeline is published: `papers/` is git-ignored, so no translation,
+figure crop, manifest or extracted source text enters the repository or its history. Four
+papers were translated with it locally: *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache
+Compression* (DeepSeek-AI), *A comprehensive survey and taxonomy of mamba: Applications,
+Challenges, and Future Directions* (Miao et al., Information Fusion 130, 2026), *Neural Text
+Degeneration with Unlikelihood Training* (Welleck et al., NeurIPS 2019) and *On-device large
+language models: a survey of model compression and system optimization* (Chen et al.,
+Artificial Intelligence Review 59:191, 2026).
 
 ## Layout
 
@@ -26,7 +30,7 @@ src/scripts/               Progressive-enhancement JS for the reader page
 tools/                     Python pipeline (extract, build, pack, coverage, paper)
 tests/                     pytest suite
 docs/                      Architecture and design notes (committed)
-dist/                      Build output (generated, ignored): dist/<title>.html plus dist/build/
+dist/<slug>/               Deliverable folder per paper (generated, ignored): index.html plus its assets/ tree
 .local/                    Isolated venv and source PDFs (ignored)
 .tasks/                    Local task documents (ignored, never committed)
 .reports/                  Test/scan reports (ignored)
@@ -34,10 +38,11 @@ dist/                      Build output (generated, ignored): dist/<title>.html 
 
 ## Environment
 
-Python 3.14 is required. Everything else lives in an isolated virtual environment.
+Python 3.12 or newer is required (3.14 is what the pins in `requirements.txt` were verified
+against). Everything else lives in an isolated virtual environment:
 
 ```powershell
-py -3.14 -m venv .local/venv
+py -3.14 -m venv .local/venv          # or: C:\Users\Lozz\anaconda3\python.exe -m venv .local/venv
 .\.local\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
@@ -49,16 +54,18 @@ Run all pipeline commands with that interpreter, for example:
 
 ## Commands
 
-`$P` is a registered paper slug: `deepseek-v41-flash`, `mamba-survey` or
-`unlikelihood-training`. When only one paper is
-registered, `--paper` may be omitted; with several it is required.
+`$P` is a registered paper slug: `deepseek-v41-flash`, `mamba-survey`,
+`unlikelihood-training` or `on-device-llm-survey`. When only one paper is
+registered, `--paper` may be omitted; with several it is required. The slug is also the
+deliverable folder name, so it is a lowercase English identifier (`^[a-z0-9]+(?:-[a-z0-9]+)*$`),
+never the Chinese title.
 
 | Task | Command |
 |---|---|
 | Install deps | `.\.local\venv\Scripts\python.exe -m pip install -r requirements.txt` |
 | Extract source | `.\.local\venv\Scripts\python.exe tools\extract.py --paper $P` |
 | Build page | `.\.local\venv\Scripts\python.exe tools\build.py --paper $P` |
-| Pack single file | `.\.local\venv\Scripts\python.exe tools\pack.py --paper $P` |
+| Pack single file (export) | `.\.local\venv\Scripts\python.exe tools\pack.py --paper $P --out dist\$P.html` |
 | Tests | `.\.local\venv\Scripts\python.exe -m pytest` |
 | Lint | `.\.local\venv\Scripts\python.exe -m ruff check .` |
 | Format | `.\.local\venv\Scripts\python.exe -m ruff format .` |
@@ -68,6 +75,9 @@ registered, `--paper` may be omitted; with several it is required.
 
 - Google style; for Python this means PEP 8 plus PEP 257 docstrings.
 - Additive changes keep `dist/` buildable at all times; never commit generated output.
+- The deliverable is a folder, `dist/<slug>/`, not an embedded blob. Figures, the stylesheet
+  and the reader script stay real files reached by relative path; `tools/pack.py` is an
+  opt-in export, never the default. Do not put `data:` image URIs back into the built page.
 - Content is written one section per file and translated section by section. Do not
   translate ahead of the source order.
 - Math is authored as MathML directly in the content files. Do not introduce LaTeX or

@@ -29,13 +29,13 @@ All notable changes to this project are documented here. The format follows
   tables and 17 numbered display equations as MathML.
 - PDF extraction pipeline (`tools/extract.py`): per-page text and rasters, automatic figure
   crop detection, and a machine-readable element inventory.
-- HTML build pipeline (`tools/build.py`): per-section Markdown to a single A4 reader page with
-  a folded-by-default TOC, CJK-safe heading anchors, light/dark themes, and a scroll wrapper
-  for wide tables.
-- Single-file packer (`tools/pack.py`): inlines the subset fonts, all figures (re-encoded to
-  lossless WebP when `ffmpeg` is available), the stylesheet and the script as `data:` URIs, and
-  writes one self-contained HTML file named after the document title. It refuses to emit a file
-  that still references an external resource.
+- HTML build pipeline (`tools/build.py`): per-section Markdown to an A4 reader page in
+  `dist/<slug>/index.html` beside its real `assets/` tree, with a folded-by-default TOC,
+  CJK-safe heading anchors, light/dark themes, and a scroll wrapper for wide tables.
+- Optional single-file exporter (`tools/pack.py`): folds a built folder into one self-contained
+  HTML file on demand (`--out` required), inlining the stylesheet, the reader script and every
+  figure as a `data:` URI — figures re-encoded to lossless WebP when that is actually smaller.
+  It refuses to emit a file that still references an external resource. Not the shipped format.
 - Font pipeline (`tools/fonts.py`): proxy-aware Source Han Sans SC download, subsetting to the
   exact characters used, glyph-coverage check, and the upstream OFL notice.
 - Coverage checker (`tools/coverage.py`) that cross-checks sections, figures, tables and
@@ -50,6 +50,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The deliverable is a **folder**, not a base64 blob: each paper builds to `dist/<slug>/` holding
+  `index.html` beside a real `assets/` tree (`assets/styles/reader.css`,
+  `assets/scripts/reader.js`, `assets/figures/figure-NN.png`), all reached by relative path.
+  Nothing is inlined by default, so the built page opens straight from `file://` while the figures
+  stay byte-identical files a browser can cache and a reviewer can inspect. Because the slug now names
+  that folder, `paper.load` validates it as a lowercase English identifier
+  (`^[a-z0-9]+(?:-[a-z0-9]+)*$`) and rejects anything else with `invalid paper slug ...`; the
+  `safe_filename` helper that sanitised Windows-illegal characters out of a Chinese title is gone
+  with it, and the top level of `dist/` holds one English-named folder per paper.
+- `tools/pack.py` is demoted from the shipped format to an opt-in single-file export: `--out` is
+  now required, and `--figures-as-files` inlines only the stylesheet and the reader script. The
+  embedded-figure path compares a lossless WebP re-encode against the original and keeps whichever is
+  smaller, so a small PNG is no longer inflated by a losing re-encode.
+- `tools/build.py` writes directly to the paper's `dist/<slug>/` (the old `dist/build/<slug>/`
+  intermediate is gone) and prunes asset files the build did not just write, so a figure dropped from
+  `papers/<slug>/assets/figures/` cannot linger in the shipped folder.
 - The repository now publishes the pipeline only. `papers/` is `git`-ignored, so translations,
   glossaries, manifests and figure crops are no longer part of the working tree, the commit
   history or the remote: a translation is a derivative work of the paper it translates, and a
@@ -66,7 +82,7 @@ All notable changes to this project are documented here. The format follows
   The DeepSeek deliverable drops from 2.13 MiB to 1.07 MiB, the mamba survey from 2.49 MiB to
   1.43 MiB.
 - `tools/pack.py` inlines the stylesheet, the reader script and the figures only, and
-  `tools/build.py` no longer copies fonts into `dist/build/<slug>/assets/`.
+  `tools/build.py` no longer copies fonts into the built `assets/`.
 
 ### Removed
 

@@ -5,6 +5,9 @@ lives in ``papers/<slug>/paper.json`` plus that folder's ``content/``, ``glossar
 ``assets/figures/``; everything that is the same for all papers (template, styles, reader
 script) stays shared under ``src/``.
 
+The slug doubles as the deliverable folder name, so it is restricted to a lowercase English
+identifier: the reader page and its asset tree live in ``dist/<slug>/``.
+
 A manifest looks like this::
 
     {
@@ -36,24 +39,12 @@ LOCAL_SOURCE_DIR = ROOT / ".local" / "source"
 
 MANIFEST_NAME = "paper.json"
 
-_ILLEGAL_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+# A slug names a folder inside dist/, so it is held to an ASCII path-safe identifier.
+SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 class PaperError(ValueError):
     """Raised when a paper cannot be resolved or its manifest is unusable."""
-
-
-def safe_filename(title: str) -> str:
-    """Turn a document title into a filename that is legal on Windows.
-
-    Windows-illegal characters and control characters become ``-``; CJK is preserved, so the
-    deliverable keeps its Chinese title.
-    """
-    name = _ILLEGAL_FILENAME_CHARS.sub("-", title)
-    name = re.sub(r"\s+", " ", name).strip()
-    name = name.rstrip(". ")
-    name = re.sub(r"-{2,}", "-", name).strip("- ")
-    return name or "paper"
 
 
 @dataclass(frozen=True)
@@ -130,19 +121,14 @@ class Paper:
         return self.source_dir / "report.json"
 
     @property
-    def dist_dir(self) -> Path:
-        """Intermediate multi-file build for this paper."""
-        return DIST_DIR / "build" / self.slug
-
-    @property
-    def output_name(self) -> str:
-        """Filename of the packed, self-contained deliverable."""
-        return f"{safe_filename(self.title)}.html"
+    def output_dir(self) -> Path:
+        """Deliverable folder for this paper: ``dist/<slug>/``."""
+        return DIST_DIR / self.slug
 
     @property
     def output_path(self) -> Path:
-        """Path of the packed, self-contained deliverable."""
-        return DIST_DIR / self.output_name
+        """Reader page inside the deliverable folder."""
+        return self.output_dir / "index.html"
 
 
 def manifest_path(slug: str) -> Path:
@@ -215,6 +201,11 @@ def load(slug: str) -> Paper:
     if not path.exists():
         known = ", ".join(available()) or "none"
         raise PaperError(f"unknown paper {slug!r} (registered papers: {known})")
+    if not SLUG_RE.match(slug):
+        raise PaperError(
+            f"invalid paper slug {slug!r}: the slug names the deliverable folder "
+            "dist/<slug>/, so use lowercase ASCII words joined by '-'"
+        )
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise PaperError(f"{MANIFEST_NAME} for {slug!r} must contain an object")
