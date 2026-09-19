@@ -27,10 +27,16 @@ papers/<slug>/assets/      Figure crops extracted from the PDF (local only)
 src/templates/             HTML page template (shared by every paper)
 src/styles/                CSS (theme + print/A4)
 src/scripts/               Progressive-enhancement JS for the reader page
-tools/                     Python pipeline (extract, build, pack, coverage, paper)
+tools/                     Python pipeline (extract, build, pack, coverage, paper, survey)
 tests/                     pytest suite
 docs/                      Architecture and design notes (committed)
 dist/<slug>/               Deliverable folder per paper (generated, ignored): index.html plus its assets/ tree
+dist/survey/               Survey deliverable (generated, ignored): index.html, papers/*.html, assets/
+survey/survey.json         Survey identity: title, subtitle, author, the six directions (local only)
+survey/hub/NN-*.md         Survey narrative in reading order; `{{paper:<slug>}}` expands to a card (local only)
+survey/papers/<slug>/      One folded paper per surveyed work: meta.json, abstract.md (local only)
+src/survey/survey.css      Survey styling, additive on top of src/styles/reader.css (committed)
+src/templates/survey-*.html  Hub and detail-page templates (committed)
 .local/                    Isolated venv and source PDFs (ignored)
 .tasks/                    Local task documents (ignored, never committed)
 .reports/                  Test/scan reports (ignored)
@@ -70,6 +76,7 @@ never the Chinese title.
 | Lint | `.\.local\venv\Scripts\python.exe -m ruff check .` |
 | Format | `.\.local\venv\Scripts\python.exe -m ruff format .` |
 | Coverage check | `.\.local\venv\Scripts\python.exe tools\coverage.py --paper $P` |
+| Build the survey | `.\.local\venv\Scripts\python.exe tools\survey.py` |
 
 ## Conventions
 
@@ -92,12 +99,24 @@ never the Chinese title.
 - References and the author list are intentionally not translated.
 - A new paper is added by writing `papers/<slug>/paper.json`; do not add per-paper constants to
   the tools.
+- `tools/survey.py` is a separate product from `tools/build.py` and is deliberately
+  direction-agnostic: surveying another paper means adding `survey/papers/<slug>/{meta.json,
+  abstract.md}` and one `{{paper:<slug>}}` marker in the hub prose, never editing the tool. The
+  card on the hub and the detail page are rendered from the same `meta.json`, so they cannot
+  drift apart. The build fails loudly in both directions - a marker with no folder, and a
+  surveyed folder the hub never references.
+- Survey prose and abstract translations are mixed in the same files, so the whole of `survey/`
+  is local-only for the same reason as `papers/`. Keep the ignore rule **anchored** (`/survey/`):
+  a bare `survey/` also matches the tracked `src/survey/` and would silently drop the survey
+  stylesheet from the repository.
 - Run `ruff format` and `ruff check` before every commit.
 
 ## Do not touch
 
 - `papers/` at all: it is local state, ignored by git and never published. Never `git add -f` it,
   and never rewrite the ignore rule to let it back in.
+- `survey/` at all: same reasoning as `papers/`, since its Markdown files interleave our prose
+  with translations of other people's abstracts. Build it, never commit it.
 - `papers/*/assets/figures/` images: they are extracted verbatim from the source PDFs; regenerate
   them with `tools/extract.py` instead of editing by hand.
 - `.tasks/`, `.local/`, `.logs/`, `.reports/`, `.tmp/`: local-only state.

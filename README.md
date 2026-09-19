@@ -102,19 +102,64 @@ fidelity. See `NOTICE.md` for the font policy.
 | `papers/<slug>/glossary.md` | Binding terminology table shared across that paper's sections (local only) |
 | `papers/<slug>/assets/figures/` | Figure crops extracted verbatim from that paper's PDF (local only) |
 | `src/templates/`, `src/styles/`, `src/scripts/` | Page template, theme/print CSS, reader enhancements (shared) |
+| `src/templates/survey-*.html`, `src/survey/survey.css` | Survey hub/detail templates and survey styling (shared) |
 | `tools/paper.py` | Manifest loading and every path derived from a paper slug |
-| `tools/` | `extract.py`, `build.py`, `coverage.py`, plus `pack.py` for the optional single-file export |
+| `tools/` | `extract.py`, `build.py`, `coverage.py`, plus `pack.py` for the optional single-file export and `survey.py` for the survey |
+| `survey/` | Survey source: narrative, one folded paper per surveyed work (local only) |
+| `dist/survey/` | Survey deliverable folder (generated, ignored) |
 | `tests/` | pytest suite, including a sample fixture that exercises every rendering path |
 | `docs/` | Architecture and design notes |
 | `dist/<slug>/` | Per-paper deliverable folder (generated, ignored) |
 | `.local/` | Isolated venv and source PDFs (ignored) |
 
-Every `papers/` row above is `git`-ignored on purpose and never published; see `NOTICE.md`.
+Every `papers/` row above is `git`-ignored on purpose and never published; see `NOTICE.md`. The
+`survey/` rows are ignored for the same reason.
 
 Adding a paper means creating `papers/<slug>/paper.json` with its title, source PDF, section
 map and expectations; no tool code changes. The slug is also the deliverable folder name
 `dist/<slug>/`, so it must be a lowercase English identifier — the Chinese title lives in the
 manifest's `title` field, which is only used for display.
+
+## The survey
+
+`tools/survey.py` is a second product with the same reader styling. Where `build.py` renders one
+translated paper, the survey renders one **narrative** that puts many papers in context, with a
+folded detail page for each surveyed work. The plan is six directions — machine-learning systems,
+long-context architectures, on-device, distributed, multimodal and VLA — each carrying roughly
+ten flagship papers.
+
+```powershell
+.\\.local\\venv\\Scripts\\python.exe tools\\survey.py     # survey/ -> dist/survey/
+```
+
+The deliverable is `dist/survey/index.html` plus `dist/survey/papers/<slug>.html` and an asset
+tree, learned by the same relative-path rule as a paper folder. Today only direction 1 is
+researched and written; the six directions are already declared in `survey/survey.json`, so the
+remaining five are a matter of adding prose and paper folders rather than restructuring anything.
+
+Source layout:
+
+| Path | Purpose |
+|---|---|
+| `survey/survey.json` | Title, subtitle, author and the direction list |
+| `survey/hub/NN-*.md` | The narrative, in reading order; a line `{{paper:<slug>}}` expands to that paper's card |
+| `survey/papers/<slug>/meta.json` | Metadata: titles, authors, venue, year, stage, citations with an "as of" date, links, motivation, approach, notes |
+| `survey/papers/<slug>/abstract.md` | Translated original abstract |
+
+The card on the hub and the detail page are both rendered from `meta.json`, so the short and
+long forms of one paper cannot drift apart. The build fails loudly if the narrative references a
+paper that has no folder, or if a surveyed folder is never referenced — nothing can be silently
+orphaned. Surveying another paper means adding one folder and one marker; the tool is
+direction-agnostic by design.
+
+Citation counts are quoted as of a stated date (`cites_asof`) because that is the number a survey
+rots on fastest. Metadata was verified against Semantic Scholar, which resolves by title via
+`paper/search/match` and returns merged preprint/published counts; abstracts come from the arXiv
+API. OpenAlex's `search=` endpoint does full-text rather than title matching and splits counts
+across paper versions, so it is not used.
+
+Like `papers/`, the whole of `survey/` is local-only and never committed: the prose is ours, but
+the translated abstracts are derivative works, and the two are interleaved in the same files.
 
 ## Destination Format
 

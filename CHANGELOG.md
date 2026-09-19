@@ -8,6 +8,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A local **LLM survey** product (`tools/survey.py`) alongside the paper pipeline: one
+  narrative hub at `dist/survey/index.html` that places many papers in context, plus a folded
+  detail page per surveyed work at `dist/survey/papers/<slug>.html` carrying a translated
+  original abstract. Direction 1 (machine-learning systems) is researched end to end - 12
+  flagship papers spanning pretraining, post-training and inference - while all six planned
+  directions are declared in `survey/survey.json`. Each surveyed paper is one folder
+  (`survey/papers/<slug>/meta.json` plus `abstract.md`) referenced from the narrative by a
+  `{{paper:<slug>}}` marker, so the hub card and the detail page are rendered from the same
+  metadata and cannot drift apart; the build fails loudly on either a marker with no folder or
+  a surveyed folder the narrative never references. Citation counts carry the date they were
+  read, since that is the number a survey rots on fastest. The whole of `survey/` is
+  local-only and ignored, for the same reason as `papers/`: its Markdown interleaves original
+  prose with translations of other people's abstracts.
 - Full Simplified Chinese translation of *On-device large language models: a survey of model
   compression and system optimization* (Chen et al., *Artificial Intelligence Review* 59:191,
   2026) as a fourth paper under `papers/on-device-llm-survey/`: abstract, Sections 1-8, all 9

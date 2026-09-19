@@ -7,6 +7,17 @@
 # PDF you supply yourself, and `git ls-files papers` must stay empty.
 papers/
 
+# The LLM survey: local-only, never published.
+#
+# survey/ holds original survey prose plus translations of the surveyed papers' abstracts. The
+# prose is ours, but the abstracts are derivative works of the papers themselves, and the two are
+# interleaved in the same files, so the whole tree stays out of the published repository - the
+# same reasoning that keeps papers/ untracked. Build the deliverable with tools/survey.py.
+#
+# Anchored to the repository root on purpose: a bare `survey/` would also match the tracked
+# source directory `src/survey/`, silently dropping the survey stylesheet from the repository.
+/survey/
+
 # Local-only and generated content
 .tasks/
 .local/

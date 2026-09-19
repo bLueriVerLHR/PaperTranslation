@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{PAPER_TITLE}} — {{TITLE}}</title>
+<meta name="description" content="{{PAPER_TITLE}}">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="{{ASSET_PREFIX}}assets/styles/reader.css">
+<link rel="stylesheet" href="{{ASSET_PREFIX}}assets/styles/survey.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content">
+  <p class="back-link"><a href="{{ASSET_PREFIX}}index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">{{PAPER_TITLE}}</p>
+    <h1>{{PAPER_TITLE_ZH}}</h1>
+{{FACTS}}
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+{{CONTENT}}
+  </article>
+
+{{NAV}}
+
+  <footer class="colophon">
+    <p>内容哈希 <code>{{CONTENT_HASH}}</code> · 论文 <code>{{PAPER_SLUG}}</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="{{ASSET_PREFIX}}assets/scripts/reader.js"></script>
+</body>
+</html>

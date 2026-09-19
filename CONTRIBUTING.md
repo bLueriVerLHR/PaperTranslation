@@ -24,10 +24,16 @@ them under `.local/source/<slug>/` before running `tools/extract.py`:
 The published repository is the pipeline only. A translation is a derivative work of someone
 else's paper and a figure crop is a verbatim extract from it, so `papers/` is `git`-ignored:
 no manifest, no `content/*.md`, no `glossary.md`, no `assets/figures/`, and no extracted page
-text or rasters. Work in `papers/<slug>/` freely â€” it stays on your machine â€” and check that
+text or rasters. Work in `papers/<slug>/` freely — it stays on your machine — and check that
 `git ls-files papers` is empty before you push. `.local/` holds the source PDFs and is ignored for
 the same reason. If you publish a translation of your own, get the rights holder's permission
 first; see `NOTICE.md`.
+
+The survey is under the same rule. `survey/` holds original narrative prose, but each surveyed
+paper's detail page carries a translated abstract and the two are interleaved in the same
+Markdown files, so the whole tree is ignored rather than a fragile subset of it. Keep `git
+ls-files survey` empty too. Note `src/survey/survey.css` is **tracked** — the ignore rule is
+anchored (`/survey/`) precisely so it cannot swallow that stylesheet.
 
 ## Workflow
 
@@ -51,6 +57,16 @@ so the suite stays green in the published clone.
 Create `papers/<slug>/paper.json` with the title, subtitle, author, the source PDF path, the
 printed section map for extraction, and the coverage expectations. The tools take the slug as an
 argument, so no tool code changes; see `docs/architecture.md` for the manifest schema.
+
+## Adding a surveyed paper
+
+For the survey, add `survey/papers/<slug>/meta.json` and `abstract.md`, then reference the paper
+from the narrative with a `{{paper:<slug>}}` line. The hub card and the detail page both render
+from that one `meta.json`, so adding a surveyed paper never means editing `tools/survey.py`, and
+the build refuses to run with a marker that has no folder or a folder the narrative never
+references. Verify metadata against Semantic Scholar (`paper/search/match`, which resolves by
+title and merges preprint/published counts) and take the abstract from the arXiv API; record the
+date the citation count was read in `cites_asof`.
 
 ## Translation rules
 

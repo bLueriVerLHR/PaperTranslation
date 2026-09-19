@@ -19,6 +19,12 @@ user supplies. That keeps the MIT grant in `LICENSE` honest — it covers code a
 not other people's papers — and it means the figures a page references may not exist yet in a
 clone, which is why `build.copy_assets` skips a missing directory instead of failing.
 
+The same rule covers the survey under `survey/`. Its narrative prose is original, but each
+surveyed paper's detail page carries a translated abstract, and prose and translation sit
+interleaved in the same Markdown files, so the whole tree is ignored rather than a fragile
+subset of it. Note the ignore rule is anchored (`/survey/`): a bare `survey/` pattern matches at
+any depth and would also swallow the tracked `src/survey/`.
+
 ## Papers are data, not code
 
 The pipeline serves any number of papers. Everything that differs between them lives under
@@ -87,6 +93,61 @@ dist/<slug>/manifest.json                       content hash + asset inventory
         v
 <file>                                          one self-contained file, for mailing a copy
 ```
+
+**Papers are data, not code (and so is the survey).** Surveying a paper means adding
+`survey/papers/<slug>/meta.json` and `abstract.md` plus a `{{paper:<slug>}}` marker in the hub
+prose — never editing `tools/survey.py`, which knows nothing about any particular direction,
+paper or count.
+
+## The survey
+
+The survey is a second product, `tools/survey.py`, rendered with the same reader styling as a
+translated paper. The difference is shape: `build.py` renders **one paper**, while the survey
+renders **one narrative that places many papers in context**, plus a folded detail page for each
+surveyed work. The plan is six directions — machine-learning systems, long-context
+architectures, on-device, distributed, multimodal and VLA — each carrying about ten flagship
+papers.
+
+```
+survey/survey.json                    title, subtitle, author, the six declared directions
+survey/hub/NN-direction.md            narrative in reading order; `{{paper:<slug>}}` -> a card
+survey/papers/<slug>/meta.json        identity, venue, year, stage, citations + "as of" date, links, motivation, approach, notes
+survey/papers/<slug>/abstract.md      translated original abstract
+        |
+        |  tools/survey.py
+        v
+dist/survey/index.html                the hub: prose with cards inline where the prose puts them
+survey/papers/<slug>/meta.json   -->  dist/survey/papers/<slug>.html   one detail page per paper
+        + dist/survey/assets/{styles,scripts}/  reader.css, survey.css, reader.js
+```
+
+The important invariant is that a paper's hub card and its detail page are rendered from the
+**same** `meta.json`, so the summary a reader skims and the page they open cannot disagree. The
+build also refuses to produce a half-built survey: it raises on a marker whose slug has no
+folder, and on a surveyed folder the narrative never references, so nothing is silently orphaned
+in either direction. Adding a surveyed paper therefore means adding one folder and one marker.
+
+Choices worth recording:
+
+- **Narrative plus inline cards, not a table.** A table sorts and filters well but explains
+  nothing; the requested value was the background and the motivation behind each paper, which
+  needs sentences. Cards sit inside the argument that motivates them, so the reader meets a
+  paper exactly when they know why it matters. A category tree was rejected as duplicated
+  navigation over the same twelve items.
+- **Every surveyed paper gets a detail page.** The alternative — a card for some, a page for the
+  few — makes which paper earns depth an accident of the browsing path. Uniform depth also means
+  the format is proven on twelve papers before it is replicated across five more directions.
+- **Citation counts are date-stamped.** `cites_asof` records when the count was read, because a
+  bare citation figure is the part of a survey that rots fastest and silently. The API that
+  produced it is named in `cites_source`.
+- **Semantic Scholar for counts, the arXiv API for abstracts.** Semantic Scholar's
+  `paper/search/match` resolves a paper by title and returns merged preprint/published counts;
+  the arXiv API is authoritative and keyless for abstracts. OpenAlex is not used: its `search=`
+  endpoint does full-text rather than title matching — asking for ZeRO returned InstructGPT,
+  LLaMA and concept-drift — and it splits citations across paper versions, undercounting badly
+  (FlashAttention read 475 against a real ~5.3k).
+- **A 4px accent left border on a card.** Cheap, and it keeps a card visually distinct from the
+  prose around it without introducing a second content system.
 
 ## Key decisions
 
@@ -179,6 +240,11 @@ folder and ship an image the page no longer references.
 | A figure dropped from the sources lingers in the deliverable | `build.copy_assets` removes target files this build did not write; `tests/test_pack.py::test_build_removes_stale_figure_crops` covers it |
 | A slug is not a legal English folder name | `paper.load` rejects it against `SLUG_RE` with `invalid paper slug ...` |
 | A translation, figure crop or manifest is committed | `.gitignore` ignores all of `papers/`; reviews keep `git ls-files papers` empty, in the tree and in history |
+| A survey card and its detail page disagree | Both render from the same `survey/papers/<slug>/meta.json`; there is no second copy to edit |
+| The hub references a paper that has no folder, or a folder is never referenced | `survey.build` raises `SurveyError` listing the orphans, in both directions |
+| A survey template placeholder is forgotten | `survey.render` raises `SurveyError` listing the unresolved placeholders |
+| A survey stylesheet ships inside a translated paper's `assets/` | `survey.css` lives in `src/survey/`, not `src/styles/`, because `build.copy_assets` copies that whole directory; `tests/test_pack.py::test_build_manifest_lists_the_assets` pins it |
+| The survey ignore rule swallows tracked source | The rule is anchored `/survey/`; a bare `survey/` also matches `src/survey/` and would silently drop the survey stylesheet |
 | A font byte or `@font-face` sneaks back into the deliverable | `tests/test_pack.py` asserts the built page and the exported file have neither; `tests/test_build.py` asserts the copied stylesheet has no `@font-face` |
 | Base64 payloads creep back into the built page | `tests/test_build.py` asserts the page contains no `base64` and no `data:image`, and that figures are referenced as `src="assets/figures/figure-NN.png"` |
 | Absolute paths or machine-specific fonts leak into output | dist references only relative `assets/` paths |
