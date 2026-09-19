@@ -44,6 +44,26 @@ def test_figure_crop_covers_art_and_excludes_caption(tmp_path: Path) -> None:
     doc.close()
 
 
+def test_figure_crop_stops_below_a_vector_running_head(tmp_path: Path) -> None:
+    """InDesign renders running-head digits as artwork that sits on top of its own text block.
+
+    The artwork must not join the figure cluster, or the crop starts above the page header.
+    """
+    doc = fitz.open()
+    page = doc.new_page(width=439, height=666)
+    page.insert_text((47, 40), "191  Page 1 of 60  W. Chen et al.", fontsize=10)
+    head = page.get_text("blocks", sort=True)[0]
+    header = fitz.Rect(head[0], head[1], head[2], head[3])
+    # The digit artwork hugs the header text and sits just above the figure.
+    page.draw_rect(fitz.Rect(header.x0, header.y0, header.x0 + 100, header.y1), color=(0, 0, 0))
+    page.draw_rect(fitz.Rect(49, 52, 390, 300), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
+    page.insert_text((47, 330), "Fig. 1\u2002A synthetic caption.", fontsize=10)
+    records = extract.extract_figures(doc, dpi=72, out_dir=tmp_path)
+    assert len(records) == 1
+    assert records[0].bbox[1] > header.y1
+    doc.close()
+
+
 def test_figure_extraction_accepts_elsevier_caption_style(tmp_path: Path) -> None:
     """Elsevier prints ``Fig. 1. Caption`` rather than ``Figure 1 | Caption``."""
     doc = fitz.open()
@@ -53,6 +73,30 @@ def test_figure_extraction_accepts_elsevier_caption_style(tmp_path: Path) -> Non
     records = extract.extract_figures(doc, dpi=72, out_dir=tmp_path)
     assert [r.number for r in records] == [1]
     assert records[0].bbox[1] <= 120
+    doc.close()
+
+
+def test_figure_extraction_accepts_springer_caption_style(tmp_path: Path) -> None:
+    """Springer/Springer-Nature print ``Fig. 1\u2002Caption`` with an EN SPACE, not punctuation."""
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.draw_rect(fitz.Rect(100, 120, 500, 300), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
+    page.insert_text(
+        (72, 360), "Fig. 1\u2002An overview of the topic.", fontsize=10, fontname="helv"
+    )
+    records = extract.extract_figures(doc, dpi=72, out_dir=tmp_path)
+    assert [r.number for r in records] == [1]
+    assert records[0].bbox[1] <= 120
+    doc.close()
+
+
+def test_figure_extraction_rejects_a_plain_space_separator(tmp_path: Path) -> None:
+    """``Fig. 1 shows ...`` is prose; only punctuation or a non-ASCII space marks a caption."""
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.draw_rect(fitz.Rect(100, 120, 500, 300), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
+    page.insert_text((72, 360), "Fig. 1 An overview of the topic.", fontsize=10)
+    assert extract.extract_figures(doc, dpi=72, out_dir=tmp_path) == []
     doc.close()
 
 
@@ -78,6 +122,21 @@ def test_find_equations_reads_trailing_numbers() -> None:
     equations = extract.find_equations(doc)
     assert [e.number for e in equations] == [7]
     assert equations[0].page == 1
+    doc.close()
+
+
+def test_find_equations_ignores_prose_enumerations() -> None:
+    """A line-final ``(N)`` after a colon or a sentence end is prose, not an equation label.
+
+    Both patterns occur in the on-device LLM survey, which has no numbered display equations.
+    """
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text((72, 72), "They fall into two groups: (1)", fontsize=11)
+    page.insert_text((72, 100), "early exit to reduce cloud calls by 40\u201350%. (2)", fontsize=11)
+    page.insert_text((72, 128), "x = y + z (3)", fontsize=11)
+    equations = extract.find_equations(doc)
+    assert [e.number for e in equations] == [3]
     doc.close()
 
 

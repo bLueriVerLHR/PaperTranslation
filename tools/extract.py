@@ -35,10 +35,20 @@ if str(ROOT) not in sys.path:  # allow `python tools/extract.py` to import the p
 
 from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
 
-# Caption styles seen in practice: "Figure 1 | ..." / "Figure 1: ..." (DeepSeek) and
-# "Fig. 1. ..." (Elsevier).
-CAPTION_RE = re.compile(r"^(?:Figure|Fig\.?)\s+(\d+)\s*[|:.]")
+# Caption styles seen in practice: "Figure 1 | ..." / "Figure 1: ..." (DeepSeek), "Fig. 1. ..."
+# (Elsevier) and "Fig. 1 <EN SPACE> title" (Springer, as in Artificial Intelligence Review, where
+# the en space extracts as U+00B7). The separator after the number must be punctuation, a symbol,
+# or a non-ASCII space; a plain ASCII space is not enough, because that is also how running prose
+# mentions a figure ("Fig. 1 shows ...").
+CAPTION_SEPARATOR = r"(?:[^\w\s]|[\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000])"
+CAPTION_RE = re.compile(rf"^(?:Figure|Fig\.?)\s+(\d+)\s*{CAPTION_SEPARATOR}")
 EQUATION_RE = re.compile(r"\(\s*(\d{1,2})\s*\)\s*$")
+# A trailing "(1)" is only an equation number when the line is not a prose enumeration such as
+# "two groups: (1)" (DeepSeek) or "... reduce cloud calls by 40-50%. (2)" (the on-device survey).
+# Both end the text before the marker with a colon or sentence-ending punctuation, which a display
+# equation's right-aligned label does not.
+ENUMERATION_RE = re.compile(r"[:\uff1a]\s*\(\s*\d{1,2}\s*\)\s*$")
+_SENTENCE_END = ".:,;?!\u3002\uff0c\uff1a\uff1b\u201d\u300d"
 HEADING_RE = re.compile(r"^(?:\d+(?:\.\d+)*|[A-C])\.?\s+\S")
 
 FIG_PAD = 6.0  # points of padding around an auto-detected figure region
@@ -175,6 +185,7 @@ def _body_font_size(doc: fitz.Document) -> float:
 def _content_rects(page: fitz.Page) -> list[fitz.Rect]:
     """Return drawing and image rectangles that could belong to a figure."""
     page_area = page.rect.get_area()
+    texts = [rect for rect, _text in _block_texts(page)]
     rects: list[fitz.Rect] = []
     for drawing in page.get_drawings():
         rect = drawing["rect"]
@@ -182,6 +193,10 @@ def _content_rects(page: fitz.Page) -> list[fitz.Rect]:
             continue
         if rect.get_area() > 0.9 * page_area:
             continue  # page background, not figure content
+        if any(_expand(text, 1.0).contains(rect) for text in texts):
+            # Text drawn as vector art (running heads, page numbers) is covered by its own
+            # text block; keeping it would drag a figure crop up over the page header.
+            continue
         rects.append(rect)
     for image in page.get_images(full=True):
         for rect in page.get_image_rects(image[0]):
@@ -283,6 +298,24 @@ def extract_pages(
         _write_if_changed(pages_png_dir / f"page-{pno + 1:02d}.png", pixmap.tobytes("png"))
 
 
+def _looks_like_equation(line: str) -> bool:
+    """Decide whether a line carrying a final ``(N)`` really is a display equation.
+
+    Prose enumerations end the line the same way - ``two groups: (1)``, ``... by 40-50%. (2)`` -
+    so the text before the marker is inspected: if it ends with a colon or with sentence-ending
+    punctuation, the number belongs to the sentence and not to an equation. A right-aligned
+    display-equation label follows the formula itself, which ends in a symbol or a variable
+    rather than in prose punctuation.
+    """
+    match = EQUATION_RE.search(line)
+    if match is None:
+        return False
+    body = line.strip()[: match.start()].rstrip()
+    if not body or body[-1] in _SENTENCE_END:
+        return False
+    return ENUMERATION_RE.search(body) is None
+
+
 def find_equations(doc: fitz.Document, columns: int = 1) -> list[EquationRecord]:
     """Locate numbered display equations from line-final ``(N)`` markers."""
     found: dict[int, EquationRecord] = {}
@@ -295,7 +328,7 @@ def find_equations(doc: fitz.Document, columns: int = 1) -> list[EquationRecord]
             if not (1 <= number <= 99) or number in found:
                 continue
             stripped = line.strip()
-            if len(stripped) < 4:
+            if len(stripped) < 4 or not _looks_like_equation(stripped):
                 continue
             found[number] = EquationRecord(number=number, page=pno + 1, line=stripped)
     return [found[k] for k in sorted(found)]
