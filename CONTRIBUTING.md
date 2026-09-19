@@ -1,4 +1,4 @@
-﻿# Contributing
+# Contributing
 
 ## Environment setup
 
@@ -15,6 +15,7 @@ them under `.local/source/<slug>/` before running `tools/extract.py`:
 ```
 .local/source/deepseek-v41-flash/DeepSeek_V41_Tech_Report.pdf
 .local/source/mamba-survey/paper.pdf
+.local/source/unlikelihood-training/paper.pdf
 .local/source/on-device-llm-survey/paper.pdf
 ```
 

@@ -24,12 +24,14 @@ somebody else's work, so none of it is committed:
 - no source PDF, no extracted page text and no per-page rasters.
 
 `papers/` is in `.gitignore` and must stay empty in the published repository, so a fresh clone
-has the tools and no paper to run them on. Three papers were translated with this pipeline so
+has the tools and no paper to run them on. Four papers were translated with this pipeline so
 far — *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* (DeepSeek-AI), *A
 comprehensive survey and taxonomy of mamba: Applications, Challenges, and Future Directions*
-(Miao et al., *Information Fusion* 130, 2026, 104094) and *Neural Text Degeneration with
-Unlikelihood Training* (Welleck et al., NeurIPS 2019) — and their content, glossaries, manifests
-and figures exist only on the machine that produced them. Read `NOTICE.md` before publishing any
+(Miao et al., *Information Fusion* 130, 2026, 104094), *Neural Text Degeneration with
+Unlikelihood Training* (Welleck et al., NeurIPS 2019) and *On-device large language models: a
+survey of model compression and system optimization* (Chen et al., *Artificial Intelligence
+Review* 59:191, 2026) — and their content, glossaries, manifests and figures exist only on
+the machine that produced them. Read `NOTICE.md` before publishing any
 of it.
 
 To translate a paper locally you create `papers/<slug>/paper.json` yourself; the manifest is the

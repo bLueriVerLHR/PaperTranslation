@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Full Simplified Chinese translation of *On-device large language models: a survey of model
+  compression and system optimization* (Chen et al., *Artificial Intelligence Review* 59:191,
+  2026) as a fourth paper under `papers/on-device-llm-survey/`: abstract, Sections 1-8, all 9
+  figures and all 9 tables. The paper has no numbered display equations, so no MathML display
+  equations appear; inline quantities the PDF text layer had replaced with placeholder ids were
+  recovered from the page rasters. The 20-author list, affiliations and the author-contributions
+  statement stay in the original per project convention.
 - Full Simplified Chinese translation of *Neural Text Degeneration with Unlikelihood Training*
   (Welleck et al., NeurIPS 2019) as a third paper under `papers/unlikelihood-training/`:
   abstract, Sections 1-7 and Appendices A-E, with both figures, all 9 tables and all 23
