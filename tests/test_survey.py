@@ -148,6 +148,46 @@ def test_card_and_detail_page_come_from_the_same_metadata(tmp_path: Path) -> Non
     assert 'href="lora.html"' in detail
 
 
+def test_a_paper_may_be_referenced_more_than_once(tmp_path: Path) -> None:
+    """A problem-first hub repeats a paper under several problems without breaking prev/next.
+
+    Reading order deduplicates, so the paper keeps one detail page and one place in the
+    sequence; repeating it just renders the card again where the narrative needs it.
+    """
+    dist = tmp_path / "dist" / "survey"
+    manifest = _build(
+        tmp_path / "survey",
+        dist,
+    )
+    # Baseline: each paper is referenced once, in hub order.
+    assert manifest["papers"] == ["gpipe", "lora"]
+
+    root = tmp_path / "repeated"
+    hub_dir = _make_survey(
+        root,
+        hub="## 1 系统\n\n{{paper:gpipe}}\n\n### 1.1 问题\n\n{{paper:gpipe}}\n\n{{paper:lora}}\n",
+    )
+    repeated = survey.build(
+        dist=tmp_path / "dist-repeated",
+        hub_dir=hub_dir,
+        papers_dir=root / "papers",
+        info=INFO,
+        hub_template=HUB_TEMPLATE,
+        paper_template=PAPER_TEMPLATE,
+    )
+    # Still two papers and two pages - the repeat is a card, not a second entry.
+    assert repeated["papers"] == ["gpipe", "lora"]
+    assert repeated["pages"] == ["index.html", "papers/gpipe.html", "papers/lora.html"]
+
+    hub = (tmp_path / "dist-repeated" / "index.html").read_text(encoding="utf-8")
+    assert hub.count("GPipe: Efficient Training of Giant Neural Networks") > 1
+
+    # The repeated paper still sits between the start and lora, so nav is unaffected.
+    detail = (tmp_path / "dist-repeated" / "papers" / "gpipe.html").read_text(encoding="utf-8")
+    assert 'href="lora.html"' in detail
+    assert 'href="gpipe.html"' not in detail
+
+
 def test_hub_referencing_an_unknown_paper_fails_loudly(tmp_path: Path) -> None:
     """A ``{{paper:<slug>}}`` marker with no folder must not build a half-empty card."""
     root = tmp_path / "survey"

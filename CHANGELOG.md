@@ -11,16 +11,32 @@ All notable changes to this project are documented here. The format follows
 - A local **LLM survey** product (`tools/survey.py`) alongside the paper pipeline: one
   narrative hub at `dist/survey/index.html` that places many papers in context, plus a folded
   detail page per surveyed work at `dist/survey/papers/<slug>.html` carrying a translated
-  original abstract. Direction 1 (machine-learning systems) is researched end to end - 12
-  flagship papers spanning pretraining, post-training and inference - while all six planned
-  directions are declared in `survey/survey.json`. Each surveyed paper is one folder
-  (`survey/papers/<slug>/meta.json` plus `abstract.md`) referenced from the narrative by a
-  `{{paper:<slug>}}` marker, so the hub card and the detail page are rendered from the same
-  metadata and cannot drift apart; the build fails loudly on either a marker with no folder or
-  a surveyed folder the narrative never references. Citation counts carry the date they were
-  read, since that is the number a survey rots on fastest. The whole of `survey/` is
-  local-only and ignored, for the same reason as `papers/`: its Markdown interleaves original
-  prose with translations of other people's abstracts.
+  original abstract. Each surveyed paper is one folder (`survey/papers/<slug>/meta.json` plus
+  `abstract.md`) referenced from the narrative by a `{{paper:<slug>}}` marker, so the hub
+  card and the detail page come from the same metadata and cannot drift apart; the build
+  fails loudly on either a marker with no folder or a surveyed folder the narrative never
+  references. The whole of `survey/` is local-only and ignored, for the same reason as
+  `papers/`: its Markdown interleaves original prose with translations of other people's
+  abstracts.
+- The survey now covers **all seven directions** (machine-learning systems, long-context
+  architectures including linear attention, on-device, distributed, multimodal, VLA and
+  Agent) as a problem-first narrative: each direction opens with the production failures
+  that motivate it - repetition in production, MoE batch inference losing sparsity,
+  long-context cost, KV residency, quantization error, straggler and communication
+  failures, hallucinated observations, unrecoverable actions, compounding agent errors -
+  and the methods are grouped by the pipeline stage that intervenes. 58 papers carry
+  verified venue, year and citation counts read from Semantic Scholar on 2026-09-20, with
+  the matched title recorded so the count can be re-checked; a count that could not be
+  verified is stored as `null` and rendered as unverified rather than as zero. Editorial
+  caveats (assumption-bound numbers, new preprints that must not have their figures
+  multiplied, preprint-versus-proceedings year differences) render in a separate
+  reading-notes aside so they never contaminate a translated abstract. `tools/survey.py`
+  gained unique anchors for a paper referenced from several sections, a nullable citation
+  field, HTML escaping of template values, and deletion of stale generated detail pages.
+  `survey/curation/` records how the corpus was archived and checked: `collect_sources.py`
+  snapshots every primary source, `materialize.py` rebuilds metadata while preserving
+  verified citation fields, and `check_site.py` audits the built site for duplicate ids,
+  broken local links or fragments, unexpanded placeholders and `data:` URIs.
 - Full Simplified Chinese translation of *On-device large language models: a survey of model
   compression and system optimization* (Chen et al., *Artificial Intelligence Review* 59:191,
   2026) as a fourth paper under `papers/on-device-llm-survey/`: abstract, Sections 1-8, all 9

@@ -32,7 +32,7 @@ tests/                     pytest suite
 docs/                      Architecture and design notes (committed)
 dist/<slug>/               Deliverable folder per paper (generated, ignored): index.html plus its assets/ tree
 dist/survey/               Survey deliverable (generated, ignored): index.html, papers/*.html, assets/
-survey/survey.json         Survey identity: title, subtitle, author, the six directions (local only)
+survey/survey.json         Survey identity: title, subtitle, author, the seven directions (local only)
 survey/hub/NN-*.md         Survey narrative in reading order; `{{paper:<slug>}}` expands to a card (local only)
 survey/papers/<slug>/      One folded paper per surveyed work: meta.json, abstract.md (local only)
 src/survey/survey.css      Survey styling, additive on top of src/styles/reader.css (committed)
@@ -105,6 +105,15 @@ never the Chinese title.
   card on the hub and the detail page are rendered from the same `meta.json`, so they cannot
   drift apart. The build fails loudly in both directions - a marker with no folder, and a
   surveyed folder the hub never references.
+- A paper may be referenced from more than one section: `reading_order` deduplicates it, and
+  only the HTML `id` is suffixed (`paper-<slug>`, then `paper-<slug>--2`). This is what lets the
+  survey be problem-first, since a problem like repetition is addressed at several stages.
+- Citation counts are nullable. A count that was not verified must stay `null` and render as
+  unverified - never store `0`, which is a claim that nobody cited the paper. Verified counts
+  carry `cites_asof` and `cites_source`; `cites_matched_title` records the title the API matched.
+- `survey/curation/` holds the local-only provenance scripts (source archiving, metadata
+  materialization, citation application, built-site audit). They are ignored along with the rest
+  of `survey/`, and they must never invent a count or overwrite a verified field.
 - Survey prose and abstract translations are mixed in the same files, so the whole of `survey/`
   is local-only for the same reason as `papers/`. Keep the ignore rule **anchored** (`/survey/`):
   a bare `survey/` also matches the tracked `src/survey/` and would silently drop the survey

@@ -28,10 +28,10 @@ has the tools and no paper to run them on. Four papers were translated with this
 far — *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* (DeepSeek-AI), *A
 comprehensive survey and taxonomy of mamba: Applications, Challenges, and Future Directions*
 (Miao et al., *Information Fusion* 130, 2026, 104094), *Neural Text Degeneration with
-Unlikelihood Training* (Welleck et al., NeurIPS 2019) and *On-device large language models: a
-survey of model compression and system optimization* (Chen et al., *Artificial Intelligence
-Review* 59:191, 2026) — and their content, glossaries, manifests and figures exist only on
-the machine that produced them. Read `NOTICE.md` before publishing any
+Unlikelihood Training* (Welleck et al., ICLR 2020; preprint 2019) and *On-device large language
+models: a survey of model compression and system optimization* (Chen et al., *Artificial
+Intelligence Review* 59:191, 2026) — and their content, glossaries, manifests and figures exist
+only on the machine that produced them. Read `NOTICE.md` before publishing any
 of it.
 
 To translate a paper locally you create `papers/<slug>/paper.json` yourself; the manifest is the
@@ -105,7 +105,7 @@ fidelity. See `NOTICE.md` for the font policy.
 | `src/templates/survey-*.html`, `src/survey/survey.css` | Survey hub/detail templates and survey styling (shared) |
 | `tools/paper.py` | Manifest loading and every path derived from a paper slug |
 | `tools/` | `extract.py`, `build.py`, `coverage.py`, plus `pack.py` for the optional single-file export and `survey.py` for the survey |
-| `survey/` | Survey source: narrative, one folded paper per surveyed work (local only) |
+| `survey/` | Survey source: narrative, one folded paper per surveyed work, and the `curation/` provenance and audit scripts (local only) |
 | `dist/survey/` | Survey deliverable folder (generated, ignored) |
 | `tests/` | pytest suite, including a sample fixture that exercises every rendering path |
 | `docs/` | Architecture and design notes |
@@ -124,18 +124,18 @@ manifest's `title` field, which is only used for display.
 
 `tools/survey.py` is a second product with the same reader styling. Where `build.py` renders one
 translated paper, the survey renders one **narrative** that puts many papers in context, with a
-folded detail page for each surveyed work. The plan is six directions — machine-learning systems,
-long-context architectures, on-device, distributed, multimodal and VLA — each carrying roughly
-ten flagship papers.
+detail page for each surveyed work. The local survey covers seven directions: machine-learning
+systems, long-context architectures (including linear attention), on-device, distributed,
+multimodal, VLA and Agent applications. Each direction starts with production problems,
+explains mechanisms and trade-offs, and links representative papers with translated abstracts.
 
 ```powershell
 .\\.local\\venv\\Scripts\\python.exe tools\\survey.py     # survey/ -> dist/survey/
 ```
 
 The deliverable is `dist/survey/index.html` plus `dist/survey/papers/<slug>.html` and an asset
-tree, learned by the same relative-path rule as a paper folder. Today only direction 1 is
-researched and written; the six directions are already declared in `survey/survey.json`, so the
-remaining five are a matter of adding prose and paper folders rather than restructuring anything.
+tree, using the same offline relative-path rule as a paper folder. Directions are declared in
+`survey/survey.json`; adding a direction requires prose and paper folders, not tool changes.
 
 Source layout:
 
@@ -150,13 +150,16 @@ The card on the hub and the detail page are both rendered from `meta.json`, so t
 long forms of one paper cannot drift apart. The build fails loudly if the narrative references a
 paper that has no folder, or if a surveyed folder is never referenced — nothing can be silently
 orphaned. Surveying another paper means adding one folder and one marker; the tool is
-direction-agnostic by design.
+direction-agnostic by design. Repeated cards have unique anchors across sections, but share a
+single detail page and navigation entry. Detail-page notes distinguish editorial caveats from
+the translated abstract. The content hash covers identity, metadata, narrative and abstracts;
+stale generated detail pages are removed on rebuild.
 
-Citation counts are quoted as of a stated date (`cites_asof`) because that is the number a survey
-rots on fastest. Metadata was verified against Semantic Scholar, which resolves by title via
-`paper/search/match` and returns merged preprint/published counts; abstracts come from the arXiv
-API. OpenAlex's `search=` endpoint does full-text rather than title matching and splits counts
-across paper versions, so it is not used.
+Verified citation counts carry a date (`cites_asof`) and source (`cites_source`). Missing counts
+are stored as `null` and shown as unverified, never silently converted to zero. A verified zero
+is displayed explicitly. Abstracts are checked against primary sources; version-specific links
+and editorial notes can record differences between preprints and proceedings. New preprints
+are distinguished from established work rather than ranked by invented citation counts.
 
 Like `papers/`, the whole of `survey/` is local-only and never committed: the prose is ours, but
 the translated abstracts are derivative works, and the two are interleaved in the same files.

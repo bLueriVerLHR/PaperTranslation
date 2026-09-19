@@ -27,6 +27,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -45,7 +46,6 @@ from tools.build import (  # noqa: E402  (must follow the sys.path bootstrap abo
     STYLES_DIR,
     Section,
     combine_toc,
-    content_hash,
     make_markdown,
     wrap_tables,
 )
@@ -112,9 +112,18 @@ class Paper:
         return str(self.meta.get("doi", ""))
 
     @property
-    def cites(self) -> int:
-        """Citation count, zero when the record has none."""
-        return int(self.meta.get("cites") or 0)
+    def cites(self) -> int | None:
+        """Citation count; unknown is distinct from a verified zero."""
+        value = self.meta.get("cites")
+        return int(value) if value is not None else None
+
+    @property
+    def citation_label(self) -> str:
+        """Display provenance-aware counts consistently in cards and details."""
+        if self.cites is None:
+            return "引用量未核实"
+        stamp = f"截至 {self.cites_asof}" if self.cites_asof else "日期未核实"
+        return f"引用 {self.cites:,}（{stamp}）"
 
     @property
     def cites_asof(self) -> str:
@@ -196,15 +205,14 @@ def load_papers(papers_dir: Path = PAPERS_DIR) -> dict[str, Paper]:
     return {path.name: load_paper(path) for path in sorted(papers_dir.iterdir()) if path.is_dir()}
 
 
-def card_html(paper: Paper, asset_prefix: str = "") -> str:
+def card_html(paper: Paper, asset_prefix: str = "", card_id: str | None = None) -> str:
     """Render one paper as a card for the hub.
 
     The card carries the paper's own title, its Chinese title, the venue/year/citation line, the
     motivation and approach summaries, and the link to the detail page.
     """
     bits = [escape(part) for part in (paper.venue, paper.year) if part]
-    if paper.cites:
-        bits.append(f"引用 {paper.cites:,}")
+    bits.append(escape(paper.citation_label))
     meta_line = " · ".join(bits)
 
     links: list[str] = []
@@ -216,7 +224,8 @@ def card_html(paper: Paper, asset_prefix: str = "") -> str:
         links.append(f'<a href="https://doi.org/{escape(paper.doi)}">DOI</a>')
     link_line = f' <span class="paper-links">{" · ".join(links)}</span>' if links else ""
 
-    lines = [f'<aside class="paper-card" id="paper-{escape(paper.slug)}">']
+    anchor = card_id or f"paper-{paper.slug}"
+    lines = [f'<aside class="paper-card" id="{escape(anchor)}">']
     lines.append(f'<p class="paper-title">{escape(paper.title_en)}</p>')
     if paper.title_zh:
         lines.append(f'<p class="paper-zh-title">{escape(paper.title_zh)}</p>')
@@ -243,8 +252,15 @@ def card_html(paper: Paper, asset_prefix: str = "") -> str:
     return "\n".join(lines)
 
 
-def expand_cards(text: str, papers: dict[str, Paper], asset_prefix: str = "") -> str:
-    """Replace every ``{{paper:<slug>}}`` marker with that paper's card."""
+def expand_cards(
+    text: str,
+    papers: dict[str, Paper],
+    asset_prefix: str = "",
+    occurrences: dict[str, int] | None = None,
+) -> str:
+    """Expand cards with unique anchors, including repeats across hub sections."""
+    if occurrences is None:
+        occurrences = {}
 
     def replace(match: re.Match[str]) -> str:
         slug = match.group(1)
@@ -252,7 +268,10 @@ def expand_cards(text: str, papers: dict[str, Paper], asset_prefix: str = "") ->
             raise SurveyError(
                 f"the hub references paper {slug!r}, but survey/papers/{slug}/ does not exist"
             )
-        return card_html(papers[slug], asset_prefix)
+        count = occurrences.get(slug, 0) + 1
+        occurrences[slug] = count
+        suffix = f"--{count}" if count > 1 else ""
+        return card_html(papers[slug], asset_prefix, f"paper-{slug}{suffix}")
 
     return CARD_RE.sub(replace, text)
 
@@ -303,9 +322,9 @@ def facts_html(paper: Paper) -> str:
         rows.append(("发表", escape(venue)))
     if paper.stage:
         rows.append(("阶段", escape(paper.stage)))
-    if paper.cites:
-        note = f"（截至 {escape(paper.cites_asof)}）" if paper.cites_asof else ""
-        rows.append(("引用", f"{paper.cites:,}{note}"))
+    rows.append(("引用", escape(paper.citation_label)))
+    if paper.cites is not None and paper.meta.get("cites_source"):
+        rows.append(("引用来源", escape(str(paper.meta["cites_source"]))))
 
     links: list[str] = []
     if paper.arxiv:
@@ -393,8 +412,9 @@ def build(
     # extension passes through - and only then converted, so a card's markdown inside is
     # rendered by the same instance that wrote it and no card text leaks into the TOC.
     sections: list[Section] = []
+    occurrences: dict[str, int] = {}
     for path in sorted(hub_dir.glob("*.md")):
-        expanded = expand_cards(path.read_text(encoding="utf-8"), papers)
+        expanded = expand_cards(path.read_text(encoding="utf-8"), papers, occurrences=occurrences)
         md = make_markdown()
         sections.append(
             Section(
@@ -405,7 +425,17 @@ def build(
             )
         )
 
-    digest = content_hash(sections)
+    payload = {
+        "info": info,
+        "hub": [section.html for section in sections],
+        "papers": {
+            slug: {"meta": paper.meta, "abstract": paper.abstract.html if paper.abstract else None}
+            for slug, paper in papers.items()
+        },
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:12]
     hub = Hub(info=info, sections=sections)
     stamp = build_date or date.today().isoformat()
 
@@ -414,9 +444,9 @@ def build(
     copied = write_assets(dist)
 
     base = {
-        "{{TITLE}}": hub.title,
-        "{{SUBTITLE}}": hub.subtitle,
-        "{{AUTHOR}}": hub.author,
+        "{{TITLE}}": escape(hub.title),
+        "{{SUBTITLE}}": escape(hub.subtitle),
+        "{{AUTHOR}}": escape(hub.author),
         "{{BUILD_DATE}}": stamp,
         "{{CONTENT_HASH}}": digest,
     }
@@ -443,10 +473,17 @@ def build(
             {
                 **base,
                 "{{ASSET_PREFIX}}": "../",
-                "{{PAPER_TITLE}}": current.title_en,
-                "{{PAPER_TITLE_ZH}}": current.title_zh or current.title_en,
+                "{{PAPER_TITLE}}": escape(current.title_en),
+                "{{PAPER_TITLE_ZH}}": escape(current.title_zh or current.title_en),
                 "{{PAPER_SLUG}}": slug,
                 "{{FACTS}}": facts_html(current),
+                "{{NOTES}}": (
+                    '<aside class="paper-notes"><h2>阅读说明与边界</h2>'
+                    + make_markdown().convert(str(current.meta["notes"]))
+                    + "</aside>"
+                    if current.meta.get("notes")
+                    else ""
+                ),
                 "{{CONTENT}}": wrap_tables(body),
                 "{{NAV}}": nav_html(slug, order, papers),
             },
@@ -454,6 +491,11 @@ def build(
         target = dist / PAPER_ASSET_DIR / current.filename
         target.write_text(page, encoding="utf-8")
         written.append(f"{PAPER_ASSET_DIR}/{current.filename}")
+
+    expected = {papers[slug].filename for slug in order}
+    for stale in (dist / PAPER_ASSET_DIR).glob("*.html"):
+        if stale.name not in expected:
+            stale.unlink()
 
     untranslated = [slug for slug in order if not papers[slug].abstract]
     manifest = {

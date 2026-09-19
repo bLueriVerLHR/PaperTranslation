@@ -154,6 +154,20 @@
 
 .paper-facts dd {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.paper-notes {
+  margin-block: 1.5rem;
+  padding: 0.8rem 1.1rem;
+  border-inline-start: 3px solid var(--rule);
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.paper-notes h2 {
+  font-size: 1rem;
 }
 
 .abstract-body h2 {

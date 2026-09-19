@@ -104,15 +104,17 @@ paper or count.
 The survey is a second product, `tools/survey.py`, rendered with the same reader styling as a
 translated paper. The difference is shape: `build.py` renders **one paper**, while the survey
 renders **one narrative that places many papers in context**, plus a folded detail page for each
-surveyed work. The plan is six directions — machine-learning systems, long-context
-architectures, on-device, distributed, multimodal and VLA — each carrying about ten flagship
-papers.
+surveyed work. The plan is seven directions — machine-learning systems, long-context
+architectures (including linear attention), on-device, distributed, multimodal, VLA and Agent —
+each carrying a handful of flagship papers selected from production problems.
 
 ```
-survey/survey.json                    title, subtitle, author, the six declared directions
+survey/survey.json                    title, subtitle, author, the seven declared directions
 survey/hub/NN-direction.md            narrative in reading order; `{{paper:<slug>}}` -> a card
 survey/papers/<slug>/meta.json        identity, venue, year, stage, citations + "as of" date, links, motivation, approach, notes
 survey/papers/<slug>/abstract.md      translated original abstract
+survey/curation/                      local provenance scripts: archive primary sources, materialize
+                                      metadata, apply verified citations, audit the built site
         |
         |  tools/survey.py
         v
@@ -127,8 +129,28 @@ build also refuses to produce a half-built survey: it raises on a marker whose s
 folder, and on a surveyed folder the narrative never references, so nothing is silently orphaned
 in either direction. Adding a surveyed paper therefore means adding one folder and one marker.
 
+Two further invariants matter once a paper is referenced more than once. `reading_order`
+deduplicates, so the same `{{paper:slug}}` may appear in several sections without creating a
+second nav entry or a broken prev/next chain; only the HTML `id` is disambiguated, as
+`paper-<slug>` then `paper-<slug>--2`, and both cards still link to the one detail page. And
+the content hash covers identity, metadata, narrative and abstracts, so an edit to any of them
+changes it; `build` deletes generated detail pages that no longer match a folder.
+
 Choices worth recording:
 
+- **Problem-first, inside each direction.** A direction opens with the production problems that
+  motivate it and the methods are grouped by which stage of the pipeline they intervene in. The
+  reason this is safe is the deduplication above: repetition, for instance, manifests at inference
+  but is addressed in pretraining, post-training and the serving system, so its papers are cited
+  from more than one place rather than filed under one.
+- **Unknown is not zero.** `cites` is nullable; a paper whose count was not verified renders as
+  未核实, and a verified zero renders explicitly. A missing fetch must never read as a claim that
+  nobody cited the work.
+- **Notes carry the caveats, the abstract carries the paper.** Editorial warnings — a number
+  that holds only under matched-quality assumptions, a new preprint whose figures must not be
+  multiplied, a conference year that differs between preprint and proceedings — live in
+  `meta['notes']` and render in a separate 阅读说明与边界 aside, never mixed into the translated
+  abstract.
 - **Narrative plus inline cards, not a table.** A table sorts and filters well but explains
   nothing; the requested value was the background and the motivation behind each paper, which
   needs sentences. Cards sit inside the argument that motivates them, so the reader meets a
@@ -136,7 +158,7 @@ Choices worth recording:
   navigation over the same twelve items.
 - **Every surveyed paper gets a detail page.** The alternative — a card for some, a page for the
   few — makes which paper earns depth an accident of the browsing path. Uniform depth also means
-  the format is proven on twelve papers before it is replicated across five more directions.
+  the format is proven on the flagship set before it is replicated across the other directions.
 - **Citation counts are date-stamped.** `cites_asof` records when the count was read, because a
   bare citation figure is the part of a survey that rots fastest and silently. The API that
   produced it is named in `cites_source`.
@@ -241,6 +263,9 @@ folder and ship an image the page no longer references.
 | A slug is not a legal English folder name | `paper.load` rejects it against `SLUG_RE` with `invalid paper slug ...` |
 | A translation, figure crop or manifest is committed | `.gitignore` ignores all of `papers/`; reviews keep `git ls-files papers` empty, in the tree and in history |
 | A survey card and its detail page disagree | Both render from the same `survey/papers/<slug>/meta.json`; there is no second copy to edit |
+| A paper referenced twice gets duplicate HTML ids or two nav entries | `expand_cards` threads a shared counter to suffix only the id (`paper-<slug>` then `paper-<slug>--2`); `reading_order` deduplicates; `tests/test_survey_integrity.py` asserts both |
+| A stale generated detail page survives a rename | `survey.build` deletes `dist/survey/papers/*.html` outside the expected set |
+| An unverified count is silently reported as zero | `Paper.cites` is nullable; `citation_label` renders 未核实 for a missing count and shows a verified zero explicitly |
 | The hub references a paper that has no folder, or a folder is never referenced | `survey.build` raises `SurveyError` listing the orphans, in both directions |
 | A survey template placeholder is forgotten | `survey.render` raises `SurveyError` listing the unresolved placeholders |
 | A survey stylesheet ships inside a translated paper's `assets/` | `survey.css` lives in `src/survey/`, not `src/styles/`, because `build.copy_assets` copies that whole directory; `tests/test_pack.py::test_build_manifest_lists_the_assets` pins it |
