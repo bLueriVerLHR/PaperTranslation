@@ -31,6 +31,17 @@
   background: var(--figure-bg);
 }
 
+/* A title is not running prose: reader.css justifies `.body p`, which stretches the word
+   spaces of a short English title across the full measure (a 4px gap in "Qwen2-VL: Enhancing
+   Vision-Language Model's" was measured at 92px once `text-wrap: balance` had chosen a two-line
+   break). Titles and other short metadata lines opt back out. */
+.paper-card .paper-title,
+.paper-card .paper-zh-title,
+.paper-card .paper-meta,
+.paper-detail-head .paper-en-title {
+  text-align: start;
+}
+
 .paper-card .paper-title {
   margin: 0;
   font-family: var(--font-serif);
@@ -197,6 +208,20 @@
 .paper-nav .nav-next {
   margin-inline-start: auto;
   text-align: end;
+}
+
+/* ------------------------------------------------------------------ print */
+/* reader.css keeps table, figure and equation unbroken; a card is the same kind of unit, so it
+   must not be split across an A4 boundary either. */
+@media print {
+  .paper-card,
+  .paper-facts {
+    break-inside: avoid;
+  }
+
+  .paper-card {
+    background: none;
+  }
 }
 
 /* ------------------------------------------------------------------ phone */

@@ -147,6 +147,13 @@ All notable changes to this project are documented here. The format follows
   artwork and the caption are now included in the crop.
 - Dependency advisories in `fonttools`, `brotli` and `pytest` were resolved by upgrading;
   `pip-audit -r requirements.txt` now reports no known vulnerabilities.
+- Survey cards no longer letter-space their titles. A title is rendered as a `.paper-title`
+  paragraph inside `.body`, so it inherited `text-align: justify` from `reader.css`; combined
+  with `text-wrap: balance` this broke a long English title over two lines and stretched its
+  word spaces across the full measure. One gap in the Qwen2-VL card title measured 4px natural
+  and 92px rendered, and 17 of the 59 card titles wrapped. Card titles, Chinese titles and the
+  metadata line now opt back out with `text-align: start`. Printed cards and fact grids also set
+  `break-inside: avoid`, so a card is not split across an A4 boundary.
 
 ### Security
 
