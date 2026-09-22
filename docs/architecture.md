@@ -104,12 +104,13 @@ paper or count.
 The survey is a second product, `tools/survey.py`, rendered with the same reader styling as a
 translated paper. The difference is shape: `build.py` renders **one paper**, while the survey
 renders **one narrative that places many papers in context**, plus a folded detail page for each
-surveyed work. The plan is seven directions — machine-learning systems, long-context
-architectures (including linear attention), on-device, distributed, multimodal, VLA and Agent —
+surveyed work. The plan is six directions — machine-learning systems, long-context
+architectures (including linear attention), on-device, distributed, multimodal (which carries VLA
+as one of its applications) and Agent —
 each carrying a handful of flagship papers selected from production problems.
 
 ```
-survey/survey.json                    title, subtitle, author, the seven declared directions
+survey/survey.json                    title, subtitle, author, the six declared directions
 survey/hub/NN-direction.md            narrative in reading order; `{{paper:<slug>}}` -> a card
 survey/papers/<slug>/meta.json        identity, venue, year, stage, citations + "as of" date, links, motivation, approach, notes
 survey/papers/<slug>/abstract.md      translated original abstract

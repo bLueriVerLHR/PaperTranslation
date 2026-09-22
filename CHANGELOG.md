@@ -18,15 +18,16 @@ All notable changes to this project are documented here. The format follows
   references. The whole of `survey/` is local-only and ignored, for the same reason as
   `papers/`: its Markdown interleaves original prose with translations of other people's
   abstracts.
-- The survey now covers **all seven directions** (machine-learning systems, long-context
-  architectures including linear attention, on-device, distributed, multimodal, VLA and
-  Agent) as a problem-first narrative: each direction opens with the production failures
-  that motivate it - repetition in production, MoE batch inference losing sparsity,
-  long-context cost, KV residency, quantization error, straggler and communication
+- The survey now covers **all six directions** (machine-learning systems, long-context
+  architectures including linear attention, on-device, distributed, multimodal with VLA as one
+  of its applications, and Agent) as a problem-first narrative: each direction opens with the
+  production failures that motivate it - repetition in production, MoE batch inference losing
+  sparsity, long-context cost, KV residency, quantization error, straggler and communication
   failures, hallucinated observations, unrecoverable actions, compounding agent errors -
-  and the methods are grouped by the pipeline stage that intervenes. 58 papers carry
-  verified venue, year and citation counts read from Semantic Scholar on 2026-09-20, with
-  the matched title recorded so the count can be re-checked; a count that could not be
+  and the methods are grouped by the pipeline stage that intervenes. 66 papers carry
+  verified venue, year and citation counts read from Semantic Scholar on 2026-09-20, with a
+  second, later batch re-verified on 2026-09-22. The matched title is recorded so the count can
+  be re-checked; a count that could not be
   verified is stored as `null` and rendered as unverified rather than as zero. Editorial
   caveats (assumption-bound numbers, new preprints that must not have their figures
   multiplied, preprint-versus-proceedings year differences) render in a separate
@@ -37,6 +38,18 @@ All notable changes to this project are documented here. The format follows
   snapshots every primary source, `materialize.py` rebuilds metadata while preserving
   verified citation fields, and `check_site.py` audits the built site for duplicate ids,
   broken local links or fragments, unexpanded placeholders and `data:` URIs.
+- The distributed direction gained the **万卡 (10,000+ GPU) scale** and production
+  fault-recovery rounds: MegaScale and the datacenter characterization of LLM development for
+  what changes when a job spans ten thousand GPUs for months, ByteRobust and ByteCheckpoint for
+  treating failure detection, recovery and checkpoints as routine infrastructure, Oobleck and
+  Bamboo for tolerant pipeline topologies, SWARM parallelism for training across weak and
+  unreliable links, and MegaScale-Infer for disaggregating attention from FFN in MoE serving.
+  Their primary sources are archived by `survey/curation/collect_scale_sources.py` and
+  materialized by `survey/curation/materialize_scale.py`, which is scoped to this round so it
+  cannot drop caveats recorded by earlier rounds. VLA is no longer a separate direction: it is
+  merged into multimodal as an application, and `check_site.py` now derives the declared
+  direction count instead of hard-coding it and asserts one hub file per direction, so the
+  merge cannot half-happen.
 - Full Simplified Chinese translation of *On-device large language models: a survey of model
   compression and system optimization* (Chen et al., *Artificial Intelligence Review* 59:191,
   2026) as a fourth paper under `papers/on-device-llm-survey/`: abstract, Sections 1-8, all 9

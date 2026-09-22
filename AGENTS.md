@@ -32,7 +32,7 @@ tests/                     pytest suite
 docs/                      Architecture and design notes (committed)
 dist/<slug>/               Deliverable folder per paper (generated, ignored): index.html plus its assets/ tree
 dist/survey/               Survey deliverable (generated, ignored): index.html, papers/*.html, assets/
-survey/survey.json         Survey identity: title, subtitle, author, the seven directions (local only)
+survey/survey.json         Survey identity: title, subtitle, author, the six directions (local only)
 survey/hub/NN-*.md         Survey narrative in reading order; `{{paper:<slug>}}` expands to a card (local only)
 survey/papers/<slug>/      One folded paper per surveyed work: meta.json, abstract.md (local only)
 src/survey/survey.css      Survey styling, additive on top of src/styles/reader.css (committed)

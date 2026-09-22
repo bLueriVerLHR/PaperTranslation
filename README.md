@@ -124,10 +124,11 @@ manifest's `title` field, which is only used for display.
 
 `tools/survey.py` is a second product with the same reader styling. Where `build.py` renders one
 translated paper, the survey renders one **narrative** that puts many papers in context, with a
-detail page for each surveyed work. The local survey covers seven directions: machine-learning
+detail page for each surveyed work. The local survey covers six directions: machine-learning
 systems, long-context architectures (including linear attention), on-device, distributed,
-multimodal, VLA and Agent applications. Each direction starts with production problems,
-explains mechanisms and trade-offs, and links representative papers with translated abstracts.
+multimodal (with VLA as one of its applications) and Agent applications. Each direction starts
+with production problems, explains mechanisms and trade-offs, and links representative papers
+with translated abstracts.
 
 ```powershell
 .\\.local\\venv\\Scripts\\python.exe tools\\survey.py     # survey/ -> dist/survey/
