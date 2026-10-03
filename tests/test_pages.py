@@ -52,6 +52,10 @@ def test_home_lists_all_pages_and_escapes_titles() -> None:
     assert 'href="a/papers/test.html"' in text
     assert "&lt;title&gt;" in text
     assert "2 个阅读页面" in text
+    # One canonical link list is retained for no-JS use and moved into a modal by JS.
+    assert '<details class="library-pages">' in text
+    assert '<ul class="library-page-links">' in text
+    assert text.count('href="a/papers/test.html"') == 1
 
 
 def test_public_paths_hide_user_identity_but_keep_repository_and_commit() -> None:

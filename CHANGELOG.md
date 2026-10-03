@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Pages and mobile reading
 
+- Replace long homepage detail-list expansion with centered native modal cards: independent
+  list scrolling, background scroll lock, backdrop/Escape/close-button dismissal and exact
+  scroll/focus restoration. Retain no-JS link access and detail-title search.
+
 - Add an explicitly authorized reader-only `pages-content` branch and GitHub Actions Pages
   deployment, without publishing canonical `work/`, PDF, extraction or survey source files.
 - Add a searchable, grouped reading-library homepage with relative links to every exported

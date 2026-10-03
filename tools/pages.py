@@ -133,7 +133,8 @@ def render_home(entries: list[dict[str, str]]) -> str:
             if p is not primary
         )
         details = (
-            f"<details><summary>更多页面（{len(pages) - 1}）</summary><ul>{links}</ul></details>"
+            f'<details class="library-pages"><summary>更多页面（{len(pages) - 1}）</summary>'
+            f'<ul class="library-page-links">{links}</ul></details>'
             if links
             else ""
         )

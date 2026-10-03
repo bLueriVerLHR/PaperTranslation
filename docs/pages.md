@@ -12,8 +12,11 @@
   No PAT, third-party hosting or external runtime asset CDN is required. The same workflow
   bootstrap is copied to pages-content because GitHub push events load workflows from the
   pushed branch; the bootstrap always checks out trusted pipeline code from main.
-- **Home**: project cards, progressive title search, expandable links to all detail pages,
-  shared theme and plain relative links. There is no SPA router or server requirement;
+- **Home**: project cards, progressive title search and centered modal cards for detail-page
+  links. Each modal scrolls internally, locks background scrolling, and closes by backdrop
+  click, close button or Escape; it restores the homepage scroll position and trigger focus.
+  Native dialogs trap focus. Without JS/dialog support, a single original details list remains
+  accessible. Shared theme and plain relative links are preserved. There is no SPA router or server requirement;
   links work under a repository Pages prefix and with JavaScript disabled.
 
 Publishing derivative works still requires the relevant rights/permissions. The pipeline's
@@ -103,3 +106,9 @@ sufficient; contact the repository owner to plan history cleanup.
 
 Validation: `& $Python -m pytest`, `& $Python -m ruff check .`,
 `& $Python -m ruff format --check .`, plus the mandatory exported-site `--check`.
+Optional modal browser regressions use Playwright with an installed local Chrome/Chromium,
+not a signed-in profile or a downloaded browser. Initialize the external environment, install
+`playwright==1.58.0` with `$Python -m pip`, optionally set `PAPER_BROWSER_EXECUTABLE`, then run
+`& $Python -m pytest tests/test_library_browser.py`. Tests cover 320/390/1280px layouts,
+internal scrolling, all three close paths, focus/scroll restoration, detail-title search,
+navigation and no-JS/no-dialog fallbacks. They skip when optional tooling is absent.
