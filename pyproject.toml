@@ -26,9 +26,11 @@ known-first-party = ["tools"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "RUF001", "RUF002", "RUF003"]
-# tools/survey.py emits Simplified-Chinese UI strings, so fullwidth punctuation is intentional.
+# Reader/survey/publication emit Chinese UI and parse intentional citation punctuation.
 "tools/survey.py" = ["RUF001", "RUF002", "RUF003"]
 "tools/pages.py" = ["RUF001", "RUF002", "RUF003"]
+"tools/build.py" = ["RUF001"]
+"tools/reader.py" = ["RUF001"]
 
 [tool.ruff.format]
 quote-style = "double"

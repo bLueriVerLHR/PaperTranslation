@@ -478,9 +478,9 @@ def build(
                 "{{PAPER_SLUG}}": slug,
                 "{{FACTS}}": facts_html(current),
                 "{{NOTES}}": (
-                    '<aside class="paper-notes"><h2>阅读说明与边界</h2>'
+                    '<details class="meta source-details"><summary>阅读说明与边界</summary>'
                     + make_markdown().convert(str(current.meta["notes"]))
-                    + "</aside>"
+                    + "</details>"
                     if current.meta.get("notes")
                     else ""
                 ),

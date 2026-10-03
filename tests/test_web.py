@@ -57,7 +57,7 @@ def test_grouping_atom_becomes_a_row_not_a_token() -> None:
 
 
 def test_superscript_over_a_grouping_atom_stays_inline() -> None:
-    """The idiom in the Flash Attention text: ``K`` raised to a parenthesised ``(j)``."""
+    """A bold token raised to a grouped index must remain inline."""
     inner = (
         '<g data-mml-node="msup">'
         + _BOLD_K

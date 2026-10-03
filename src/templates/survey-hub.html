@@ -2,7 +2,7 @@
 <html lang="zh-Hans" data-theme="auto">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>{{TITLE}}</title>
 <meta name="description" content="{{SUBTITLE}}">
@@ -14,14 +14,15 @@
 
 <div class="toolbar" role="toolbar" aria-label="阅读工具栏">
   <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
-  <button id="top-button" type="button" hidden>回到顶部</button>
+  <button id="top-button" type="button" hidden>顶部</button>
 </div>
 
-<main class="page" id="content">
+<main class="page" id="content" data-content-hash="{{CONTENT_HASH}}">
   <header class="title-block survey-masthead">
     <h1>{{TITLE}}</h1>
     <p class="subtitle">{{SUBTITLE}}</p>
-    <p class="meta">{{AUTHOR}} · 收录 {{PAPER_COUNT}} 篇论文 · 覆盖 {{DIRECTION_COUNT}} 个方向 · 生成于 {{BUILD_DATE}}</p>
+    <p class="meta">{{AUTHOR}} · 收录 {{PAPER_COUNT}} 篇论文 · 覆盖 {{DIRECTION_COUNT}} 个方向 · 更新于 {{BUILD_DATE}}</p>
+    <p class="meta reading-notice">个人学习调研笔记；原论文及摘要译文的权利归原权利人，公开分享须核实原文许可或授权。</p>
   </header>
 
   <details class="toc" id="toc">
@@ -35,10 +36,6 @@
 {{CONTENT}}
   </article>
 
-  <footer class="colophon">
-    <p>本页由本地构建流水线生成，内容哈希 <code>{{CONTENT_HASH}}</code>。</p>
-    <p>论文标题、作者、方法名与引用数据保持原文；每篇论文的摘要译文见其详情页。</p>
-  </footer>
 </main>
 
 <script src="{{ASSET_PREFIX}}assets/scripts/reader.js"></script>

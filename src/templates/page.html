@@ -2,7 +2,7 @@
 <html lang="zh-Hans" data-theme="auto">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>{{TITLE}}</title>
 <meta name="description" content="{{SUBTITLE}}">
@@ -14,14 +14,17 @@
 
 <div class="toolbar" role="toolbar" aria-label="阅读工具栏">
   <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
-  <button id="top-button" type="button" hidden>回到顶部</button>
+  <button id="top-button" type="button" hidden>顶部</button>
 </div>
 
-<main class="page" id="content">
+<main class="page" id="content" data-content-hash="{{CONTENT_HASH}}">
   <header class="title-block">
     <h1>{{TITLE}}</h1>
     <p class="subtitle">{{SUBTITLE}}</p>
-    <p class="meta">原作 <span class="latin">{{AUTHOR}}</span> · 简体中文译本 · 生成于 {{BUILD_DATE}}</p>
+    <p class="meta"><span class="latin">{{AUTHOR}}</span> · {{READER_KIND}} · 更新于 {{BUILD_DATE}}</p>
+    <p class="meta reading-notice">{{READER_NOTICE}}</p>
+{{SOURCE_LINK}}
+{{SOURCE_NOTES}}
   </header>
 
   <details class="toc" id="toc">
@@ -35,10 +38,6 @@
 {{CONTENT}}
   </article>
 
-  <footer class="colophon">
-    <p>本页由本地构建流水线生成，内容哈希 <code>{{CONTENT_HASH}}</code>。</p>
-    <p>参考文献、作者名单及致谢按项目约定保持原文，未作翻译。</p>
-  </footer>
 </main>
 
 <script src="assets/scripts/reader.js"></script>

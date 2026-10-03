@@ -21,8 +21,27 @@
 
 Publishing derivative works still requires the relevant rights/permissions. The pipeline's
 MIT license does not license translations or figures. Source materials remain ignored in main.
-The initial export was explicitly authorized for every rendered page under dist, excluding
-work, original PDFs and source materials.
+The initial export was operator-approved, but this does not establish the original authors'
+translation/distribution permissions. Review licenses separately and retain required notices.
+
+## Local-only projects
+
+`.pagesignore` contains excluded project slugs, one per line with optional `#` comments.
+The exporter omits each entire tree and the validator rejects a staged snapshot containing it.
+Local `dist/<slug>/` readers and their canonical `work/` remain intact. Paths and glob patterns
+are deliberately refused: this is an explicit project-level publication policy.
+
+`.gitignore` alone cannot withdraw an existing deployment or tracked historical content.
+An already-published withdrawal needs a replacement snapshot and live verification; historical
+removal or artifact deletion additionally requires explicit owner authorization. Never silently
+rewrite a branch. Third-party clones and caches cannot be recalled by a Git rewrite.
+
+A removal-only release must copy the existing public snapshot, omit the excluded trees and
+refresh its homepage/inventory, preserving every remaining reader/asset. Do not mix it with
+local reader redesigns or newly translated material awaiting publication approval.
+
+Reader presentation, metadata migration and citation mapping are documented in
+[`reader.md`](reader.md).
 
 ## Mobile reader
 

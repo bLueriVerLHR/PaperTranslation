@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Local reader presentation (not deployed)
+
+- Share centered, internally scrollable cards across the library, article TOC and contextual
+  citations, with bidirectional focus containment and exact scroll restoration. Selecting a
+  heading closes before jumping/focusing; retain offline and no-JS/no-dialog fallbacks.
+- Move source, rights and reading-limit information below the title; omit publishing-style
+  colophons and bibliography headings from the visible body while retaining canonical originals.
+- Use verified original bibliography text and explicitly limited fallback links rather than
+  invented citation identities. Preserve code/MathML and numerical intervals in author-year papers.
+- Apply shared ragged-right typography across readers and analyses; remove local size/font
+  overrides so export/rebuild cannot undo mixed Chinese/English spacing fixes.
+
+### Publication exclusions and withdrawal
+
+- Add `.pagesignore` project-level export exclusions and reject excluded staged content.
+- Preserve the two copyright-restricted readers locally; with explicit owner approval remove
+  their reachable content-branch history and previous Pages artifacts. Remove the withdrawn
+  web project from local/current published content while retaining its previously approved history.
+- Publish only the withdrawal snapshot; all remaining public readers/assets remain unchanged.
+  Git/third-party caches and clones cannot be recalled by ignoring files or rewriting refs.
+- Keep new inventory JSON newline-stable across Git checkouts and validate actual snapshot bytes.
+
 ### Pages and mobile reading
 
 - Replace long homepage detail-list expansion with centered native modal cards: independent
@@ -68,8 +90,7 @@ All notable changes to this project are documented here. The format follows
   parts stacked on five lines, and a `menclose` and an `msqrt` came back empty. Grouping atoms are
   emitted as `mrow`, an unnamed group is descended through, a single-operand bracing wrapper is
   unwrapped, and the duplicate radical glyph the renderer draws itself is dropped so the radicand
-  it was hiding shows. All 892 expressions in the Flash Attention series now render inline; a
-  probe against the live page goes from 375 malformed elements to zero.
+  it was hiding shows. The recovered expressions render inline rather than as stacked tokens.
 - A cancelled term is no longer lost or drawn unmarked. The source strikes a term out with a
   `<line>`, never a `notation` attribute, so `tools/web.py` reads the two endpoints back and
   records the direction (`updiagonalstrike`, since the renderer's y-axis points up). The struck
@@ -77,16 +98,6 @@ All notable changes to this project are documented here. The format follows
   implements neither the element nor the attribute, `reader.css` draws the diagonal as a hairline
   gradient across the element's box. The four cancellations in the series read as struck-out
   terms again instead of vanishing.
-- Full Simplified Chinese translation of the 12 published pages of *Flash Attention From Scratch*
-  (Sonny Li, <https://lubits.ch/flash/>) as a web-sourced deliverable under
-  `papers/flash-attention-from-scratch/`: the series introduction, Parts 1-8, the appendix, both
-  appendices on Ampere microarchitecture and block-size configuration, and the glossary. The
-  series' Parts 9 and 10 are still unpublished by the author and are noted as such rather than
-  invented. All 100 figures, 69 tables and 892 recovered MathML expressions are carried over.
-  Code, PTX and SASS listings are kept verbatim; terminology is
-  given bilingually on first use and collected in `papers/flash-attention-from-scratch/glossary.md`.
-  The site does not number its own figures or tables, so the extractor assigns numbers and the
-  translation keeps `图 N` for the 83 figures that carry no caption rather than inventing one.
 - `tools/pack.py` maps `.svg` to `image/svg+xml` and skips the ffmpeg re-encode for vector
   figures. Without the MIME entry a packed SVG would be embedded as
   `application/octet-stream` and a browser would refuse to render it, and a vector figure has
@@ -244,8 +255,7 @@ All notable changes to this project are documented here. The format follows
 
 - Code blocks rendered as inline runs instead of blocks. `tools/build.py`'s extension list had
   no `fenced_code`, so a ``` fence became a paragraph holding a `<code>` element, losing the line
-  structure of every source listing (the first paper to ship code was the Flash Attention series,
-  whose 99 listings all rendered wrong). `fenced_code` is now enabled.
+  structure of source listings. `fenced_code` is now enabled.
 - `tools/coverage.py` matches a figure reference by number and any extension rather than a fixed
   `figure-NN.png`, because a web source downloads SVG figures. The `.png` assumption was baked
   into the checker and would have reported every vector figure as missing.

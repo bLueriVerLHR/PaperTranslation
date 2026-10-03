@@ -24,6 +24,7 @@ import shutil
 import sys
 from dataclasses import dataclass, field
 from datetime import date
+from html import escape
 from pathlib import Path
 
 import markdown
@@ -34,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python tools/build.py` to import the package
     sys.path.insert(0, str(ROOT))
 
-from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
+from tools import paper, reader  # noqa: E402  (must follow the sys.path bootstrap above)
 
 TEMPLATE_PATH = ROOT / "src" / "templates" / "page.html"
 STYLES_DIR = ROOT / "src" / "styles"
@@ -228,7 +229,7 @@ def make_markdown() -> markdown.Markdown:
             _DropBodyTocExtension(),
             _MathProtectionExtension(),
         ],
-        extension_configs={"toc": {"toc_depth": "2-4", "slugify": slugify, "anchorlink": False}},
+        extension_configs={"toc": {"toc_depth": "1-4", "slugify": slugify, "anchorlink": False}},
     )
     md.block_level_elements = [tag for tag in md.block_level_elements if tag != "math"]
     return md
@@ -336,13 +337,25 @@ def rewrite_source_links(html: str, targets: dict[str, str]) -> str:
     return SOURCE_LINK.sub(replace, html)
 
 
-def content_hash(sections: list[Section]) -> str:
-    """Return a short digest over the section source files."""
+def content_hash(sections: list[Section], extras: list[Path] | None = None) -> str:
+    """Return a digest over canonical sections and optional reader notes/citation metadata."""
     digest = hashlib.sha256()
-    for section in sections:
-        digest.update(section.path.name.encode("utf-8"))
-        digest.update(section.path.read_bytes())
+    for path in [*(section.path for section in sections), *(extras or [])]:
+        digest.update(path.name.encode("utf-8"))
+        digest.update(path.read_bytes())
     return digest.hexdigest()[:12]
+
+
+def filter_toc(tokens: list[dict], identifiers: set[str]) -> list[dict]:
+    """Keep only actual body anchors, including children of a removed auxiliary heading."""
+    kept = []
+    for token in tokens:
+        children = filter_toc(token.get("children") or [], identifiers)
+        if token["id"] in identifiers:
+            kept.append({**token, "children": children})
+        else:
+            kept.extend(children)
+    return kept
 
 
 def copy_assets(
@@ -415,14 +428,67 @@ def build(
     if source_targets is None and paper_slug is not None:
         source_targets = source_link_targets(paper.load(paper_slug))
     template = template_path.read_text(encoding="utf-8")
-    digest = content_hash(sections)
-    content = rewrite_source_links(wrap_tables(wrap_sections(sections)), source_targets or {})
+    work = content_dir.parent
+    profile = reader.load_profile(work)
+    extra_files = [
+        path for path in (work / "reader.json", work / "reader-meta.md") if path.exists()
+    ]
+    digest = content_hash(sections, extra_files)
+    references = dict(profile.get("references", {}))
+    header_notes, body_sections = [], []
+    for section in sections:
+        body, notes, extracted = reader.split_auxiliary(section.html)
+        for key, record in extracted.items():
+            configured = references.get(key, {})
+            references[key] = {
+                **configured,
+                **record,
+                "url": record.get("url") or configured.get("url"),
+            }
+        if notes.strip():
+            header_notes.append(notes)
+        ids = set(re.findall(r'\bid=["\']([^"\']+)["\']', body))
+        if body.strip():
+            body_sections.append(
+                Section(section.path, section.identifier, body, filter_toc(section.tokens, ids))
+            )
+    notes_path = work / "reader-meta.md"
+    if notes_path.exists():
+        header_notes.insert(0, make_markdown().convert(notes_path.read_text(encoding="utf-8")))
+    content = rewrite_source_links(wrap_tables(wrap_sections(body_sections)), source_targets or {})
+    citations = reader.CitationLinker(
+        content, references, profile.get("source_url"), profile.get("citation_style", "mixed")
+    )
+    content = "".join(citations.output)
+    source_url = profile.get("source_url")
+    source_link = (
+        f'<p class="meta source-link">原文来源：<a href="{escape(source_url, quote=True)}">{escape(source_url)}</a></p>'
+        if source_url
+        else ""
+    )
+    source_notes = (
+        '<details class="meta source-details"><summary>出处与说明</summary>'
+        + "\n".join(header_notes)
+        + "</details>"
+        if header_notes
+        else ""
+    )
+    kind = profile.get("kind", metadata.get("kind", "translation"))
+    notice = (
+        "个人学习用源码研读笔记；外部源码与引用材料保留其原有版权及许可证，公开分享须遵循相应许可。"
+        if kind == "analysis"
+        else "个人学习用中文译文，非出版社版本；译文可能有误，以原文为准。原文与原图权利归原权利人；学习用途不等于获得公开传播授权。"
+    )
 
     replacements = {
-        "{{TITLE}}": metadata.get("title", ""),
-        "{{SUBTITLE}}": metadata.get("subtitle", ""),
-        "{{AUTHOR}}": metadata.get("author", ""),
-        "{{TOC}}": combine_toc(sections),
+        "{{TITLE}}": escape(metadata.get("title", "")),
+        "{{SUBTITLE}}": escape(metadata.get("subtitle", "")),
+        "{{AUTHOR}}": escape(metadata.get("author", "")),
+        "{{READER_KIND}}": "源码研读笔记" if kind == "analysis" else "个人学习译文",
+        "{{READER_NOTICE}}": notice,
+        "{{SOURCE_LINK}}": source_link,
+        "{{SOURCE_NOTES}}": source_notes,
+        "{{TOC}}": combine_toc(body_sections),
         "{{CONTENT}}": content,
         "{{BUILD_DATE}}": build_date or date.today().isoformat(),
         "{{CONTENT_HASH}}": digest,
@@ -443,6 +509,9 @@ def build(
         "title": metadata.get("title", ""),
         "content_hash": digest,
         "sections": [s.path.name for s in sections],
+        "reader_inputs": [path.name for path in extra_files],
+        "citations_linked": citations.linked,
+        "citations_without_records": sorted(citations.unresolved),
         "assets": copied,
     }
     (dist / "manifest.json").write_text(

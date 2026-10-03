@@ -22,6 +22,8 @@ dist/<slug>/manifest.json             Generated page/asset inventory
 dist/<slug>/work/paper.json           Project identity, source kind, sections, expectations
 dist/<slug>/work/content/*.md         Translation source of truth, one file per section
 dist/<slug>/work/glossary.md          Binding terminology
+dist/<slug>/work/reader.json          Optional citation/presentation metadata
+dist/<slug>/work/reader-meta.md       Header-only source/rights/reading notes
 dist/<slug>/work/assets/figures/      Figure crops used to rebuild the page
 dist/<slug>/work/reference/           Useful extracted source text, page rasters and inventory
 dist/<slug>/notes/                    Supplementary analysis and reading notes
@@ -113,7 +115,16 @@ Always run commands with `$Python`. `$P` is a registered project slug, discovere
   Pages export is the exception: `tools/pages_fonts.py` downloads hash-pinned OFL fonts to
   system TEMP and publishes renamed WOFF2 subsets plus licenses on `pages-content` only.
   Do not vendor font binaries into main or redistribute Microsoft Times New Roman.
-- References and the author list are intentionally not translated.
+- References and the author list are intentionally not translated. Retain original
+  bibliography data locally even when the reader replaces its visible list with citation
+  links/cards. Never invent reference identities or choose ambiguous matches.
+- Reader typography and modal behavior belong to the shared styles/script. Keep source,
+  licensing and reading-limit notes beneath the title, not as publishing-style body sections;
+  see `docs/reader.md` for presentation profiles and progressive fallback behavior.
+- `.pagesignore` is the publication exclusion list, not a local deletion list. Excluded
+  projects stay local and must fail staged-site validation. Ignoring cannot retract existing
+  deployments or historical files; any history rewrite/artifact deletion requires explicit
+  owner authorization. Learning-use notices do not grant distribution permission.
 - Register a project by writing `dist/<slug>/work/paper.json`, never per-project tool constants.
   Slugs match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, not Chinese titles.
 - Original source-code analyses are not PDF/web translations. They may retain `work/meta.json`

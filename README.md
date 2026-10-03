@@ -115,7 +115,13 @@ This is an opt-in export, not the default deliverable. No font is embedded in ei
 The public reading library groups all exported pages by project, with title search and
 relative links that work under `/PaperTranslation/`. Mobile readers have comfortable serif
 text, persistent font-size controls, a theme toggle and TOC access. Wide formulas, tables
-and code scroll locally instead of widening the entire page.
+and code scroll locally instead of widening the entire page. Local reader presentation uses
+centered TOC/citation cards and compact title-area source notes; see `docs/reader.md`.
+
+Put local-only project slugs in `.pagesignore` to prevent public exports while retaining
+`dist/<slug>/` for personal reading. `.gitignore` alone cannot withdraw already published
+pages or history. Author attribution and learning-use notices do not grant permission to
+publish a translation. Reader redesigns can remain local without updating the live snapshot.
 
 `main` contains `.github/workflows/pages.yml`; `pages-content` contains only validated public
 HTML/assets and font licenses. Actions deploys the latter whenever either branch changes.

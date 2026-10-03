@@ -123,7 +123,7 @@ def test_modal_scroll_dismiss_focus_and_search(browser, library_url: str, width:
             elif dismissal == "escape":
                 page.keyboard.press("Escape")
             else:
-                dialog.locator(".library-dialog-close").click()
+                dialog.locator(".reader-dialog-close").click()
             playwright.expect(page.locator("dialog[open]")).to_have_count(0)
             page.wait_for_function("y => Math.abs(window.scrollY - y) < 1", arg=initial_y)
             playwright.expect(trigger).to_be_focused()
@@ -150,3 +150,133 @@ def test_links_remain_accessible_without_enhancement(browser, library_url: str, 
         assert details.locator("a:visible").count() == 66
         details.locator("a").last.click()
         page.wait_for_url("**/project-5/papers/paper-65.html")
+
+
+@pytest.fixture
+def reader_site(tmp_path: Path) -> Path:
+    """Build a long synthetic article with deliberately short forced prose lines."""
+    from tools import build
+
+    work = tmp_path / "work"
+    content = work / "content"
+    content.mkdir(parents=True)
+    sections = [
+        "# 主体概览 {#overview}",
+        '<p id="spacing-probe">Alpha Beta gamma<br>中文短句。</p>',
+        "正文引用 [1–2]，代码不是引用：`array[1]`。",
+    ]
+    for index in range(40):
+        sections.extend(
+            [
+                f"## 主题 {index} {{#topic-{index}}}",
+                "研究正文，含 English identifiers 与中文。" * 20,
+            ]
+        )
+    sections.extend(
+        [
+            "## 论文信息",
+            "仅在标题下出现的元信息。",
+            "## 参考文献",
+            "1. Alpha. First source. https://example.org/alpha",
+            "2. Beta. Second source. https://example.org/beta",
+        ]
+    )
+    (content / "00-article.md").write_text("\n\n".join(sections), encoding="utf-8")
+    (work / "reader.json").write_text(
+        '{"source_url":"https://example.org/original"}', encoding="utf-8"
+    )
+    target = tmp_path / "reader"
+    build.build(
+        target, content, metadata={"title": "Synthetic reader", "author": "Original Author"}
+    )
+    return target
+
+
+@pytest.mark.parametrize("width", [320, 390, 768, 1280])
+def test_reader_toc_citations_spacing_and_print(browser, reader_site: Path, width: int) -> None:
+    """Exercise the actual shared builder, script and styles from an offline file URL."""
+    with browser.new_context(
+        viewport={"width": width, "height": 844}, reduced_motion="reduce"
+    ) as context:
+        page = context.new_page()
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto((reader_site / "index.html").as_uri(), wait_until="load")
+        assert page.locator(".body").get_by_text("仅在标题下出现的元信息。").count() == 0
+        assert page.locator(".title-block").get_by_text("仅在标题下出现的元信息。").count() == 1
+        assert page.locator(".body .references").count() == 0
+        assert page.locator("footer.colophon").count() == 0
+        assert page.locator("#toc").count() == 0
+        probe = page.locator("#spacing-probe")
+        assert probe.evaluate("e => getComputedStyle(e).textAlign") == "start"
+        gap = probe.evaluate(
+            "e => { var r = document.createRange(); r.setStart(e.firstChild, 5); r.setEnd(e.firstChild, 6); return r.getBoundingClientRect().width; }"
+        )
+        assert 0 < gap < 12
+        page.evaluate("window.scrollTo({top:1500,behavior:'instant'})")
+        page.wait_for_function("window.scrollY >= 1499")
+        before = page.evaluate("window.scrollY")
+        trigger = page.locator("#toc-toggle")
+        for method in ("backdrop", "escape", "close"):
+            trigger.click()
+            modal = page.locator("#toc-dialog")
+            playwright.expect(modal).to_be_visible()
+            assert modal.locator("a").count() == 41
+            assert modal.locator("a[href='#overview']").count() == 1
+            assert modal.locator("a").filter(has_text="论文信息").count() == 0
+            page.keyboard.press("Shift+Tab")
+            assert modal.evaluate("e => e.contains(document.activeElement)")
+            modal.locator(".reader-dialog-body").evaluate("e => e.scrollTop = e.scrollHeight")
+            if method == "backdrop":
+                page.mouse.click(4, 4)
+            elif method == "escape":
+                page.keyboard.press("Escape")
+            else:
+                modal.locator(".reader-dialog-close").click()
+            playwright.expect(page.locator("dialog[open]")).to_have_count(0)
+            page.wait_for_function("y => Math.abs(scrollY-y) < 1", arg=before)
+            playwright.expect(trigger).to_be_focused()
+        trigger.click()
+        page.locator("#toc-dialog a[href='#topic-29']").click()
+        page.wait_for_function(
+            "decodeURIComponent(location.hash) === '#topic-29' && !document.querySelector('dialog[open]') && document.body.style.position !== 'fixed'"
+        )
+        assert page.locator("#topic-29").evaluate("e => e.getBoundingClientRect().top") >= 0
+        assert page.locator("#topic-29").evaluate("e => e.getBoundingClientRect().top") < 160
+        assert page.evaluate("document.activeElement.id") == "topic-29"
+        cite = page.locator("a.citation")
+        assert "First source" in cite.get_attribute("title")
+        assert "Second source" in cite.get_attribute("title")
+        cite.click()
+        card = page.locator("#citation-dialog")
+        playwright.expect(card).to_be_visible()
+        assert card.locator(".citation-detail").count() == 2
+        assert card.locator("a").first.get_attribute("href") == "https://example.org/alpha"
+        assert page.locator(".body code").first.inner_text() == "array[1]"
+        page.emulate_media(media="print")
+        assert page.locator("body").evaluate("e => getComputedStyle(e).position") == "static"
+        assert card.evaluate("e => getComputedStyle(e).display") == "none"
+        page.emulate_media(media="screen")
+        card.locator(".reader-dialog-close").click()
+        playwright.expect(cite).to_be_focused()
+        size = page.locator(".body").evaluate("e => parseFloat(getComputedStyle(e).fontSize)")
+        page.get_by_role("button", name="增大正文字号").click()
+        assert (
+            page.locator(".body").evaluate("e => parseFloat(getComputedStyle(e).fontSize)") > size
+        )
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert not errors
+
+
+@pytest.mark.parametrize("mode", ["no-js", "no-dialog"])
+def test_reader_toc_native_fallback(browser, reader_site: Path, mode: str) -> None:
+    """Native details still navigates correctly with no enhancement, including file://."""
+    with browser.new_context(java_script_enabled=mode != "no-js") as context:
+        if mode == "no-dialog":
+            context.add_init_script("HTMLDialogElement.prototype.showModal = undefined")
+        page = context.new_page()
+        page.goto((reader_site / "index.html").as_uri(), wait_until="load")
+        page.locator("#toc summary").click()
+        assert page.locator("#toc a:visible").count() == 41
+        page.locator("#toc a[href='#topic-29']").click()
+        page.wait_for_url("**#topic-29")
