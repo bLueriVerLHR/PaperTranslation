@@ -55,6 +55,13 @@ class PageInfo(HTMLParser):
                 self.refs.append(value)
             if value and key == "srcset":
                 self.refs.extend(item.strip().split()[0] for item in value.split(","))
+            if value and key == "data-citations":
+                # Citation card text is rendered on demand, so its glyphs also need subsets.
+                try:
+                    records = json.loads(value)
+                    self.text += " ".join(record["text"] for record in records)
+                except (ValueError, KeyError, TypeError):
+                    pass
 
     def handle_endtag(self, tag: str) -> None:
         """End title or hidden text."""
@@ -87,12 +94,29 @@ def is_private(path: Path) -> bool:
     return any(part.lower() in PRIVATE or part.startswith(".") for part in path.parts)
 
 
+def excluded_projects(path: Path | None = None) -> set[str]:
+    """Read publication exclusions as data, never per-project tool constants."""
+    path = path or ROOT / ".pagesignore"
+    excluded = set()
+    if not path.exists():
+        return excluded
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        slug = line.split("#", 1)[0].strip().strip("/")
+        if not slug:
+            continue
+        if not build.paper.SLUG_RE.fullmatch(slug):
+            raise ValueError(f"{path}:{number}: expected a project slug, not a path or glob")
+        excluded.add(slug)
+    return excluded
+
+
 def public_files(dist: Path) -> list[Path]:
-    """Allow only rendered pages and recognized real assets, never manifests or sources."""
+    """Allow approved rendered assets; skip excluded projects and every private source."""
+    excluded = excluded_projects()
     files = []
     for path in sorted(dist.rglob("*")):
         relative = path.relative_to(dist)
-        if is_private(relative):
+        if relative.parts[0] in excluded or is_private(relative):
             continue
         if path.is_symlink():
             raise ValueError(f"symlink is not publishable: {relative}")
@@ -168,12 +192,15 @@ def render_home(entries: list[dict[str, str]]) -> str:
 
 
 def check_site(site: Path) -> list[str]:
-    """Fail closed on sources, symlinks, external render resources and broken local URLs."""
+    """Fail closed on excluded projects, sources, network resources and broken local URLs."""
     errors = []
+    excluded = excluded_projects()
     for path in sorted(site.rglob("*")):
         relative = path.relative_to(site)
         if ".git" in relative.parts:
             continue
+        if relative.parts[0] in excluded:
+            errors.append(f"publication-excluded project: {relative}")
         bootstrap = relative.as_posix() == ".github/workflows/pages.yml"
         bootstrap_dir = path.is_dir() and relative.as_posix() in {".github", ".github/workflows"}
         if path.is_symlink() or (is_private(relative) and not bootstrap and not bootstrap_dir):
@@ -288,7 +315,9 @@ def write_inventory(site: Path) -> None:
         and p != manifest
         and not {".git", ".github"}.intersection(p.relative_to(site).parts)
     }
-    manifest.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n"
+    )
 
 
 def main() -> int:

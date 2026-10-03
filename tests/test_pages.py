@@ -32,6 +32,56 @@ def test_public_files_never_include_sources(tmp_path: Path) -> None:
     ]
 
 
+def test_excluded_projects_never_export_but_local_sources_survive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    policy = tmp_path / ".pagesignore"
+    policy.write_text("# Local only\nhidden-project\n", encoding="utf-8")
+    monkeypatch.setattr(pages, "excluded_projects", lambda: {"hidden-project"})
+    write(tmp_path / "dist/hidden-project/index.html", "<title>Hidden</title>")
+    write(tmp_path / "dist/hidden-project/work/keep.md", "canonical")
+    write(tmp_path / "dist/visible/index.html", "<title>Visible</title>")
+    out = tmp_path / "out"
+    entries = pages.export(tmp_path / "dist", out)
+    assert entries == [{"path": "visible/index.html", "title": "Visible"}]
+    assert not (out / "hidden-project").exists()
+    assert (tmp_path / "dist/hidden-project/work/keep.md").read_text() == "canonical"
+    write(out / "hidden-project/index.html", "stale")
+    assert any("publication-excluded" in error for error in pages.check_site(out))
+
+
+def test_inventory_writes_git_stable_newlines(tmp_path: Path) -> None:
+    import hashlib
+    import json
+
+    write(tmp_path / "index.html", "<p>原文\nsecond line</p>\n")
+    write(tmp_path / "site-manifest.json", '{"pages": []}')
+    pages.write_inventory(tmp_path)
+    raw = (tmp_path / "site-manifest.json").read_bytes()
+    assert b"\r\n" not in raw
+    inventory = json.loads(raw)
+    assert (
+        inventory["files"]["index.html"]
+        == hashlib.sha256((tmp_path / "index.html").read_bytes()).hexdigest()
+    )
+
+
+def test_exclusion_config_accepts_only_project_slugs(tmp_path: Path) -> None:
+    config = tmp_path / ".pagesignore"
+    config.write_text("# comment\n/one-project/ # restricted\n\ntwo-project\n", encoding="utf-8")
+    assert pages.excluded_projects(config) == {"one-project", "two-project"}
+    config.write_text("../outside", encoding="utf-8")
+    with pytest.raises(ValueError, match="project slug"):
+        pages.excluded_projects(config)
+
+
+def test_citation_cards_contribute_glyphs() -> None:
+    info = pages.inspect_page(
+        '<a data-citations="[{&quot;text&quot;:&quot;Góes 中文&quot;}]">[1]</a>'
+    )
+    assert "Góes 中文" in info.text
+
+
 def test_info_uses_visible_text_and_collects_code() -> None:
     info = pages.inspect_page(
         "<title>A &amp; B</title><style>ignore</style><pre><code>x</code>中文</pre><p>正文</p>"
