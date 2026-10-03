@@ -312,8 +312,6 @@ def nav_html(current: str, order: list[str], papers: dict[str, Paper]) -> str:
 def facts_html(paper: Paper) -> str:
     """Render the metadata table shown at the top of a detail page."""
     rows: list[tuple[str, str]] = []
-    if paper.title_zh:
-        rows.append(("中文标题", escape(paper.title_zh)))
     authors = paper.meta.get("authors", "")
     if authors:
         rows.append(("作者", escape(str(authors))))

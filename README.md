@@ -118,9 +118,10 @@ text, persistent font-size controls, a theme toggle and TOC access. Wide formula
 and code scroll locally instead of widening the entire page. Local reader presentation uses
 centered TOC/citation cards and compact title-area source notes; see `docs/reader.md`.
 
-Put local-only project slugs in `.pagesignore` to prevent public exports while retaining
-`dist/<slug>/` for personal reading. `.gitignore` alone cannot withdraw already published
-pages or history. Author attribution and learning-use notices do not grant permission to
+For rights-restricted published articles, first seek and verify a corresponding arXiv
+preprint and its license; translate that fixed version, citing the published edition only
+for revisions rather than reproducing its full text. No `.pagesignore` is maintained.
+`.gitignore` alone cannot withdraw already published pages or history. Author attribution and learning-use notices do not grant permission to
 publish a translation. Reader redesigns can remain local without updating the live snapshot.
 
 `main` contains `.github/workflows/pages.yml`; `pages-content` contains only validated public

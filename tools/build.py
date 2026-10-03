@@ -475,16 +475,14 @@ def build(
     )
     kind = profile.get("kind", metadata.get("kind", "translation"))
     notice = (
-        "个人学习用源码研读笔记；外部源码与引用材料保留其原有版权及许可证，公开分享须遵循相应许可。"
-        if kind == "analysis"
-        else "个人学习用中文译文，非出版社版本；译文可能有误，以原文为准。原文与原图权利归原权利人；学习用途不等于获得公开传播授权。"
+        "源码与引用材料遵循各自原有许可证。" if kind == "analysis" else "译文与图示的版权归原作者。"
     )
 
     replacements = {
         "{{TITLE}}": escape(metadata.get("title", "")),
         "{{SUBTITLE}}": escape(metadata.get("subtitle", "")),
         "{{AUTHOR}}": escape(metadata.get("author", "")),
-        "{{READER_KIND}}": "源码研读笔记" if kind == "analysis" else "个人学习译文",
+        "{{READER_KIND}}": "源码研读笔记" if kind == "analysis" else "中文译文",
         "{{READER_NOTICE}}": notice,
         "{{SOURCE_LINK}}": source_link,
         "{{SOURCE_NOTES}}": source_notes,

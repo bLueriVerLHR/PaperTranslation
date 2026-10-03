@@ -81,7 +81,7 @@ def test_author_year_and_unknown_entry_are_honest() -> None:
     assert result.linked == 3
     assert result.unresolved == {"Beta, 2025", "9"}
     assert "&quot;Original title&quot;" in text
-    assert "本地未建立该条引用的可靠映射" in text
+    assert "未能确定对应参考文献" in text
     assert 'href="https://example.org/work"' in text
     assert text.count('href="https://example.org/paper"') == 2
     assert "没有" not in text
@@ -151,7 +151,9 @@ def test_build_moves_metadata_but_preserves_canonical_inputs(tmp_path: Path) -> 
     assert "摘要</a>" in result
     assert 'class="citation"' in body
     assert "A &lt; B" in result and "A &amp; B" in result
-    assert "公开传播授权" in header
+    assert "译文与图示的版权归原作者" in header
+    assert "非出版社版本" not in header
+    assert "公开传播授权" not in header
     assert section.read_text(encoding="utf-8") == original
     assert manifest["citations_linked"] == 1
     first_hash = manifest["content_hash"]

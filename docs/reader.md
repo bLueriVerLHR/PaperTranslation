@@ -1,4 +1,4 @@
-# Reader presentation and local-only publication
+# Reader presentation and publication
 
 The reader is a learning aid, not a publisher's edition. Attribution and a learning-use
 notice do not grant permission to distribute translations or extracted figures. Verify the
@@ -32,8 +32,12 @@ beneath the title in small, optionally expanded source notes, and leave the body
 Publisher-neutrality boilerplate is not represented as the reader's own declaration.
 Copyright and licensing restrictions remain intact in the source and source notes.
 
-A project's canonical `work/reader-meta.md` holds header-only Markdown: source, version,
-translation choices and reading limitations. Move existing notes there without rewriting the
+A project's canonical `work/reader-meta.md` holds header-only Markdown: actual source,
+version, applicable license and genuinely relevant reading limitations. Keep operational
+history (rejected sources, export status, tool checks, local paths and editorial correction
+logs) out of reading pages. Review paragraphs semantically, not by keyword alone: experimental
+conditions and technical qualifications are not workflow chatter. Avoid repeating title,
+author or source fields already shown immediately above. Move existing notes there without rewriting the
 translated argument. The builder's content hash includes this file and `work/reader.json`;
 the hash remains a machine-readable HTML attribute rather than a prominent colophon.
 
@@ -78,14 +82,19 @@ Bibliographic accuracy and network reachability are separate verification steps.
 The build manifest records linked citations and unmapped entries. Deferred citation-card text
 also contributes glyphs to a licensed Pages font subset, so accented author names are not lost.
 
-## Publication exclusions are not Git privacy
+## Source selection and publication
 
-`.pagesignore` is a tracked, data-driven list of project slugs (one per line, optional comments).
-`tools/pages.py` excludes those entire project trees from export and rejects an already-staged
-site containing them. Local readers and their canonical work remain untouched.
+For a rights-restricted published paper, first seek its corresponding arXiv preprint. Verify
+identity, authors, fixed version and the applicable license; a similarly titled paper is not
+an alternate version, and arXiv availability alone does not permit sharing adaptations. Translate
+that verified preprint version in full. Use the published edition only for cited revisions,
+without reproducing its complete content by default.
 
-This is separate from `.gitignore`: ignoring a path cannot retract a current deployment or
-remove tracked history. To withdraw previously published material, replace the content
+The project no longer maintains `.pagesignore`. Review publication scope explicitly rather
+than treating an ignore list as a rights decision. Export only approved readers/assets, never
+source PDFs, full English papers, extraction data or canonical work.
+
+`.gitignore` cannot retract a current deployment or remove tracked history. To withdraw previously published material, replace the content
 snapshot, verify the live URLs are unavailable and, only with explicit owner authorization,
 rewrite affected content-branch history and remove old deployment artifacts. Never silently
 force-push. Rewrites cannot recall third-party clones or external caches.

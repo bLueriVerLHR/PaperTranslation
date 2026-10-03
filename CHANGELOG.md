@@ -18,13 +18,15 @@ All notable changes to this project are documented here. The format follows
 - Apply shared ragged-right typography across readers and analyses; remove local size/font
   overrides so export/rebuild cannot undo mixed Chinese/English spacing fixes.
 
-### Publication exclusions and withdrawal
+### Publication policy and withdrawal
 
-- Add `.pagesignore` project-level export exclusions and reject excluded staged content.
-- Preserve the two copyright-restricted readers locally; with explicit owner approval remove
-  their reachable content-branch history and previous Pages artifacts. Remove the withdrawn
-  web project from local/current published content while retaining its previously approved history.
-- Publish only the withdrawal snapshot; all remaining public readers/assets remain unchanged.
+- Retire the project ignore list. Prefer a verified corresponding arXiv preprint whose
+  license permits adaptations; use the published edition for cited revisions rather than
+  reproducing its complete content by default.
+- Remove two copyright-restricted projects from reachable content-branch history and old
+  Pages artifacts with explicit owner approval. Delete the compiler SIMD project locally;
+  retain the withdrawn web project's history.
+- Keep withdrawal/restoration snapshots scoped: preserve all other public reader/asset bytes.
   Git/third-party caches and clones cannot be recalled by ignoring files or rewriting refs.
 - Keep new inventory JSON newline-stable across Git checkouts and validate actual snapshot bytes.
 

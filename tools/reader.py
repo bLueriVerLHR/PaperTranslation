@@ -312,7 +312,7 @@ class CitationLinker(HTMLParser):
             record = self.references.get(key)
             if record is None:
                 self.unresolved.add(key)
-                record = {"text": f"引用 {key}；本地未建立该条引用的可靠映射，请查阅论文原文。"}
+                record = {"text": f"引用 {key}；未能确定对应参考文献，请查阅论文原文。"}
             url = record.get("url") or self.source_url
             records.append(
                 {

@@ -121,10 +121,14 @@ Always run commands with `$Python`. `$P` is a registered project slug, discovere
 - Reader typography and modal behavior belong to the shared styles/script. Keep source,
   licensing and reading-limit notes beneath the title, not as publishing-style body sections;
   see `docs/reader.md` for presentation profiles and progressive fallback behavior.
-- `.pagesignore` is the publication exclusion list, not a local deletion list. Excluded
-  projects stay local and must fail staged-site validation. Ignoring cannot retract existing
-  deployments or historical files; any history rewrite/artifact deletion requires explicit
-  owner authorization. Learning-use notices do not grant distribution permission.
+- Before translating a rights-restricted published paper, first look for its corresponding
+  arXiv preprint. Confirm authors, identity, fixed version and a license permitting adaptations;
+  being on arXiv is not itself permission. Use that version as the full translation source.
+  Cite the published paper for revisions, without reproducing its complete content by default.
+- Do not maintain `.pagesignore` as a substitute for source/rights review. Public exports
+  remain explicitly approved reader-only snapshots. Personal learning and translation-only
+  publication do not grant additional rights. History rewrites/artifact deletion still require
+  explicit owner authorization; no rewrite can recall third-party clones or caches.
 - Register a project by writing `dist/<slug>/work/paper.json`, never per-project tool constants.
   Slugs match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, not Chinese titles.
 - Original source-code analyses are not PDF/web translations. They may retain `work/meta.json`

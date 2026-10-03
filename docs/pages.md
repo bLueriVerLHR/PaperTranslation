@@ -24,19 +24,24 @@ MIT license does not license translations or figures. Source materials remain ig
 The initial export was operator-approved, but this does not establish the original authors'
 translation/distribution permissions. Review licenses separately and retain required notices.
 
-## Local-only projects
+## Source and publication review
 
-`.pagesignore` contains excluded project slugs, one per line with optional `#` comments.
-The exporter omits each entire tree and the validator rejects a staged snapshot containing it.
-Local `dist/<slug>/` readers and their canonical `work/` remain intact. Paths and glob patterns
-are deliberately refused: this is an explicit project-level publication policy.
+The project no longer maintains `.pagesignore`. Before translating a rights-restricted
+published article, first seek its corresponding arXiv preprint and check identity, fixed
+version and license. Translate the verified preprint version; cite the published paper for
+revisions without reproducing its full text by default. Being a preprint does not itself
+authorize adaptation or publication.
+
+Public snapshots still require explicit review and approval. A personal knowledge library on
+GitHub Pages is publicly accessible unless the hosting configuration actually restricts it.
+Translation-only publication and learning-use notices do not grant extra rights.
 
 `.gitignore` alone cannot withdraw an existing deployment or tracked historical content.
 An already-published withdrawal needs a replacement snapshot and live verification; historical
 removal or artifact deletion additionally requires explicit owner authorization. Never silently
 rewrite a branch. Third-party clones and caches cannot be recalled by a Git rewrite.
 
-A removal-only release must copy the existing public snapshot, omit the excluded trees and
+A removal-only release must copy the existing public snapshot, omit the withdrawn trees and
 refresh its homepage/inventory, preserving every remaining reader/asset. Do not mix it with
 local reader redesigns or newly translated material awaiting publication approval.
 
