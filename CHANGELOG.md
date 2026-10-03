@@ -6,7 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Local reader presentation (not deployed)
+### Math and navigation
+
+- Preserve native MathML spacing, a dedicated math font and the prose baseline; ordinary
+  inline formulas are not scroll boxes. Display/wide formulas use separate block scrollers.
+- Validate shared reader assets across the public library, including older pages, so the
+  TOC button opens a centered, internally scrolling card instead of jumping to a list.
+
+### Reader presentation
 
 - Share centered, internally scrollable cards across the library, article TOC and contextual
   citations, with bidirectional focus containment and exact scroll restoration. Selecting a

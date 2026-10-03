@@ -23,6 +23,18 @@ Without JavaScript or native dialog support, the original details/TOC tree remai
 The same scripts work with `file://`. Print hides interactive cards and overrides background
 scroll locking so an open modal cannot clip the printed article.
 
+## Native mathematics
+
+Keep MathML's native `math` layout and text baseline. Inline expressions must not be
+`inline-block` scroll boxes. Use a platform MATH-table font independently of prose fonts;
+never download or redistribute proprietary system fonts. Ordinary inline math remains in
+prose. Display equations and expressions wider than the reading column use a padded,
+keyboard-accessible block scroller; resize and reading-scale changes recompute that layout
+without modifying the MathML expression. Print restores visible overflow.
+
+Reader fixes must be tested against the staged public snapshot as well as local builds.
+Updating pipeline code alone does not update the assets retained on `pages-content`.
+
 ## Compact metadata without lost originals
 
 The shared builder recognizes explicit auxiliary headings such as paper information,

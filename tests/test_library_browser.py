@@ -164,6 +164,13 @@ def reader_site(tmp_path: Path) -> Path:
         "# 主体概览 {#overview}",
         '<p id="spacing-probe">Alpha Beta gamma<br>中文短句。</p>',
         "正文引用 [1–2]，代码不是引用：`array[1]`。",
+        '<p>行内公式 <math id="inline-math"><msub><mi>x</mi><mi>i</mi></msub>'
+        "<mo>+</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></math> 与正文共享基线。</p>",
+        '<p>宽公式 <math id="wide-math"><mrow>'
+        + "<mi>x</mi><mo>+</mo>" * 100
+        + "<mi>y</mi></mrow></math> 后续正文。</p>",
+        '<div class="equation"><math display="block" id="display-math">'
+        '<mfrac><mi>a</mi><mi>b</mi></mfrac></math><span class="eqno">(1)</span></div>',
     ]
     for index in range(40):
         sections.extend(
@@ -216,9 +223,24 @@ def test_reader_toc_citations_spacing_and_print(browser, reader_site: Path, widt
         page.evaluate("window.scrollTo({top:1500,behavior:'instant'})")
         page.wait_for_function("window.scrollY >= 1499")
         before = page.evaluate("window.scrollY")
+        inline = page.locator("#inline-math")
+        assert inline.evaluate("e => getComputedStyle(e).overflowX") == "visible"
+        assert inline.evaluate("e => getComputedStyle(e).display") == "math"
+        assert inline.evaluate("e => getComputedStyle(e).verticalAlign") == "baseline"
+        assert inline.evaluate("e => !e.closest('.math-scroll')")
+        wide = page.locator(".math-scroll:has(#wide-math)")
+        assert wide.evaluate("e => e.scrollWidth > e.clientWidth")
+        assert wide.get_attribute("tabindex") == "0"
+        assert (
+            page.locator("#wide-math").evaluate("e => getComputedStyle(e).overflowX") == "visible"
+        )
+        assert page.locator(".equation .eqno").is_visible()
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         trigger = page.locator("#toc-toggle")
+        initial_hash = page.evaluate("location.hash")
         for method in ("backdrop", "escape", "close"):
             trigger.click()
+            assert page.evaluate("location.hash") == initial_hash
             modal = page.locator("#toc-dialog")
             playwright.expect(modal).to_be_visible()
             assert modal.locator("a").count() == 41
