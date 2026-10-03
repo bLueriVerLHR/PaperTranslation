@@ -1,8 +1,0 @@
-# Project slugs excluded from reader-only exports. Local dist/ is unaffected.
-# Git ignore rules alone do not remove an already published Pages snapshot.
-# Explicit user exclusion; full canonical project is also being removed.
-flash-attention-from-scratch
-# CC BY-NC-ND 4.0: no permission to share adaptations under this license.
-on-device-llm-survey
-# Original back matter states exclusive rights; translation permission unverified.
-compiler-loop-unrolling-dual-simd

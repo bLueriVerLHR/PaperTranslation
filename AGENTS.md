@@ -138,3 +138,15 @@ Always run commands with `$Python`. `$P` is a registered project slug, discovere
 - Keep the survey ignore rule anchored (`/survey/`), so tracked `src/survey/` is not swallowed.
   `git ls-files survey` stays empty. Keep translations and extracted material out of all
   future commits; never relax ignore rules or use `git add -f` to publish them.
+
+## Source selection and publication review
+
+Before translating a rights-restricted published article, first seek its corresponding
+arXiv preprint. Verify identity, authors, fixed version and an adaptation-permitting license;
+arXiv availability alone is not permission. Translate that version in full, and use the
+published edition only for cited revisions rather than reproducing its complete content.
+
+Do not maintain `.pagesignore` as a substitute for this review. Public snapshots still
+require explicit owner approval and contain only readers/assets, not source PDFs, complete
+English papers, extraction data or canonical work. Personal-learning and translation-only
+publication do not grant additional rights. Preserve actual attribution and licensing.
