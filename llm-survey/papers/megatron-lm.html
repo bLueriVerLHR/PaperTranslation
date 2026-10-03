@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism — 大语言模型调研</title>
+<meta name="description" content="Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism</p>
+    <h1>Megatron-LM：用模型并行训练数十亿参数语言模型</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>Megatron-LM：用模型并行训练数十亿参数语言模型</dd>
+    <dt>作者</dt>
+    <dd>Mohammad Shoeybi, Mostofa Patwary, Raul Puri, Patrick LeGresley, Jared Casper, Bryan Catanzaro</dd>
+    <dt>发表</dt>
+    <dd>arXiv · 2019</dd>
+    <dt>阶段</dt>
+    <dd>预训练</dd>
+    <dt>引用</dt>
+    <dd>引用 3,163（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/1909.08053">arXiv:1909.08053</a> · <a href="https://github.com/NVIDIA/Megatron-LM">GitHub (NVIDIA/Megatron-LM)</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>近期语言建模领域的研究表明，训练大型 Transformer 模型可以推动自然语言处理应用达到新的最优水平。然而，超大规模模型由于内存限制而难以训练。在本工作中，我们介绍了训练超大规模 Transformer 模型的技术，并实现了一种简单高效的层内（intra-layer）模型并行方法，使训练参数量达到数十亿级别的 Transformer 模型成为可能。我们的方法不需要新的编译器或库改动，与流水线模型并行正交且互补，并且只需在原生 PyTorch 中插入少量通信操作即可完整实现。我们通过在 512 块 GPU 上收敛参数量最多 83 亿的 Transformer 模型来展示该方法：整个应用维持 15.1 PetaFLOPs 的算力，相对于一个稳定在 39 TeraFLOPs（即峰值算力的 30%）的强单卡基线，达到 76% 的扩展效率。为了证明大型语言模型能够进一步推进最优水平（SOTA），我们训练了一个类似 GPT-2 的 83 亿参数 Transformer 语言模型和一个类似 BERT 的 39 亿参数模型。我们表明，对 BERT 类模型中层归一化位置的谨慎安排，是模型规模增长时获得性能提升的关键。在 GPT-2 模型上，我们在 WikiText103（困惑度 10.8，对比此前 SOTA 的 15.8）和 LAMBADA（准确率 66.5%，对比此前 SOTA 的 63.2%）上取得了最优结果；在 RACE 数据集上，我们的 BERT 模型取得 90.9% 的准确率（对比此前 SOTA 的 89.4%）。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>原文摘要数据：512 块 GPU 上收敛到 83 亿参数，全程维持 15.1 PetaFLOPs，相对单卡基线 76% 扩展效率。张量并行的通信量随每层产生，因此必须限制在 NVLink 一类高速互联域内——这是它与流水线并行的根本取舍差异。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="zero.html">← ZeRO: Memory Optimizations Toward Training Trillion Parameter Models</a>
+<a class="nav-next" href="flashattention.html">FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>megatron-lm</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

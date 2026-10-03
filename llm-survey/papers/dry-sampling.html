@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Don&#x27;t Repeat Yourself: Stopping Verbatim Loops at Sampling Time — 大语言模型调研</title>
+<meta name="description" content="Don&#x27;t Repeat Yourself: Stopping Verbatim Loops at Sampling Time">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Don&#x27;t Repeat Yourself: Stopping Verbatim Loops at Sampling Time</p>
+    <h1>DRY：在采样阶段终止逐字循环</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>DRY：在采样阶段终止逐字循环</dd>
+    <dt>作者</dt>
+    <dd>Philipp Emanuel Weidmann, Allen Roush, Judah Goldfeder, Sanjay Basu, Ravid Shwartz-Ziv</dd>
+    <dt>发表</dt>
+    <dd>arXiv 预印本 · 2026</dd>
+    <dt>阶段</dt>
+    <dd>推理</dd>
+    <dt>引用</dt>
+    <dd>引用 0（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2608.22761">arXiv:2608.22761</a> · <a href="https://arxiv.org/abs/2608.22761v1">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>大语言模型以自回归方式生成文本，但开放式生成容易出现<strong>逐字循环（verbatim looping）</strong>，即模型重复上下文中已经出现过的片段。标准防御手段如重复惩罚、存在惩罚、频率惩罚与 n-gram 阻断作用于 token 的复现次数，而非循环的序列结构，因此往往只有在强度大到同时损害格式与流畅性时才压制住循环。我们提出 <strong>Don't Repeat Yourself（DRY）</strong>，一种采样期的 logit 调整：只有在生成某个候选 token 会把当前后缀延长为上下文中早先出现过的片段的精确延续时，才对它施加惩罚。<strong>序列中断符（sequence breakers）</strong>用于保护对话模板与格式 token。在 1.5B 到 120B 参数规模的模型、九类提示族以及 600 组配对人工评测上，DRY 把<strong>后缀延长率降低 47%</strong>，同时提升词汇多样性。一个与干预相匹配的安慰剂对照没有产生可比的降幅，从而确认<strong>后缀匹配是起作用机制</strong>。在 AWQ 量化的 70B 与 120B 模型上，DRY 把循环率降低约一半，同时保持 MT-Bench、MMLU 与 GSM8K 的表现，而标准替代方案则出现可测量的退步。DRY 已被 llama.cpp、ExLlamaV2 与 text-generation-webui 等流行开源 LLM 推理框架采用，凸显了它对文本生成的实用影响。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>1.5B 到 120B 参数、九类提示族、600 组配对人工评测：后缀延长率降低 47%，词汇多样性同时提升；AWQ 量化的 70B/120B 上循环率降低约一半而 MT-Bench、MMLU、GSM8K 不掉分，标准替代方案则会掉分。已被 llama.cpp、ExLlamaV2、text-generation-webui 采用——从一个采样器设计到进入主流推理框架，是这条线上少见的生产化案例。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="mirostat.html">← Mirostat: A Neural Text Decoding Algorithm that Directly Controls Perplexity</a>
+<a class="nav-next" href="repetition-in-production.html">Solving LLM Repetition Problem in Production: A Comprehensive Study of Multiple Solutions →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>dry-sampling</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

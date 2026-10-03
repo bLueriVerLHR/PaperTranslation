@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Direct Preference Optimization: Your Language Model is Secretly a Reward Model — 大语言模型调研</title>
+<meta name="description" content="Direct Preference Optimization: Your Language Model is Secretly a Reward Model">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Direct Preference Optimization: Your Language Model is Secretly a Reward Model</p>
+    <h1>直接偏好优化：你的语言模型其实就是一个隐式奖励模型</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>直接偏好优化：你的语言模型其实就是一个隐式奖励模型</dd>
+    <dt>作者</dt>
+    <dd>Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning, Chelsea Finn</dd>
+    <dt>发表</dt>
+    <dd>NeurIPS · 2023</dd>
+    <dt>阶段</dt>
+    <dd>后训练</dd>
+    <dt>引用</dt>
+    <dd>引用 10,558（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2305.18290">arXiv:2305.18290</a> · <a href="https://doi.org/10.52202/075280-2338">DOI</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>尽管大规模无监督语言模型（LM）学到了广泛的世界知识与一定的推理能力，但由于其训练完全无监督，精确控制它们的行为十分困难。现有获得这种可控性的方法，是收集人类对模型生成结果相对质量的标注，并据此微调无监督语言模型以对齐这些偏好，通常采用基于人类反馈的强化学习（RLHF）。然而 RLHF 是一个复杂且常常不稳定的流程：先拟合一个反映人类偏好的奖励模型，再用强化学习微调大型无监督语言模型以最大化这个估计奖励，同时不能偏离原模型太远。在本文中，我们引入了 RLHF 中奖励模型的一种新参数化方式，使对应的最优策略可以闭式求解，从而仅用一个简单的分类损失就能解决标准的 RLHF 问题。由此得到的算法被我们称为直接偏好优化（Direct Preference Optimization，DPO），它稳定、性能好且计算轻量，既不需要在微调过程中从语言模型采样，也不需要大量的超参数调优。实验表明，DPO 能以与现有方法相当甚至更好的效果微调语言模型以对齐人类偏好。值得注意的是，用 DPO 微调在控制生成情感的能力上超过了基于 PPO 的 RLHF，在摘要与单轮对话中则达到或超过了其响应质量，而实现与训练都简单得多。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>摘要中的对比结论：DPO 在控制生成情感上超过基于 PPO 的 RLHF，在摘要与单轮对话上达到或超过其质量，而实现与训练简单得多。S2 记录年份为 2023，NeurIPS 2023 发表。DPO 之后衍生出 IPO、KTO、ORPO、SimPO 等一整个「直接从偏好数据学习」的算法族，是目前开源模型后训练的主流选择之一。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="instructgpt.html">← Training language models to follow instructions with human feedback</a>
+<a class="nav-next" href="orca.html">Orca: A Distributed Serving System for Transformer-Based Generative Models →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>dpo</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

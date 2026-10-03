@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>ByteCheckpoint: A Unified Checkpointing System for Large Foundation Model Development — 大语言模型调研</title>
+<meta name="description" content="ByteCheckpoint: A Unified Checkpointing System for Large Foundation Model Development">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">ByteCheckpoint: A Unified Checkpointing System for Large Foundation Model Development</p>
+    <h1>ByteCheckpoint：面向大模型开发的统一检查点系统</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>ByteCheckpoint：面向大模型开发的统一检查点系统</dd>
+    <dt>作者</dt>
+    <dd>Borui Wan, Mingji Han, Yiyao Sheng, Yanghua Peng, Haibin Lin, Mofan Zhang, Zhichao Lai, Menghan Yu, Junda Zhang, Zuquan Song, Xin Liu, Chuan Wu</dd>
+    <dt>发表</dt>
+    <dd>NSDI · 2025</dd>
+    <dt>阶段</dt>
+    <dd>预训练</dd>
+    <dt>引用</dt>
+    <dd>引用 41（截至 2026-09-22）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-22 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2407.20143">arXiv:2407.20143</a> · <a href="https://arxiv.org/abs/2407.20143v4">摘要来源（固定版本）</a> · <a href="https://www.usenix.org/conference/nsdi25/presentation/wan-borui">发表来源</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>在大模型（LFM）开发过程中，保存训练状态的<strong>检查点</strong>至关重要：它既用于各类失败或 GPU 资源与并行配置变化后的训练恢复，也用于把保存的检查点分发给评估任务，或在不同训练阶段之间（例如从预训练到后训练）移交。所有这些场景都要求把分布式检查点从<strong>一种并行方式重切分到另一种</strong>。在生产环境中，不同 LFM 会依据模型规模与训练规模使用不同的训练框架与存储后端。因此，需要一套高性能的检查点系统，才能在 LFM 开发的整个生命周期中实现大规模的高效检查点管理。我们提出 <strong>ByteCheckpoint</strong>，一个面向大规模 LFM 训练的工业级检查点系统。ByteCheckpoint 的特点包括：一种<strong>与并行方式无关的检查点表示</strong>，支持高效的加载时重切分；通用的检查点保存/加载流程，可适配多种训练框架并支持不同存储后端；全栈优化，以保证高 I/O 效率与可扩展性；以及一套监控工具，用于简化大规模性能分析与瓶颈定位。相比已有的开源检查点系统 [52, 58]，ByteCheckpoint 显著减少了运行时检查点停顿，<strong>平均减少 54.20 倍</strong>；在保存与加载时间上，分别取得<strong>最高 9.96 倍与 8.80 倍</strong>的改善。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>会议来源为 USENIX NSDI 2025，而 arXiv 首发于 2024 年，此处按会议年份记录。54.20 倍停顿减少与 9.96/8.80 倍保存加载改善是相对该文所引用的开源检查点系统、在其测试规模下测得；不同存储后端与并行配置会改变收益分布。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="byterobust.html">← Robust LLM Training Infrastructure at ByteDance</a>
+<a class="nav-next" href="oobleck.html">Oobleck: Resilient Distributed Training of Large Models Using Pipeline Templates →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>bytecheckpoint</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

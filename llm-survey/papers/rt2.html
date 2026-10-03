@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control — 大语言模型调研</title>
+<meta name="description" content="RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control</p>
+    <h1>RT-2：视觉语言动作模型将网页知识迁移到机器人控制</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>RT-2：视觉语言动作模型将网页知识迁移到机器人控制</dd>
+    <dt>作者</dt>
+    <dd>Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen Chebotar, Xi Chen, Krzysztof Choromanski, Tianli Ding, Danny Driess, Avinava Dubey, Chelsea Finn, Pete Florence, Chuyuan Fu, Montse Gonzalez Arenas, Keerthana Gopalakrishnan, Kehang Han, Karol Hausman, Alexander Herzog, Jasmine Hsu, Brian Ichter, Alex Irpan, Nikhil Joshi, Ryan Julian, Dmitry Kalashnikov, Yuheng Kuang, Isabel Leal, Lisa Lee, Tsang-Wei Edward Lee, Sergey Levine, Yao Lu, Henryk Michalewski, Igor Mordatch, Karl Pertsch, Kanishka Rao, Krista Reymann, Michael Ryoo, Grecia Salazar, Pannag Sanketi, Pierre Sermanet, Jaspiar Singh, Anikait Singh, Radu Soricut, Huong Tran, Vincent Vanhoucke, Quan Vuong, Ayzaan Wahid, Stefan Welker, Paul Wohlhart, Jialin Wu, Fei Xia, Ted Xiao, Peng Xu, Sichun Xu, Tianhe Yu, Brianna Zitkovich</dd>
+    <dt>发表</dt>
+    <dd>CoRL · 2023</dd>
+    <dt>阶段</dt>
+    <dd>VLA</dd>
+    <dt>引用</dt>
+    <dd>引用 4,218（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2307.15818">arXiv:2307.15818</a> · <a href="https://arxiv.org/abs/2307.15818v1">摘要来源（固定版本）</a> · <a href="https://proceedings.mlr.press/v229/zitkovich23a">发表来源</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>我们研究如何将互联网规模数据上训练的视觉语言模型直接纳入端到端机器人控制，以增强泛化并产生新的语义推理能力。目标是让单个端到端训练模型既学习从机器人观测到动作的映射，也享受网页语言与视觉语言数据大规模预训练的收益。为此，我们提出同时在机器人轨迹数据与互联网规模视觉语言任务（如视觉问答）上，共同微调最先进的视觉语言模型。不同于其他方法，我们采用简单通用的方式：为使自然语言响应和机器人动作使用同一格式，将动作表示为文本 token，并像自然语言 token 一样直接加入训练集。我们将这类模型称为视觉语言动作模型（VLA），并实现实例 RT-2。广泛评估包含 6000 次试验，表明该方法能产生性能良好的机器人策略，并使 RT-2 从互联网规模训练中获得多种涌现能力，包括对新物体显著改善的泛化、理解机器人训练数据中未出现过的指令（如把物体放到某个数字或图标上），以及响应用户命令进行初步推理（如拿起最小、最大或离另一物体最近的对象）。我们进一步表明，引入 chain-of-thought 推理可以让 RT-2 完成多阶段语义推理，例如判断石头可充当临时锤子，或疲惫的人更适合能量饮料。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="rt1.html">← RT-1: Robotics Transformer for Real-World Control at Scale</a>
+<a class="nav-next" href="open-x-embodiment.html">Open X-Embodiment: Robotic Learning Datasets and RT-X Models →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>rt2</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

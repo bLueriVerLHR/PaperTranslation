@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Training language models to follow instructions with human feedback — 大语言模型调研</title>
+<meta name="description" content="Training language models to follow instructions with human feedback">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Training language models to follow instructions with human feedback</p>
+    <h1>用人类反馈训练语言模型遵循指令（InstructGPT）</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>用人类反馈训练语言模型遵循指令（InstructGPT）</dd>
+    <dt>作者</dt>
+    <dd>Long Ouyang, Jeff Wu, Xu Jiang, Diogo Almeida, Carroll L. Wainwright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, John Schulman, Jacob Hilton, Fraser Kelton, Luke Miller, Maddie Simens, Amanda Askell, Peter Welinder, Paul Christiano, Jan Leike, Ryan Lowe</dd>
+    <dt>发表</dt>
+    <dd>NeurIPS · 2022</dd>
+    <dt>阶段</dt>
+    <dd>后训练</dd>
+    <dt>引用</dt>
+    <dd>引用 24,147（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2203.02155">arXiv:2203.02155</a> · <a href="https://doi.org/10.52202/068431-2011">DOI</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>把语言模型变得更大，并不会自然地让它更善于遵循用户意图。例如，大型语言模型可能生成不真实、有毒或对用户毫无帮助的输出。换言之，这些模型与它们的用户并不对齐。在本文中，我们展示了一条通过在广泛任务上用人类反馈进行微调，使语言模型与用户意图对齐的路径。我们从标注员编写的提示词以及通过 OpenAI API 提交的提示词出发，收集了一批标注员演示「期望模型行为」的数据集，用它以监督学习方式微调 GPT-3。随后我们收集了一批模型输出排序数据，用它通过基于人类反馈的强化学习进一步微调这个监督模型。我们把得到的模型称为 InstructGPT。在针对我们提示分布的人类评测中，13 亿参数的 InstructGPT 模型的输出比 1750 亿参数的 GPT-3 更受偏好，尽管参数量少了 100 倍。此外，InstructGPT 模型在真实性上有所提升、有毒输出减少，同时在公开 NLP 数据集上的性能几乎没有退化。尽管 InstructGPT 仍会犯简单错误，但我们的结果表明，用人类反馈做微调是一条很有前景的语言模型对齐方向。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>摘要中最具冲击力的数字：13 亿参数的 InstructGPT 输出在人类评测中比 1750 亿参数的 GPT-3 更受偏好，参数量少 100 倍。同时真实性提升、有毒输出减少，公开 NLP 数据集性能几乎不退化。这份工作是 RLHF 范式的奠基性工程实现，也确立了「SFT → 奖励模型 → RL」的三段式流程；后续 DPO 等工作正是针对其中 RL 阶段复杂且不稳定的问题提出的。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="qlora.html">← QLoRA: Efficient Finetuning of Quantized LLMs</a>
+<a class="nav-next" href="dpo.html">Direct Preference Optimization: Your Language Model is Secretly a Reward Model →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>instructgpt</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

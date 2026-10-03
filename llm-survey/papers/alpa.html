@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Alpa: Automating Inter- and Intra-Operator Parallelism for Distributed Deep Learning — 大语言模型调研</title>
+<meta name="description" content="Alpa: Automating Inter- and Intra-Operator Parallelism for Distributed Deep Learning">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Alpa: Automating Inter- and Intra-Operator Parallelism for Distributed Deep Learning</p>
+    <h1>Alpa：自动化分布式深度学习的算子间与算子内并行</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>Alpa：自动化分布式深度学习的算子间与算子内并行</dd>
+    <dt>作者</dt>
+    <dd>Lianmin Zheng, Zhuohan Li, Hao Zhang, Yonghao Zhuang, Zhifeng Chen, Yanping Huang, Yida Wang, Yuanzhong Xu, Danyang Zhuo, Eric P. Xing, Joseph E. Gonzalez, Ion Stoica</dd>
+    <dt>发表</dt>
+    <dd>OSDI · 2022</dd>
+    <dt>阶段</dt>
+    <dd>分布式训练</dd>
+    <dt>引用</dt>
+    <dd>引用 274（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2201.12023">arXiv:2201.12023</a> · <a href="https://arxiv.org/abs/2201.12023v3">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>Alpa 通过生成统一数据、算子与流水线并行的执行计划，自动化大型深度学习模型的模型并行训练。现有系统要么要求用户手工创建并行计划，要么只能从有限的模型并行配置空间中自动生成计划，无法充分将复杂模型扩展到分布式计算设备。Alpa 将并行视为两个层次：算子间并行与算子内并行，并据此为大规模模型并行执行计划构建新的层次化空间。它设计了多项编译过程，在每一并行层次自动推导高效执行计划，并实现高效运行时来协调分布式设备上的两层并行执行。评估表明，即使在人工调优系统专门面向的模型上，Alpa 生成的并行计划也能匹配或超过这些系统。不同于专用系统，Alpa 还能泛化到异构架构以及没有手工设计计划的模型。源代码已公开。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="mobilellm.html">← MobileLLM: Optimizing Sub-billion Parameter Language Models for On-Device Use Cases</a>
+<a class="nav-next" href="megascale.html">MegaScale: Scaling Large Language Model Training to More Than 10,000 GPUs →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>alpa</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

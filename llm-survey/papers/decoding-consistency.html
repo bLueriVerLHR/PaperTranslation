@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Consistency of a Recurrent Language Model With Respect to Incomplete Decoding — 大语言模型调研</title>
+<meta name="description" content="Consistency of a Recurrent Language Model With Respect to Incomplete Decoding">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Consistency of a Recurrent Language Model With Respect to Incomplete Decoding</p>
+    <h1>循环语言模型在不完全解码下的一致性</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>循环语言模型在不完全解码下的一致性</dd>
+    <dt>作者</dt>
+    <dd>Sean Welleck, Ilia Kulikov, Jaedeok Kim, Richard Yuanzhe Pang, Kyunghyun Cho</dd>
+    <dt>发表</dt>
+    <dd>EMNLP · 2020</dd>
+    <dt>阶段</dt>
+    <dd>推理</dd>
+    <dt>引用</dt>
+    <dd>引用 77（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2002.02492">arXiv:2002.02492</a> · <a href="https://arxiv.org/abs/2002.02492v2">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>尽管神经序列模型在各种任务上表现强劲，但用最大似然训练的模型已被证明存在长度偏置与退化性重复等问题。我们研究与之相关的另一个问题：使用常见解码算法时，循环语言模型会产出无限长的序列。为分析该问题，我们首先定义了解码算法的<strong>不一致性（inconsistency）</strong>，即该算法可以产出<strong>在模型下概率为零的无限长序列</strong>。我们证明，常用的不完全解码算法——<strong>贪心搜索、束搜索、top-k 采样与核采样——都是不一致的</strong>，尽管循环语言模型是按有限长度序列来训练的。基于这些洞察，我们提出两种针对不一致性的补救方法：一致的 top-k 与核采样变体，以及自终止（self-terminating）的循环语言模型。实证结果表明不一致性在实践中确实会发生，而我们提出的方法可以防止它。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>一致性结论限定在论文的模型与解码定义下：可能产生无限序列，不等于所有现代模型必然无限复读。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="simctg.html">← A Contrastive Framework for Neural Text Generation</a>
+<a class="nav-next" href="mirostat.html">Mirostat: A Neural Text Decoding Algorithm that Directly Controls Perplexity →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>decoding-consistency</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

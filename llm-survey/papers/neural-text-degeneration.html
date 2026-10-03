@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>The Curious Case of Neural Text Degeneration — 大语言模型调研</title>
+<meta name="description" content="The Curious Case of Neural Text Degeneration">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">The Curious Case of Neural Text Degeneration</p>
+    <h1>神经文本退化的奇特案例</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>神经文本退化的奇特案例</dd>
+    <dt>作者</dt>
+    <dd>Ari Holtzman, Jan Buys, Li Du, Maxwell Forbes, Yejin Choi</dd>
+    <dt>发表</dt>
+    <dd>ICLR · 2020</dd>
+    <dt>阶段</dt>
+    <dd>推理</dd>
+    <dt>引用</dt>
+    <dd>引用 4,552（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/1904.09751">arXiv:1904.09751</a> · <a href="https://arxiv.org/abs/1904.09751v2">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>尽管深度神经语言模型取得了相当大的进展，但当这些模型被当作文本生成器来测试时，神经文本退化的谜题依然存在。一个反直觉的经验观察是：<strong>把 likelihood 用作训练目标</strong>，可以为广泛的语言理解任务带来高质量模型，但<strong>把 likelihood 用作解码目标</strong>，却会生成平淡而诡异重复的文本。在本文中，我们揭示了人类文本与机器文本之间令人意外的分布差异。此外，我们发现即便从完全相同的一个神经语言模型生成，仅解码策略一项就能显著影响机器文本的质量。这些发现促使我们提出<strong>核采样（Nucleus Sampling）</strong>：一种简单而有效的、用以充分释放神经生成能力的方法。通过从概率分布的动态「核」中采样文本——既允许多样性，又有效地截断分布中较不可靠的尾部——生成的文本能更好地体现人类文本的质量，在不牺牲流畅性与连贯性的前提下获得更高的多样性。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>核采样（top-p）自此成为多数推理框架的默认采样策略。这篇论文把「神经文本退化」确立为一个独立研究问题：后续的 unlikelihood 训练、局部典型采样、Mirostat、对比搜索都在回应它。</p></aside>
+
+<nav class="paper-nav"><a class="nav-next" href="unlikelihood-training.html">Neural Text Generation with Unlikelihood Training →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>neural-text-degeneration</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

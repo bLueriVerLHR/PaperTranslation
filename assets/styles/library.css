@@ -1,0 +1,16 @@
+.library { width: min(1100px, 100%); }
+.library .eyebrow { color: var(--accent); font-size: .75rem; letter-spacing: .12em; }
+.library label { display: block; margin-bottom: .5rem; }
+.library input { width: 100%; min-height: 48px; padding: .7rem 1rem; font: inherit;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--rule); border-radius: .6rem; }
+.library-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.library-card { min-width: 0; padding: 1.25rem; background: var(--figure-bg); border: 1px solid var(--rule); border-radius: .75rem; }
+.library-card h2 { margin: .6rem 0 1rem; font-size: 1.25rem; line-height: 1.5; }
+.library-card a { color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+.library-card a:hover { text-decoration: underline; }
+.library-card details { border-top: 1px solid var(--rule); padding-top: .5rem; }
+.library-card summary { cursor: pointer; padding: .5rem 0; }
+.library-card ul { padding-left: 1.2rem; }
+.library-card li a { display: block; padding: .55rem 0; line-height: 1.6; }
+@media (max-width: 760px) { .library-grid { grid-template-columns: 1fr; } }
+@media print { .library input, .library label, #search-status { display: none; } }

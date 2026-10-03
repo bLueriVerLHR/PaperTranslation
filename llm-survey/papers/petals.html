@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Petals: Collaborative Inference and Fine-tuning of Large Models — 大语言模型调研</title>
+<meta name="description" content="Petals: Collaborative Inference and Fine-tuning of Large Models">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Petals: Collaborative Inference and Fine-tuning of Large Models</p>
+    <h1>Petals：大模型的协作推理与微调</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>Petals：大模型的协作推理与微调</dd>
+    <dt>作者</dt>
+    <dd>Alexander Borzunov, Dmitry Baranchuk, Tim Dettmers, Max Ryabinin, Younes Belkada, Artem Chumachenko, Pavel Samygin, Colin Raffel</dd>
+    <dt>发表</dt>
+    <dd>ACL System Demonstrations · 2023</dd>
+    <dt>阶段</dt>
+    <dd>分布式推理与微调</dd>
+    <dt>引用</dt>
+    <dd>引用 145（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2209.01188">arXiv:2209.01188</a> · <a href="https://arxiv.org/abs/2209.01188v2">摘要来源（固定版本）</a> · <a href="https://aclanthology.org/2023.acl-demo.54/">发表来源</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>许多 NLP 任务受益于往往超过千亿参数的大语言模型。随着 BLOOM-176B 和 OPT-175B 发布，任何人都能下载这一规模的预训练模型，但使用它们仍需要许多研究者无法获得的高端硬件。在一些情况下，可通过 RAM 卸载或托管 API 更便宜地使用 LLM，然而这些技术有固有限制：卸载对交互推理而言太慢，而 API 对需要访问权重、注意力或 logits 的研究不够灵活。我们提出 Petals，通过汇聚多方资源来协作进行大模型推理和微调。我们证明，对非常大的模型，这一策略优于卸载：在消费级 GPU 上，BLOOM-176B 推理约每秒一步，足以支持许多交互式 LLM 应用。不同于多数推理 API，Petals 还原生暴露所服务模型的隐藏状态，允许基于高效微调方法训练并分享自定义模型扩展。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="bamboo.html">← Bamboo: Making Preemptible Instances Resilient for Affordable Training of Large DNNs</a>
+<a class="nav-next" href="swarm-parallelism.html">SWARM Parallelism: Training Large Models Can Be Surprisingly Communication-Efficient →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>petals</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

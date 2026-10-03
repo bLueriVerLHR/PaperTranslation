@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Rethinking Attention with Performers — 大语言模型调研</title>
+<meta name="description" content="Rethinking Attention with Performers">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Rethinking Attention with Performers</p>
+    <h1>使用 Performer 重新思考注意力</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>使用 Performer 重新思考注意力</dd>
+    <dt>作者</dt>
+    <dd>Krzysztof Choromanski, Valerii Likhosherstov, David Dohan, Xingyou Song, Andreea Gane, Tamas Sarlos, Peter Hawkins, Jared Davis, Afroz Mohiuddin, Lukasz Kaiser, David Belanger, Lucy Colwell, Adrian Weller</dd>
+    <dt>发表</dt>
+    <dd>ICLR · 2021</dd>
+    <dt>阶段</dt>
+    <dd>架构</dd>
+    <dt>引用</dt>
+    <dd>引用 2,466（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2009.14794">arXiv:2009.14794</a> · <a href="https://arxiv.org/abs/2009.14794v4">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>我们提出 Performer：一类能够以可证明精度估计常规、完整秩 softmax 注意力 Transformer 的架构，却仅需线性而非平方的空间和时间复杂度，也不依赖稀疏性或低秩性等先验。为近似 softmax 注意力核，Performer 使用新的 FAVOR+ 方法，即通过正交正随机特征实现快速注意力；这一方法本身也可能对可扩展核方法具有价值。FAVOR+ 还可高效建模 softmax 以外的可核化注意力机制。这种表达能力使我们首次能够在超出常规 Transformer 能力范围的大规模任务上准确比较 softmax 与其他核，并研究最优注意力核。Performer 是与常规 Transformer 完全兼容的线性架构，并具有强理论保证：注意力矩阵的无偏或近无偏估计、统一收敛以及较低估计方差。我们在从像素预测、文本建模到蛋白质序列建模的多种任务上进行了测试。结果相较其他受测的高效稀疏与密集注意力方法具有竞争力，展示了这一新注意力学习范式的有效性。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="linear-transformer.html">← Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention</a>
+<a class="nav-next" href="mamba.html">Mamba: Linear-Time Sequence Modeling with Selective State Spaces →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>performer</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

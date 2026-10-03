@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Mamba: Linear-Time Sequence Modeling with Selective State Spaces — 大语言模型调研</title>
+<meta name="description" content="Mamba: Linear-Time Sequence Modeling with Selective State Spaces">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Mamba: Linear-Time Sequence Modeling with Selective State Spaces</p>
+    <h1>Mamba：基于选择性状态空间的线性时间序列建模</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>Mamba：基于选择性状态空间的线性时间序列建模</dd>
+    <dt>作者</dt>
+    <dd>Albert Gu, Tri Dao</dd>
+    <dt>发表</dt>
+    <dd>COLM · 2024</dd>
+    <dt>阶段</dt>
+    <dd>架构</dd>
+    <dt>引用</dt>
+    <dd>引用 9,107（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2312.00752">arXiv:2312.00752</a> · <a href="https://arxiv.org/abs/2312.00752v2">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>支撑深度学习多数前沿应用的基础模型，几乎都基于 Transformer 及其核心注意力模块。为了缓解 Transformer 处理长序列的计算低效，研究者已提出线性注意力、门控卷积和循环模型、结构化状态空间模型（SSM）等多种次二次时间架构，但它们在语言等重要模态上的表现仍不及注意力。我们发现，这些模型的一个关键弱点是无法进行基于内容的推理，并据此做出多项改进。首先，只需让 SSM 参数成为输入的函数，就能改善它们处理离散模态的弱点，使模型根据当前 token 沿序列长度维度选择性地传播或遗忘信息。其次，尽管这一变化使高效卷积不再适用，我们设计了递归模式下硬件感知的并行算法。我们将这些选择性 SSM 整合进一个简化的端到端神经网络架构 Mamba，其中没有注意力，甚至没有 MLP 模块。Mamba 推理很快，吞吐量比 Transformer 高 5 倍，并随序列长度线性扩展；在真实数据上，其性能随序列延长至百万长度仍能改善。作为通用序列模型骨干，Mamba 在语言、音频和基因组学等多种模态上取得最先进的表现。在语言建模上，Mamba-3B 在预训练和下游评估中都超过同规模 Transformer，并匹配两倍规模的 Transformer。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="performer.html">← Rethinking Attention with Performers</a>
+<a class="nav-next" href="gated-deltanet.html">Gated Delta Networks: Improving Mamba2 with Delta Rule →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>mamba</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

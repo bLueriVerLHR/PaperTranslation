@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Tutel: Adaptive Mixture-of-Experts at Scale — 大语言模型调研</title>
+<meta name="description" content="Tutel: Adaptive Mixture-of-Experts at Scale">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Tutel: Adaptive Mixture-of-Experts at Scale</p>
+    <h1>Tutel：大规模下的自适应混合专家</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>Tutel：大规模下的自适应混合专家</dd>
+    <dt>作者</dt>
+    <dd>Changho Hwang, Wei Cui, Yifan Xiong, Ziyue Yang, Ze Liu, Han Hu, Zilong Wang, Rafael Salas, Jithin Jose, Prabhat Ram, Joe Chau, Peng Cheng, Fan Yang, Mao Yang, Yongqiang Xiong</dd>
+    <dt>发表</dt>
+    <dd>MLSys · 2023</dd>
+    <dt>阶段</dt>
+    <dd>训练与推理</dd>
+    <dt>引用</dt>
+    <dd>引用 317（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2206.03382">arXiv:2206.03382</a> · <a href="https://arxiv.org/abs/2206.03382v2">摘要来源（固定版本）</a> · <a href="https://proceedings.mlsys.org/paper_files/paper/2023/hash/5616d34cf8ff73942cfd5aa922842556-Abstract-mlsys2023.html">发表来源</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>稀疏门控混合专家（MoE）已被广泛用于在固定计算成本下把深度学习模型扩展到万亿以上参数。MoE 的算法性能依赖于其 token 路由机制：把每个输入 token 转发到正确的子模型或专家。虽然 token 路由会在运行时动态决定专家负载量，<strong>现有系统却因静态执行——即静态的并行与流水线——而遭受低效计算，无法适应这种动态负载</strong>。我们提出 <strong>Flex</strong>，一套可高度扩展的 MoE 栈设计与实现，具备动态自适应的并行与流水线。Flex 为 MoE 模型参数与输入数据的分布设计了统一布局，所有可能的并行或流水线方法都能复用该布局，且不产生任何数学不等价或张量迁移开销。这使得运行时可以零成本地做自适应并行/流水线优化。基于这一关键设计，Flex 还实现了多种 MoE 加速技术。综合所有技术，Flex 在任意规模上都交付了巨幅加速——相比此前最先进方案，<strong>单层 MoE 在 16 张与 2048 张 A100 上分别取得 4.96x 与 5.75x 加速</strong>。我们的评估表明 Flex 能高效运行一个真实的 MoE 模型 SwinV2-MoE。效率上，Flex 使 SwinV2-MoE 相比 Fairseq 在训练与推理上分别取得最高 1.55x 与 2.11x 加速；效果上，SwinV2-MoE 在预训练与 COCO 目标检测等下游视觉任务上都优于对应的稠密模型，说明 Flex 已可用于端到端的真实模型训练与推理。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>单层 MoE 在 16 张与 2048 张 A100 上相对此前最先进方案分别取得 4.96x 与 5.75x 加速；SwinV2-MoE 在训练与推理上相对 Fairseq 最高 1.55x 与 2.11x。是「MoE 的效率损失来自静态系统而非稀疏算法本身」这一判断的代表作。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="mixtral.html">← Mixtral of Experts</a>
+<a class="nav-next" href="xshare.html">XShare: Collaborative in-Batch Expert Sharing for Faster MoE Inference →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>tutel</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

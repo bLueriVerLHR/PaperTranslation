@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>MemGPT: Towards LLMs as Operating Systems — 大语言模型调研</title>
+<meta name="description" content="MemGPT: Towards LLMs as Operating Systems">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">MemGPT: Towards LLMs as Operating Systems</p>
+    <h1>MemGPT：迈向作为操作系统的 LLM</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>MemGPT：迈向作为操作系统的 LLM</dd>
+    <dt>作者</dt>
+    <dd>Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, Joseph E. Gonzalez</dd>
+    <dt>发表</dt>
+    <dd>arXiv · 2023</dd>
+    <dt>阶段</dt>
+    <dd>Agent 记忆与上下文</dd>
+    <dt>引用</dt>
+    <dd>引用 1,335（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2310.08560">arXiv:2310.08560</a> · <a href="https://arxiv.org/abs/2310.08560v2">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>LLM 改变了 AI，但受有限上下文窗口约束，限制了它们在长对话和文档分析等任务上的作用。为使用超出窗口限制的上下文，我们提出虚拟上下文管理，借鉴传统操作系统分层内存：通过在快慢存储间移动数据，呈现出更大内存资源的效果。基于这一技术，我们提出 MemGPT（Memory-GPT），智能管理不同记忆层，使有限 LLM 上下文窗口能够有效支持扩展上下文，并利用中断管理系统与用户间的控制流。我们在两个受窗口限制严重影响的领域评估这种操作系统启发的设计：在文档分析中，MemGPT 能分析远超底层 LLM 窗口的大文档；在多会话聊天中，它能创建通过长期交互记忆、反思并动态演化的对话 Agent。我们公开实验代码和数据。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="webarena.html">← WebArena: A Realistic Web Environment for Building Autonomous Agents</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>memgpt</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

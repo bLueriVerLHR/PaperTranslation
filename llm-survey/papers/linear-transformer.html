@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention — 大语言模型调研</title>
+<meta name="description" content="Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention</p>
+    <h1>Transformer 是 RNN：使用线性注意力的快速自回归 Transformer</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>Transformer 是 RNN：使用线性注意力的快速自回归 Transformer</dd>
+    <dt>作者</dt>
+    <dd>Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, François Fleuret</dd>
+    <dt>发表</dt>
+    <dd>ICML · 2020</dd>
+    <dt>阶段</dt>
+    <dd>架构与推理</dd>
+    <dt>引用</dt>
+    <dd>引用 3,146（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2006.16236">arXiv:2006.16236</a> · <a href="https://arxiv.org/abs/2006.16236v3">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>Transformer 在多种任务上表现出色，但其复杂度相对于输入长度呈平方增长，使很长序列的处理慢得难以承受。为解决这一限制，我们将自注意力表达为核特征映射的线性内积，并利用矩阵乘法的结合律，将复杂度从 O(N²) 降至 O(N)，其中 N 是序列长度。我们表明，这一形式允许使用迭代实现，从而显著加速自回归 Transformer，并揭示它与循环神经网络的联系。我们的 Linear Transformer 达到了与标准 Transformer 相近的性能，在很长序列的自回归预测上最高快 4000 倍。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="long-context-deployment.html">← Challenges in Deploying Long-Context Transformers: A Theoretical Peak Performance Analysis</a>
+<a class="nav-next" href="performer.html">Rethinking Attention with Performers →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>linear-transformer</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

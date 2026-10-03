@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Learning Transferable Visual Models From Natural Language Supervision — 大语言模型调研</title>
+<meta name="description" content="Learning Transferable Visual Models From Natural Language Supervision">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Learning Transferable Visual Models From Natural Language Supervision</p>
+    <h1>从自然语言监督中学习可迁移的视觉模型</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>从自然语言监督中学习可迁移的视觉模型</dd>
+    <dt>作者</dt>
+    <dd>Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever</dd>
+    <dt>发表</dt>
+    <dd>ICML · 2021</dd>
+    <dt>阶段</dt>
+    <dd>多模态预训练</dd>
+    <dt>引用</dt>
+    <dd>引用 55,852（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2103.00020">arXiv:2103.00020</a> · <a href="https://arxiv.org/abs/2103.00020v1">摘要来源（固定版本）</a> · <a href="https://proceedings.mlr.press/v139/radford21a.html">发表来源</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>最先进的计算机视觉系统被训练为预测预先确定的固定对象类别。这种受限监督降低了通用性和可用性，因为描述其他视觉概念还需要额外标注数据。直接从描述图像的原始文本中学习，是利用更广泛监督来源的一条有希望的替代路线。我们证明，在从互联网收集的 4 亿图文对上，预测哪段文字对应哪张图这一简单预训练任务，是从零学习最先进图像表示的高效、可扩展方式。预训练后，通过自然语言指代已学到的视觉概念或描述新概念，可以将模型零样本迁移到下游任务。我们在 30 多个现有计算机视觉数据集上评估，覆盖 OCR、视频动作识别、地理定位与多类细粒度对象分类。模型对多数任务有实质迁移能力，在无需任何数据集专门训练的情况下，常能与完全监督基线竞争。例如，它在 ImageNet 零样本评估中达到原始 ResNet-50 的准确率，而不需要后者训练所用的 128 万示例。我们公开代码与预训练权重。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="megascale-infer.html">← MegaScale-Infer: Serving Mixture-of-Experts at Scale with Disaggregated Expert Parallelism</a>
+<a class="nav-next" href="flamingo.html">Flamingo: a Visual Language Model for Few-Shot Learning →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>clip</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

@@ -1,0 +1,2472 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>LLVM 优化原理教程：从循环变换到贪心寄存器分配</title>
+<meta name="description" content="组会式源码导读 · C/C++ 编译流程、SSA 基础优化、循环与并行变换、寄存器分配 · main 6b122ae88eff">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../index.html">← 文库</a>
+  <header class="title-block">
+    <h1>LLVM 优化原理教程：从循环变换到贪心寄存器分配</h1>
+    <p class="subtitle">组会式源码导读 · C/C++ 编译流程、SSA 基础优化、循环与并行变换、寄存器分配 · main 6b122ae88eff</p>
+    <p class="meta">原作 <span class="latin">本地源码研读与分析</span> · 简体中文译本 · 生成于 2026-10-02</p>
+  </header>
+
+  <details class="toc" id="toc">
+    <summary>目录</summary>
+    <nav aria-label="目录">
+<ol>
+<li><a href="#这份教程回答什么">这份教程回答什么</a></li>
+<li><a href="#六件容易混淆的事">六件容易混淆的事</a></li>
+<li><a href="#编译流水线优化发生在不同层">编译流水线：优化发生在不同层</a></li>
+<li><a href="#源码入口和本版本流水线观察">源码入口和本版本流水线观察</a></li>
+<li><a href="#贯穿全文的统一决策模型">贯穿全文的统一决策模型</a></li>
+<li><a href="#先纠正三种常见想象">先纠正三种常见想象</a></li>
+<li><a href="#一张带产物的流程图">一张带“产物”的流程图</a></li>
+<li><a href="#driver-与-cc1谁决定你在编译什么">Driver 与 cc1：谁决定你在编译什么</a></li>
+<li><a href="#预处理与词法此时尚未出现-llvm-指令">预处理与词法：此时尚未出现 LLVM 指令</a></li>
+<li><a href="#parser-与-sema从语法树到具有-cc-意义的程序">Parser 与 Sema：从语法树到具有 C/C++ 意义的程序</a><ol>
+<li><a href="#ast-里保留源码的结构">AST 里保留源码的结构</a></li>
+</ol></li>
+<li><a href="#ast-codegen变量表达式和语句各怎样降低">AST CodeGen：变量、表达式和语句各怎样降低</a><ol>
+<li><a href="#从-astconsumer-到一个-llvm-function">从 ASTConsumer 到一个 LLVM Function</a></li>
+<li><a href="#声明给可修改局部量一个位置">声明：给可修改局部量一个位置</a></li>
+<li><a href="#表达式先区分地址与值">表达式：先区分“地址”与“值”</a></li>
+<li><a href="#语句for-变成-cfg">语句：for 变成 CFG</a></li>
+</ol></li>
+<li><a href="#快照mem2reg-前的-ir-已经包含什么">快照：mem2reg 前的 IR 已经包含什么</a></li>
+<li><a href="#mem2reg-前发生的事按职责回答而不是找一个固定-pass-清单">mem2reg 前发生的事：按职责回答，而不是找一个固定 Pass 清单</a></li>
+<li><a href="#快照提升以后i-的状态成为循环-phi">快照：提升以后，i 的状态成为循环 PHI</a></li>
+<li><a href="#内联与清理让循环体显露计算而不是隐藏调用">内联与清理：让循环体显露计算，而不是隐藏调用</a></li>
+<li><a href="#pass-manager到底谁安排这些步骤">Pass Manager：到底谁安排这些步骤</a></li>
+<li><a href="#进入循环优化之前三个层面的准备">进入循环优化之前：三个层面的准备</a><ol>
+<li><a href="#语义事实知道什么不能动">语义事实：知道什么不能动</a></li>
+<li><a href="#表示形状让循环成为可处理的对象">表示形状：让循环成为可处理的对象</a></li>
+<li><a href="#分析事实知道循环如何运行机器支持什么">分析事实：知道循环如何运行、机器支持什么</a></li>
+</ol></li>
+<li><a href="#一个藏在-adaptor-里的准备过程">一个藏在 adaptor 里的准备过程</a></li>
+<li><a href="#本版本的前期循环管线不是所有-sccp-都在循环前">本版本的前期循环管线：不是所有 SCCP 都在循环前</a></li>
+<li><a href="#分别回答展开向量化线程并行之前要什么">分别回答：展开、向量化、线程并行之前要什么</a></li>
+<li><a href="#快照一个已经方便分析的标量循环">快照：一个已经方便分析的标量循环</a></li>
+<li><a href="#快照最终向量方案比一条-simd-指令复杂">快照：最终向量方案比“一条 SIMD 指令”复杂</a></li>
+<li><a href="#c-额外复杂性不能把语言语义当作优化噪声">C++ 额外复杂性：不能把语言语义当作“优化噪声”</a></li>
+<li><a href="#链接与-lto为什么有时优化又跨过目标文件边界">链接与 LTO：为什么有时优化又跨过目标文件边界</a></li>
+<li><a href="#怎样亲眼观察每个边界">怎样亲眼观察每个边界</a><ol>
+<li><a href="#看某个-pass-前的-ir而不是猜测">看“某个 Pass 前”的 IR，而不是猜测</a></li>
+</ol></li>
+<li><a href="#用输入输出描述流程比背顺序可靠">用输入输出描述流程，比背顺序可靠</a></li>
+<li><a href="#ssa-不是禁止变量更新而是给每次定义命名">SSA 不是禁止变量更新，而是给每次定义命名</a></li>
+<li><a href="#mem2reg消除不必要的内存身份">mem2reg：消除不必要的内存身份</a><ol>
+<li><a href="#从-allocaloadstore-到值">从 alloca/load/store 到值</a></li>
+<li><a href="#哪些对象允许提升">哪些对象允许提升</a></li>
+<li><a href="#理论支配边界与-pruned-ssa">理论：支配边界与 pruned SSA</a></li>
+<li><a href="#sroa-与-mem2reg-的关系">SROA 与 mem2reg 的关系</a></li>
+</ol></li>
+<li><a href="#常量折叠简化与传播三个相关但不同的问题">常量折叠、简化与传播：三个相关但不同的问题</a><ol>
+<li><a href="#常量折叠已知输入直接求值">常量折叠：已知输入，直接求值</a></li>
+<li><a href="#指令简化输入未知也能利用恒等关系">指令简化：输入未知，也能利用恒等关系</a></li>
+<li><a href="#sccp同时推导什么值与哪些边能走">SCCP：同时推导“什么值”与“哪些边能走”</a></li>
+<li><a href="#ir-语义的边界数学相等未必足够">IR 语义的边界：数学相等未必足够</a></li>
+</ol></li>
+<li><a href="#死代码删除为什么没人用结果不是全部条件">死代码删除：为什么“没人用结果”不是全部条件</a><ol>
+<li><a href="#dce从无用叶子反向剥离">DCE：从无用叶子反向剥离</a></li>
+<li><a href="#adce从有意义的根正向保留而不是只等-use-归零">ADCE：从有意义的根正向保留，而不是只等 use 归零</a></li>
+<li><a href="#dse内存写入的死活另有一套证明">DSE：内存写入的死活，另有一套证明</a></li>
+<li><a href="#simplifycfg-与不可达代码">SimplifyCFG 与不可达代码</a></li>
+</ol></li>
+<li><a href="#函数内联消除边界比消除-call-更重要">函数内联：消除边界，比消除 call 更重要</a><ol>
+<li><a href="#一个会暴露常量的调用点">一个会暴露常量的调用点</a></li>
+<li><a href="#设计依旧分策略与施工">设计依旧分“策略”与“施工”</a></li>
+<li><a href="#理论收益和代价">理论收益和代价</a></li>
+</ol></li>
+<li><a href="#尾递归换循环把栈状态显式写成-phi">尾递归换循环：把栈状态显式写成 PHI</a><ol>
+<li><a href="#最干净的尾递归例子">最干净的尾递归例子</a></li>
+<li><a href="#源码与合法性边界">源码与合法性边界</a></li>
+<li><a href="#非尾递归的部分扩展累加器">非尾递归的部分扩展：累加器</a></li>
+<li><a href="#tre-与后端尾调用不是一件事">TRE 与后端尾调用不是一件事</a></li>
+</ol></li>
+<li><a href="#把基础-pass-串成一条因果链">把基础 Pass 串成一条因果链</a></li>
+<li><a href="#一个小实验把-ssa控制流和消除连起来">一个小实验，把 SSA、控制流和消除连起来</a></li>
+<li><a href="#循环首先是一种控制流结构">循环首先是一种控制流结构</a></li>
+<li><a href="#scalarevolution把逐条指令提升成数学规律">ScalarEvolution：把逐条指令提升成数学规律</a></li>
+<li><a href="#依赖先问重排会不会改变读到的值">依赖：先问“重排会不会改变读到的值”</a></li>
+<li><a href="#别名分析与依赖分析不是一回事">别名分析与依赖分析不是一回事</a></li>
+<li><a href="#证明不够时versioning-把不确定性变成条件">证明不够时：versioning 把不确定性变成条件</a></li>
+<li><a href="#归约不是无依赖而是可转换的依赖">归约：不是无依赖，而是可转换的依赖</a></li>
+<li><a href="#收益模型理论上更并行不保证机器上更快">收益模型：理论上更并行，不保证机器上更快</a></li>
+<li><a href="#loop-vectorizer-到底改了什么">Loop Vectorizer 到底改了什么</a></li>
+<li><a href="#源码设计的三层分工">源码设计的三层分工</a></li>
+<li><a href="#第一关控制流指令与-phi-能不能解释">第一关：控制流、指令与 PHI 能不能解释</a></li>
+<li><a href="#第二关内存是否允许跨-lane-重排">第二关：内存是否允许跨 lane 重排</a></li>
+<li><a href="#第三关怎样选-vf-和-ic">第三关：怎样选 VF 和 IC</a></li>
+<li><a href="#vplan先表示方案再改写真实程序">VPlan：先表示方案，再改写真实程序</a></li>
+<li><a href="#尾部n-不是-vf-的倍数怎么办">尾部：n 不是 VF 的倍数怎么办</a></li>
+<li><a href="#slp不用循环也能自动-simd">SLP：不用循环，也能自动 SIMD</a></li>
+<li><a href="#一个失败原因的解释模板">一个失败原因的解释模板</a></li>
+<li><a href="#先看保序展开">先看保序展开</a></li>
+<li><a href="#理论收益从哪里来">理论收益从哪里来</a></li>
+<li><a href="#三种展开和一次-peeling">三种展开和一次 peeling</a></li>
+<li><a href="#llvm-的策略层与施工层">LLVM 的策略层与施工层</a></li>
+<li><a href="#因子选择不是循环体行数小就展开">因子选择不是“循环体行数小就展开”</a></li>
+<li><a href="#复制循环为什么是复杂工程">复制循环为什么是复杂工程</a></li>
+<li><a href="#unroll-and-jam为什么不是普通双重展开">unroll-and-jam：为什么不是普通双重展开</a></li>
+<li><a href="#循环展开与寄存器分配的连接">循环展开与寄存器分配的连接</a></li>
+<li><a href="#licm把不变工作搬出去">LICM：把不变工作搬出去</a></li>
+<li><a href="#looprotate把反复判断的形状整理成利于优化的形状">LoopRotate：把反复判断的形状整理成利于优化的形状</a></li>
+<li><a href="#unswitch把循环不变分支搬成循环选择">Unswitch：把循环不变分支搬成循环选择</a></li>
+<li><a href="#loopinterchange用依赖约束换局部性">LoopInterchange：用依赖约束换局部性</a></li>
+<li><a href="#loopdistribute把阻碍-simd-的链隔离出去">LoopDistribute：把阻碍 SIMD 的链隔离出去</a></li>
+<li><a href="#fusionflattenidiom-与强度削弱">Fusion、Flatten、Idiom 与强度削弱</a></li>
+<li><a href="#理论更系统的版本tiling">理论更系统的版本：tiling</a></li>
+<li><a href="#普通-o3-为什么不会把所有-for-变成线程">普通 -O3 为什么不会把所有 for 变成线程</a></li>
+<li><a href="#polly用多面体统一表示迭代域和调度">Polly：用多面体统一表示迭代域和调度</a></li>
+<li><a href="#理论可并行polly-仍可能不执行并行">理论可并行，Polly 仍可能不执行并行</a></li>
+<li><a href="#mlir-affineparallelize在更高层-ir-保留结构">MLIR AffineParallelize：在更高层 IR 保留结构</a></li>
+<li><a href="#openmp程序员提供语义编译器负责实现">OpenMP：程序员提供语义，编译器负责实现</a></li>
+<li><a href="#runtime-真正做了哪些事">runtime 真正做了哪些事</a></li>
+<li><a href="#parallelforsimd-与组合构造">parallel、for、simd 与组合构造</a></li>
+<li><a href="#openmpopt-不是从普通-for-发明-openmp">OpenMPOpt 不是“从普通 for 发明 OpenMP”</a></li>
+<li><a href="#线程化的正确性清单">线程化的正确性清单</a></li>
+<li><a href="#为什么编译器需要寄存器分配">为什么编译器需要寄存器分配</a></li>
+<li><a href="#liveness值未来还可能被用到吗">liveness：值未来还可能被用到吗</a></li>
+<li><a href="#liveinterval-并不一定是一个连续区间">LiveInterval 并不一定是一个连续区间</a></li>
+<li><a href="#真实机器比-k-种颜色复杂">真实机器比 K 种颜色复杂</a></li>
+<li><a href="#liveregmatrix不必先建立一个巨大冲突图">LiveRegMatrix：不必先建立一个巨大冲突图</a></li>
+<li><a href="#四种处理办法assignmentsplittingspillingrematerialization">四种处理办法：assignment、splitting、spilling、rematerialization</a></li>
+<li><a href="#llvm-本提交提供的主要方案">LLVM 本提交提供的主要方案</a></li>
+<li><a href="#经典线性扫描到底线性在哪里">经典线性扫描：到底“线性”在哪里</a></li>
+<li><a href="#图着色与-pbqp两种更全局的理解">图着色与 PBQP：两种更全局的理解</a></li>
+<li><a href="#总体架构一条可闭环的工作队列">总体架构：一条可闭环的工作队列</a></li>
+<li><a href="#第一个关键观察先安排难摆的长区间但局部情况另论">第一个关键观察：先安排难摆的长区间，但局部情况另论</a></li>
+<li><a href="#优先级与-spill-weight-不要混淆">优先级与 spill weight 不要混淆</a></li>
+<li><a href="#第一步tryassign-与寄存器偏好">第一步：tryAssign 与寄存器偏好</a></li>
+<li><a href="#callee-saved-的第一次使用为何单独考虑">callee-saved 的第一次使用为何单独考虑</a></li>
+<li><a href="#第二步eviction-不等于-spilling">第二步：eviction 不等于 spilling</a></li>
+<li><a href="#贪心允许反悔为什么不会永远互踢">贪心允许反悔，为什么不会永远互踢</a></li>
+<li><a href="#第三步第一次放不下为什么不马上切分">第三步：第一次放不下，为什么不马上切分</a></li>
+<li><a href="#切分从整个人留在房间变成按使用场景留不同房间">切分：从“整个人留在房间”变成“按使用场景留不同房间”</a></li>
+<li><a href="#spillplacement这里竟然有-hopfield-网络">SpillPlacement：这里竟然有 Hopfield 网络</a></li>
+<li><a href="#spill-与-rematerialization-的最终落地">Spill 与 rematerialization 的最终落地</a></li>
+<li><a href="#一个手算示例看清驱逐为何比扫描灵活">一个手算示例：看清驱逐为何比扫描灵活</a></li>
+<li><a href="#为什么-greedy-是一个很好的工程折中">为什么 Greedy 是一个很好的工程折中</a></li>
+<li><a href="#先从一个可解释循环开始">先从一个可解释循环开始</a></li>
+<li><a href="#powershell-配方先看诊断再看-ir-和汇编">PowerShell 配方：先看诊断，再看 IR 和汇编</a></li>
+<li><a href="#隔离一个-pass但承认人工管线不等于生产管线">隔离一个 Pass，但承认人工管线不等于生产管线</a></li>
+<li><a href="#做三个因果对照而不是只跑一个基准">做三个因果对照，而不是只跑一个基准</a><ol>
+<li><a href="#对照-a别名证据">对照 A：别名证据</a></li>
+<li><a href="#对照-b展开因子与归约链">对照 B：展开因子与归约链</a></li>
+<li><a href="#对照-c向量宽度与-ic">对照 C：向量宽度与 IC</a></li>
+</ol></li>
+<li><a href="#比较-llvm-的多种分配器">比较 LLVM 的多种分配器</a></li>
+<li><a href="#openmp-实验要分清-simd-与线程">OpenMP 实验要分清 SIMD 与线程</a></li>
+<li><a href="#每个领域的测试阅读入口">每个领域的测试阅读入口</a></li>
+<li><a href="#组会讨论的建议路线">组会讨论的建议路线</a></li>
+<li><a href="#自检问题与参考回答">自检问题与参考回答</a></li>
+<li><a href="#最后把整条因果链串起来">最后把整条因果链串起来</a></li>
+<li><a href="#进一步阅读本地文档与理论文献">进一步阅读：本地文档与理论文献</a></li>
+<li><a href="#向量化hints-不能跳过合法性">向量化：hints 不能跳过合法性</a></li>
+<li><a href="#自动并行化分析与降低是两步">自动并行化：分析与降低是两步</a></li>
+<li><a href="#greedy-的局部线性顺序概念纠错的直接证据">Greedy 的局部线性顺序：概念纠错的直接证据</a></li>
+<li><a href="#greedy-的第二轮故意等待更完整的压力信息">Greedy 的第二轮：故意等待更完整的压力信息</a></li>
+<li><a href="#为什么-greedy-可以产生新任务而不丢失它们">为什么 Greedy 可以产生新任务而不丢失它们</a></li>
+<li><a href="#把短片段还原成整条调用链">把短片段还原成整条调用链</a></li>
+</ol>
+    </nav>
+  </details>
+
+  <article class="body">
+<section id="sec-01-overview">
+<h1 id="overview">LLVM 优化全景</h1>
+<h2 id="这份教程回答什么">这份教程回答什么</h2>
+<p>把一次组会想象成五个问题：<strong>程序允许怎样重排？这种重排为什么更快？LLVM 怎么证明它合法？如何选择方案？最后机器有没有足够资源执行？</strong> 本文沿着这条主线，把循环优化和寄存器分配放进同一张图，而不是罗列 Pass 名称。</p>
+<p>读者只需熟悉 C 的循环、指针和基本计算机组成。若对编译过程还不熟悉，先读<a href="#compilation-pipeline">从 C/C++ 到优化 LLVM IR</a>：它沿同一个例子展示源码、AST、局部内存 IR、SSA 和循环优化入口。再读<a href="#ssa-basics">SSA 与基础优化</a>，学习 mem2reg、常量折叠与 SCCP、死代码删除、内联、尾递归换循环，随后进入循环理论。第一次出现 SSA、依赖分析、活跃区间、多面体或 PBQP 时都会解释。示例是教学用的等价变换草图，不是宣称本机编译器已经生成了该结果。</p>
+<p><strong>版本边界。</strong> 本文研读 <code>$LOCAL_REPOS/llvm-project</code>，提交 <code>6b122ae88eff63cc3e6ad3cd9a29a81faa6bb0dd</code>，分支 <code>main</code>，提交日期 2026-10-01，检查日期 2026-10-02；LLVM 工作树在检查时无修改。这个版本包含正在演进的实现，不能把它的默认策略无条件套到 LLVM 18、20 等发行版。本文没有编译 LLVM、运行它的测试或进行性能测量。</p>
+<p>所有源码路径都从 <strong><code>llvm-project/</code></strong> 开始；这是用户指定仓库的名字。定位优先用“路径＋函数/类名”，因为换提交后行号会漂移。个别行号仅针对以上提交。</p>
+<h2 id="六件容易混淆的事">六件容易混淆的事</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>改变什么</th>
+<th>主要利用什么</th>
+<th>会自动产生 CPU 线程吗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>循环向量化</td>
+<td>多次迭代打包成向量运算</td>
+<td>数据级并行 SIMD</td>
+<td>不会</td>
+</tr>
+<tr>
+<td>SLP 向量化</td>
+<td>多条同形标量指令组成向量</td>
+<td>同一局部区域中的数据级并行</td>
+<td>不会</td>
+</tr>
+<tr>
+<td>循环展开</td>
+<td>复制循环体，减少回边</td>
+<td>控制开销降低、指令级并行 ILP</td>
+<td>不会</td>
+</tr>
+<tr>
+<td>循环结构变换</td>
+<td>调整嵌套顺序、分裂或融合循环</td>
+<td>局部性、依赖分离、优化机会</td>
+<td>通常不会</td>
+</tr>
+<tr>
+<td>线程级自动并行化</td>
+<td>将独立迭代交给多个工作线程</td>
+<td>多核吞吐</td>
+<td>特定框架可以</td>
+</tr>
+<tr>
+<td>OpenMP</td>
+<td>显式表达并行、任务、SIMD 和 offload 语义</td>
+<td>编译器与运行时合作</td>
+<td><code>parallel</code> 会，<code>simd</code> 不会</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>关键纠正：LLVM Greedy 不等于“贪心线性扫描”。</strong> 传统 linear scan 按活跃区间起点前进；LLVM Greedy 用优先队列、物理寄存器冲突查询、驱逐和区域切分。这个提交的 Greedy 在一类局部区间上确实使用线性指令顺序，但全局算法不是经典线性扫描。<a href="#register-foundations">寄存器分配基础</a>与<a href="#greedy">Greedy 寄存器分配</a>会解释为何存在这种局部联系。</p>
+<h2 id="编译流水线优化发生在不同层">编译流水线：优化发生在不同层</h2>
+<pre><code class="language-text">C/C++ / OpenMP 源码
+  ↓ Clang：语法与语义分析，OpenMP 数据环境检查
+AST
+  ↓ CodeGen：普通计算变成 LLVM IR；并行区被 outline / runtime 化
+LLVM IR：SSA、基本块、循环、标量与向量类型
+  ↓ 基础中端：SROA / SSA promotion / 内联 / InstCombine / SCCP / DCE / TRE
+  ↓ 循环与并行：LICM / 循环变换 / LV / SLP / OpenMPOpt
+优化后的 LLVM IR
+  ↓ 指令选择与目标合法化
+Machine IR：虚拟寄存器、目标指令、寄存器类
+  ↓ PHI 消除、两地址处理、合并、调度、寄存器分配
+已分配物理寄存器的机器指令
+  ↓ 栈帧与序言尾声、后端整理
+汇编 / 目标文件
+</code></pre>
+<p>这张图只划分职责，不是一份固定 Pass 顺序：Clang 前端已经生成合法 IR 后才谈 promotion；默认管线也可能用 SROA 内部提升而没有独立 mem2reg；OpenMP、Polly、MLIR 的线程并行入口不能简单串在 LV 后面。具体输入输出与前置条件见<a href="#compilation-pipeline">从 C/C++ 到优化 LLVM IR</a>。</p>
+<p>SSA（Static Single Assignment）要求每个 SSA 值只有一个定义。循环里的 <code>i</code> 并不是被反复赋值的同一个 IR 名字，而是入口值、更新值通过 header 的 <code>phi</code> 合流。<code>phi</code> 按控制流前驱选择值，它不是“同时计算两边”。这种表示让 def-use 关系清晰，但<strong>内存并不因为标量 SSA 就自动没有别名</strong>。</p>
+<p>Pass 有三种职责：</p>
+<ol>
+<li><strong>Analysis</strong> 生成可复用事实，例如循环树、支配关系、SCEV、别名、块频率。</li>
+<li><strong>Transform</strong> 修改程序，例如展开或向量化。</li>
+<li><strong>Target interface</strong> 提供目标特定成本与能力，例如 TTI 对向量操作的估价。</li>
+</ol>
+<p>变换后必须维护或使分析失效。删改 CFG 却继续使用旧的 DominatorTree、LoopInfo 或 SCEV，会变成编译器正确性问题，而不是“性能差一点”。</p>
+<h2 id="源码入口和本版本流水线观察">源码入口和本版本流水线观察</h2>
+<p>先读 <code>llvm-project/llvm/lib/Passes/PassBuilderPipelines.cpp</code>，不要先钻进两万行的向量化实现。它决定何时有机会运行这些 Pass。</p>
+<p>在本提交里可观察到：</p>
+<ul>
+<li>前期循环管线包含 LICM、LoopRotate、SimpleLoopUnswitch 和完整展开等步骤；LICM 在 rotation 前后可用不同的推测策略。</li>
+<li><code>PassBuilder::addVectorPasses</code> 中先有 LoopVectorize，后续安排展开和清理，并在条件允许时加入 SLP。不同优化级别有不同分支，不是一份固定清单。</li>
+<li><code>EnableLoopInterchange</code> 的初始值为 true；<code>EnableLoopFlatten</code> 为 false；unroll-and-jam 有独立开关。<strong>源码有 Pass，不代表每个默认管线都启用它，更不代表每个循环都会被它改写。</strong></li>
+<li>向量化后的清理有实际目的：展开可能使 alloca 的变量索引变成常量，从而再次暴露 SROA 机会。</li>
+</ul>
+<p>后端读 <code>llvm-project/llvm/lib/CodeGen/TargetPassConfig.cpp</code>。标准实现的 <code>createTargetRegisterAllocator</code> 在优化路径选 Greedy，在非优化路径选 Fast；目标可以覆盖，<code>-regalloc=...</code> 也可显式改变选择。不要把“常见默认”说成“LLVM 所有目标永远如此”。</p>
+<h2 id="贯穿全文的统一决策模型">贯穿全文的统一决策模型</h2>
+<p>每次优化都经过三道门：</p>
+<blockquote>
+<p><strong>合法性：</strong> 保持语言与 IR 语义。<br />
+<strong>收益性：</strong> 对目标与输入分布预计更便宜。<br />
+<strong>实现与预算：</strong> 编译时间、代码体积、可用分析和机器资源允许。</p>
+</blockquote>
+<p>合法并不等于划算；划算的数学重排也不一定具有语言级合法性。比如浮点归约的树形重排可能更快，却改变舍入顺序；展开可能合法，却把寄存器压力推过临界点，产生大量 spill。</p>
+<p>学完以后，应能对一个循环说清：它的瓶颈是什么、依赖在哪、可用证明是什么、哪些 Pass 配合、哪个阶段可能让收益落空。能做到这一点，比背出开关名称更重要。</p>
+</section>
+
+<section id="sec-01-pipeline">
+<h1 id="compilation-pipeline">从 C/C++ 到优化 LLVM IR</h1>
+<p>本章解释“程序在每一步究竟长什么样”。先暂时不背 Pass 名字，沿着一个小 C 函数依次观察：源码、带语义的 AST、含局部内存的 IR、提升后的 SSA、适合循环分析的形状，最后才是向量循环。</p>
+<p>如果你觉得总览太抽象，建议从本章开始，再读<a href="#ssa-basics">SSA 与基础优化</a>。本章负责<strong>阶段、输入输出与前置关系</strong>；相关主题章负责每种算法的内部原理。</p>
+<h2 id="先纠正三种常见想象">先纠正三种常见想象</h2>
+<p><strong>不是“Clang 生成机器码，LLVM 再把机器码优化”。</strong> Clang 前端生成 LLVM IR；LLVM 中端通常优化 IR，后端才把它降低到目标指令并分配寄存器。</p>
+<p><strong>不是“先调用 mem2reg，C 源码就变成 LLVM IR”。</strong> mem2reg 的输入已经是合法 LLVM IR。预处理、语法与语义分析、类型与 ABI 处理、AST 到 IR 的控制流和访存生成，都在此之前。</p>
+<p><strong>也不是“进入 LLVM 后按 mem2reg → 常量折叠 → 展开 → 向量化依次各跑一次”。</strong> 生产管线按优化级别、目标、LTO、profile、语言功能和插件配置组装；某些步骤反复出现，某些没有显式 mem2reg，某些循环甚至在向量化前就被完整展开或删除。</p>
+<h2 id="一张带产物的流程图">一张带“产物”的流程图</h2>
+<pre><code class="language-text">编译命令：clang -O2 example.c -o example.exe
+│
+├─ Driver：解析选项，选择目标、工具链和编译/链接任务
+│   产物：内部 compilation actions / jobs，而非 LLVM IR
+│
+├─ Clang 前端任务（常称 cc1）
+│   ├─ 预处理 + 词法：include、宏、条件编译、token
+│   ├─ Parser + Sema：语法结构、类型、名字查找、隐式转换等
+│   │   产物：带类型与语义的 AST
+│   └─ AST CodeGen：函数 ABI、表达式、变量、控制流、清理路径
+│       产物：LLVM Module，内部有 Function / BasicBlock / Instruction
+│       此时可能有 alloca/load/store，但已经是合法 IR
+│
+├─ LLVM 中端优化管线
+│   ├─ 模块/调用图整理、属性推导、内联等
+│   ├─ SROA / promotion、表达式与 CFG 清理等（可能多轮）
+│   ├─ 循环识别、规范化、分析与前期结构优化
+│   └─ 合适阶段执行完整展开、LV、一般展开、SLP 等
+│       产物：优化 LLVM IR；不同循环走不同路线
+│
+├─ LLVM 后端（若没有选择停在 IR）
+│   ├─ 目标合法化与指令选择
+│   ├─ Machine IR 优化、调度、寄存器分配
+│   └─ 栈帧、后端整理、机器码/汇编输出
+│       产物：.s 或含机器码和重定位的 .o/.obj
+│
+└─ 链接器：合并目标文件/库、解析符号与重定位
+    产物：可执行文件或共享库
+</code></pre>
+<p>这张图表示职责边界，不表示每步必然启动独立进程或先写一个中间文件。Clang 常把预处理、解析、IR 生成和后端放在同一编译任务中；一些顶层声明还会在解析过程中交给 ASTConsumer 逐步处理，未必先把完整 AST 写盘再读回。</p>
+<p><code>.ll</code> 是 LLVM IR 的文本序列化，<code>.bc</code> 是 bitcode。正常编译并不需要在磁盘上出现它们。中端 Pass 通常修改内存中的 IR 对象，不是用字符串替换 <code>.ll</code> 文件。</p>
+<h2 id="driver-与-cc1谁决定你在编译什么">Driver 与 cc1：谁决定你在编译什么</h2>
+<p>你运行 <code>clang</code> 或 <code>clang++</code> 时，首先进入的是 driver。它根据 <code>-E</code>、<code>-S</code>、<code>-c</code>、<code>-emit-llvm</code>、目标、输入语言等决定建哪些任务，也选择 include 搜索、sysroot、运行库和链接器配置。</p>
+<p>源码路径：</p>
+<ul>
+<li><code>llvm-project/clang/lib/Driver/Driver.cpp</code>：<code>Driver::BuildCompilation</code>、<code>BuildActions</code>、<code>BuildJobs</code>。</li>
+<li><code>llvm-project/clang/lib/Driver/ToolChains/Clang.cpp</code>：<code>Clang::ConstructJob</code>，为编译任务构造参数。</li>
+<li><code>llvm-project/clang/lib/FrontendTool/ExecuteCompilerInvocation.cpp</code>：<code>CreateFrontendAction</code>、<code>ExecuteCompilerInvocation</code>。</li>
+<li><code>llvm-project/clang/lib/Frontend/CompilerInstance.cpp</code>：承载 diagnostics、目标、预处理器、ASTContext、Sema，并执行 FrontendAction。</li>
+</ul>
+<p>不要把 cc1 当作另一个要先安装的编译器产品。它主要指 Clang 的内部前端入口/任务模式；是否作为独立进程执行受 driver 配置影响。日常使用 driver 更可靠，因为它替你设置工具链；直接 <code>clang -cc1</code> 容易漏掉系统头文件和 ABI 相关参数。</p>
+<p>同一个 C 文件针对 Windows x64 与 Linux x86-64，可能有不同 ABI、目标 triple、DataLayout 和属性，即使都叫 x86-64。<strong>LLVM IR 也不是完全与目标无关的通用源码。</strong> 目标无关优化很多，但前端已经选择了类型布局、参数传递和若干目标事实。</p>
+<h2 id="预处理与词法此时尚未出现-llvm-指令">预处理与词法：此时尚未出现 LLVM 指令</h2>
+<pre><code class="language-c">#define STEP 1
+#include &quot;config.h&quot;
+#if ENABLE_KERNEL
+void f(void) { /* ... */ }
+#endif
+</code></pre>
+<p>预处理决定哪些 token 真正进入编译：展开宏、处理 include、选择条件分支，并保留源位置用于诊断。词法把字符变成标识符、数字、运算符等 tokens。</p>
+<p>路径：<code>llvm-project/clang/lib/Lex/Lexer.cpp</code>、<code>llvm-project/clang/lib/Lex/Preprocessor.cpp</code>、<code>llvm-project/clang/lib/Lex/PPMacroExpansion.cpp</code>。</p>
+<p>这里的宏展开不是“函数内联 Pass”；<code>#if</code> 选分支也不是 LLVM SCCP。它们甚至发生在类型检查之前。头文件通常在预处理/语义层提供声明或定义，不能把每个 <code>#include</code> 理解成链接阶段加载一个库。</p>
+<h2 id="parser-与-sema从语法树到具有-cc-意义的程序">Parser 与 Sema：从语法树到具有 C/C++ 意义的程序</h2>
+<p>Parser 认识 <code>for</code>、函数声明、表达式、语句的语法结构。Sema 负责名字查找、类型检查、重载决议、隐式转换、模板相关语义等；两者在解析过程中协作，不是 Parser 随便建一棵无类型树，最后才一次性检查所有节点。</p>
+<p>路径：</p>
+<ul>
+<li><code>llvm-project/clang/lib/Parse/ParseAST.cpp</code>：<code>ParseAST</code>，循环调用 <code>ParseTopLevelDecl</code>，并通知 ASTConsumer。</li>
+<li><code>llvm-project/clang/lib/Parse/ParseStmt.cpp</code>：语句解析。</li>
+<li><code>llvm-project/clang/lib/Sema/SemaExpr.cpp</code>：表达式语义。</li>
+<li><code>llvm-project/clang/lib/Sema/SemaStmt.cpp</code>：语句语义。</li>
+<li><code>llvm-project/clang/include/clang/AST/</code>：AST 表示。</li>
+</ul>
+<p>C++ 会带来额外语义：构造/析构、引用、虚调用、模板实例化、异常和清理等。有些语言要求的常量求值也在此阶段进行，例如 constexpr 场景；它不是之后把两个 LLVM 常量相加的同一种职责。</p>
+<h3 id="ast-里保留源码的结构">AST 里保留源码的结构</h3>
+<p>考虑下面贯穿本章的例子：</p>
+<pre><code class="language-c">static float scale_one(float x, float a) {
+    float t = a * x;
+    return t + 1.0f;
+}
+
+void scale(float *restrict out, const float *restrict in,
+           unsigned n, float a) {
+    for (unsigned i = 0; i &lt; n; ++i)
+        out[i] = scale_one(in[i], a);
+}
+</code></pre>
+<p>这是 C 示例；<code>restrict</code> 不应直接当作标准 C++ 关键字使用。数组有效范围与 restrict 契约仍由调用者满足。</p>
+<p>AST 的简化示意：</p>
+<pre><code class="language-text">FunctionDecl scale
+└─ CompoundStmt
+   └─ ForStmt
+      ├─ DeclStmt：unsigned i = 0
+      ├─ 条件：i &lt; n
+      ├─ 更新：++i
+      └─ 赋值
+         ├─ ArraySubscriptExpr：out[i]（写入位置）
+         └─ CallExpr：scale_one
+            ├─ in[i] 经读取转换得到 float 值
+            └─ a 经读取转换得到 float 值
+</code></pre>
+<p>真实 AST 还会显示 <code>DeclRefExpr</code>、<code>ImplicitCastExpr</code> 等。它们很有意义：名字引用可指向一个变量位置，而计算 <code>a * x</code> 需要读取其值；Sema 用隐式转换节点记录这些语言语义。</p>
+<p>此时依然有 ForStmt、源码变量和函数调用。LLVM IR 里则没有普通 C 的 ForStmt；循环会变成基本块与分支。</p>
+<h2 id="ast-codegen变量表达式和语句各怎样降低">AST CodeGen：变量、表达式和语句各怎样降低</h2>
+<h3 id="从-astconsumer-到一个-llvm-function">从 ASTConsumer 到一个 LLVM Function</h3>
+<p>沿这条源码路线阅读：</p>
+<pre><code class="language-text">ParseAST 通知 ASTConsumer
+  → BackendConsumer / CodeGenerator
+  → CodeGenModule：顶层声明、全局对象、函数及 ABI
+  → CodeGenFunction：某个函数的入口、body、结束处理
+  → 具体语句/表达式 emitter
+</code></pre>
+<p>对应路径与符号：</p>
+<ul>
+<li><code>llvm-project/clang/lib/CodeGen/CodeGenAction.cpp</code>：<code>BackendConsumer::HandleTopLevelDecl</code>、<code>HandleTranslationUnit</code>。</li>
+<li><code>llvm-project/clang/lib/CodeGen/ModuleBuilder.cpp</code>：<code>CreateLLVMCodeGen</code>、<code>HandleTopLevelDecl</code>。</li>
+<li><code>llvm-project/clang/lib/CodeGen/CodeGenModule.cpp</code>：<code>EmitTopLevelDecl</code>、<code>EmitGlobalDefinition</code>、<code>EmitGlobalFunctionDefinition</code>。</li>
+<li><code>llvm-project/clang/lib/CodeGen/CodeGenFunction.cpp</code>：<code>GenerateCode</code>、<code>StartFunction</code>、<code>EmitFunctionBody</code>、<code>FinishFunction</code>。</li>
+</ul>
+<p>ABI lowering 也发生在这里：一个 C++ 结构体参数可能拆成几个 IR 参数、经指针传递，或通过隐藏返回值指针返回。IR Function 的签名不总与源语言函数签名一一对应。相关入口在 <code>llvm-project/clang/lib/CodeGen/CGCall.cpp</code>，目标差异的实现集中于 <code>llvm-project/clang/lib/CodeGen/Targets/</code>。</p>
+<h3 id="声明给可修改局部量一个位置">声明：给可修改局部量一个位置</h3>
+<p><code>llvm-project/clang/lib/CodeGen/CGDecl.cpp</code> 中，<code>EmitAutoVarDecl</code> 会调用 <code>EmitAutoVarAlloca</code>、<code>EmitAutoVarInit</code> 等处理局部对象的存储与初始化；还要考虑 alignment、debug info、lifetime 和语言清理。</p>
+<p>对于容易理解的普通自动局部标量，前端可以先用 alloca 提供地址，以 load/store 实现每次读写。这避免让 AST emitter 自己为每个源码变量运行完整 SSA 构建算法。</p>
+<p>但“所有变量永远先产生一个 alloca”也不准确：常量、表达式临时值、不同 storage duration、参数、优化选项和特殊语言构造有不同路径。前端可以直接产生 SSA 临时值，或做局部简化。</p>
+<h3 id="表达式先区分地址与值">表达式：先区分“地址”与“值”</h3>
+<p>对 <code>out[i] = in[i] * a</code>：</p>
+<ol>
+<li>计算 <code>in[i]</code> 的位置：通常生成带元素类型的 GEP 地址运算。</li>
+<li>从该位置 load，得到一个 float SSA 值。</li>
+<li>与 a 的值计算 fmul，得到另一个 SSA 值。</li>
+<li>计算 <code>out[i]</code> 的位置，再 store 结果。</li>
+</ol>
+<p>路径：<code>llvm-project/clang/lib/CodeGen/CGExpr.cpp</code> 的 <code>EmitLValue</code>、数组下标与 load/store 发射；<code>llvm-project/clang/lib/CodeGen/CGExprScalar.cpp</code> 的标量表达式发射。</p>
+<p><strong>GEP 是地址计算，不是访问数组内容。</strong> <code>getelementptr float, ptr %in, i64 %index</code> 按 float 元素步长计算地址；读取数据还需要 load。opaque pointer 的 <code>ptr</code> 不带 pointee type，并不意味着元素大小可以不知道，GEP 仍有显式源元素类型。</p>
+<h3 id="语句for-变成-cfg">语句：for 变成 CFG</h3>
+<p><code>llvm-project/clang/lib/CodeGen/CGStmt.cpp</code> 的 <code>EmitStmt</code> 分派到 <code>EmitForStmt</code>、<code>EmitIfStmt</code>、<code>EmitReturnStmt</code> 等。</p>
+<p>教学上一个 for 被拆成：</p>
+<pre><code class="language-text">entry：初始化 i
+  ↓
+cond：读 i，判断 i &lt; n ── false ──→ exit：返回
+  │ true
+  ↓
+body：读取 in[i]、调用 helper、写 out[i]
+  ↓
+inc：更新 i
+  └──────────────────────────────→ cond
+</code></pre>
+<p><code>break</code>、<code>continue</code>、return、异常与析构会增加或改变边。对于 C++，跳出某作用域前可能必须发射 cleanup；不是简单把每个 break 都替换成一条裸 branch。</p>
+<h2 id="快照mem2reg-前的-ir-已经包含什么">快照：mem2reg 前的 IR 已经包含什么</h2>
+<p>下面是<strong>人为压缩的完整教学 IR</strong>，用 64 位指针目标常见的索引形式示意，未声称是本文提交或本机工具实际输出。为集中展示局部变量，直接使用参数 SSA 值，不展示 Clang 可能产生的参数栈槽、属性、metadata 与清理。</p>
+<pre><code class="language-llvm">define internal float @scale_one(float %x, float %a) {
+entry:
+  %t.slot = alloca float, align 4
+  %product = fmul float %a, %x
+  store float %product, ptr %t.slot, align 4
+  %t = load float, ptr %t.slot, align 4
+  %result = fadd float %t, 1.000000e+00
+  ret float %result
+}
+
+define void @scale(ptr noalias %out, ptr noalias %in, i32 %n, float %a) {
+entry:
+  %i.slot = alloca i32, align 4
+  store i32 0, ptr %i.slot, align 4
+  br label %cond
+cond:
+  %i.cond = load i32, ptr %i.slot, align 4
+  %more = icmp ult i32 %i.cond, %n
+  br i1 %more, label %body, label %exit
+body:
+  %i.body = load i32, ptr %i.slot, align 4
+  %index = zext i32 %i.body to i64
+  %src = getelementptr float, ptr %in, i64 %index
+  %x = load float, ptr %src, align 4
+  %y = call float @scale_one(float %x, float %a)
+  %dst = getelementptr float, ptr %out, i64 %index
+  store float %y, ptr %dst, align 4
+  br label %inc
+inc:
+  %i.old = load i32, ptr %i.slot, align 4
+  %i.next = add i32 %i.old, 1
+  store i32 %i.next, ptr %i.slot, align 4
+  br label %cond
+exit:
+  ret void
+}
+</code></pre>
+<p>逐项看已有的信息：</p>
+<ul>
+<li><strong>函数与类型已经确定：</strong> out/in 是指针，n 是 i32，计算是 float。</li>
+<li><strong>控制流已经确定：</strong> entry/cond/body/inc/exit 和 branch 就是循环。</li>
+<li><strong>每个临时值已经是 SSA：</strong> <code>%product</code>、<code>%x</code>、<code>%i.next</code> 都只有一个定义。</li>
+<li><strong>源码变量 i 的“当前内容”还在内存中：</strong> 修改它使用 store，读取它使用 load。</li>
+<li><strong>真正的数组访问仍在内存中：</strong> in/out 并不是局部 slot，不能期待 mem2reg 消灭数组读写。</li>
+<li><strong>语言契约已开始进入 IR：</strong> 示意的 noalias 表达相关参数事实；实际属性和 metadata 的生成细节仍要看具体 CodeGen。</li>
+</ul>
+<p>所以，“LLVM IR 已是 SSA，为什么还要 mem2reg”并不矛盾。<strong>原 IR 的指令结果符合 SSA；mem2reg 把符合条件的内存状态也重编码成 SSA 值。</strong></p>
+<h2 id="mem2reg-前发生的事按职责回答而不是找一个固定-pass-清单">mem2reg 前发生的事：按职责回答，而不是找一个固定 Pass 清单</h2>
+<p>进入 mem2reg 之前，必然已经完成足以生成合法 IR 的语言处理：目标选择、预处理/词法、解析/Sema、AST CodeGen、ABI 与基本控制流/访存发射。</p>
+<p>但是否还跑过某些 LLVM Pass，取决于你如何拿到输入：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>你拿到的输入</th>
+<th>mem2reg 之前可能已经发生什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>教学手写 <code>.ll</code></td>
+<td>只需先有合法 IR，不存在 Clang AST 步骤</td>
+</tr>
+<tr>
+<td>Clang <code>-O0 -S -emit-llvm</code></td>
+<td>已有前端生成与必要整理；常带 optnone，普通优化 Pass 可能跳过</td>
+</tr>
+<tr>
+<td>禁用 LLVM Pass 的前端输出</td>
+<td>保留 AST CodeGen 与其局部工作，不代表完全没有折叠/简化</td>
+</tr>
+<tr>
+<td>普通 <code>clang -O2/-O3</code> 的中间状态</td>
+<td>管线可能已做模块处理、属性推导、内联、SROA/promotion 等</td>
+</tr>
+<tr>
+<td>从另一前端导入的 <code>.bc</code></td>
+<td>初始 IR 风格与已有优化可能不同</td>
+</tr>
+</tbody>
+</table></div>
+<p>最重要的是：<strong>“mem2reg 前”是一个观察切面，不是所有编译任务都有的唯一时间点。</strong></p>
+<p>默认优化经常由 SROA 内部调用 promotion，而不是显式安排名叫 mem2reg 的独立 Pass。若你在 debug-pass-manager 输出里没有找到 PromotePass，却看到局部 load/store 消失，不能推论前端没有做优化或 LLVM 不使用 SSA 提升。</p>
+<h2 id="快照提升以后i-的状态成为循环-phi">快照：提升以后，i 的状态成为循环 PHI</h2>
+<p>对上面的教学 IR 运行 promotion 后，helper 的 <code>%t.slot</code> 可消失，scale 的 <code>%i.slot</code> 可变成：</p>
+<pre><code class="language-llvm">entry:
+  br label %cond
+cond:
+  %i = phi i32 [ 0, %entry ], [ %i.next, %inc ]
+  %more = icmp ult i32 %i, %n
+  br i1 %more, label %body, label %exit
+body:
+  %index = zext i32 %i to i64
+  %src = getelementptr float, ptr %in, i64 %index
+  %x = load float, ptr %src, align 4
+  %y = call float @scale_one(float %x, float %a)
+  %dst = getelementptr float, ptr %out, i64 %index
+  store float %y, ptr %dst, align 4
+  br label %inc
+inc:
+  %i.next = add i32 %i, 1
+  br label %cond
+exit:
+  ret void
+</code></pre>
+<p>这是对应函数 body 的片段。初始边带来 0，回边带来 i.next；body、inc 使用同一个当前 <code>%i</code>。</p>
+<p>到这里，LLVM 已容易看出：“每次回边都把同一个 loop 的状态加 1”。SCEV 可以进一步分析这种 recurrence，而不用每次在 i.slot 的 load/store 链中寻找最后写入者。</p>
+<p>但是 promotion 没有做三件事：没有自动删除 helper call、没有生成向量指令、没有给 i 分配硬件寄存器。</p>
+<h2 id="内联与清理让循环体显露计算而不是隐藏调用">内联与清理：让循环体显露计算，而不是隐藏调用</h2>
+<p>内联 helper 并清理后，循环体可出现：</p>
+<pre><code class="language-llvm">%x = load float, ptr %src, align 4
+%product = fmul float %a, %x
+%y = fadd float %product, 1.000000e+00
+store float %y, ptr %dst, align 4
+</code></pre>
+<p>这一步为向量化提供一个很简单的逐元素模式。若 helper 没内联，LV 需要理解该调用是否安全、有无向量版本、是否支持相应处理，不能把任意 call 当成无副作用的乘加。</p>
+<p>这里没有把浮点运算擅自变成实数代数或 FMA。是否 contract、是否允许 reassociation，都需要保留前端传来的浮点语义与目标约束。</p>
+<p>内联也可能把 helper 的 alloca 带进 caller，因此 <strong>inline → SROA/promotion → InstCombine</strong> 之类的后续整理很自然。生产管线不是“一次提升后永不再提升”。</p>
+<h2 id="pass-manager到底谁安排这些步骤">Pass Manager：到底谁安排这些步骤</h2>
+<p>Clang 前端完成 Module 后，把它交给后端入口；中端优化与机器 codegen 是这里的不同子阶段。</p>
+<p><code>llvm-project/clang/lib/CodeGen/BackendUtil.cpp</code> 的 <code>EmitAssemblyHelper::RunOptimizationPipeline</code>：</p>
+<ol>
+<li>根据目标/选项构造 PassBuilder。</li>
+<li>注册 Module、CGSCC、Function、Loop analyses 及 manager proxies。</li>
+<li>按优化级别、LTO 等选择管线；普通路径调用 <code>buildPerModuleDefaultPipeline</code>。</li>
+<li>执行 ModulePassManager；选择输出 IR 时序列化结果，选择机器输出时继续 codegen。</li>
+</ol>
+<p>对应管线定义在 <code>llvm-project/llvm/lib/Passes/PassBuilderPipelines.cpp</code>。四个层次不是四种 IR 语言，而是 Pass 处理对象的粒度：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>层</th>
+<th>处理范围</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Module</td>
+<td>一个 IR 模块中的函数与全局对象</td>
+<td>模块属性、全局清理</td>
+</tr>
+<tr>
+<td>CGSCC</td>
+<td>调用图的强连通分量</td>
+<td>内联及调用图更新</td>
+</tr>
+<tr>
+<td>Function</td>
+<td>单函数 CFG 与指令</td>
+<td>SROA、InstCombine、SCCP、LV</td>
+</tr>
+<tr>
+<td>Loop</td>
+<td>单个循环或相关 loop nest</td>
+<td>LICM、rotate、部分展开/循环变换</td>
+</tr>
+</tbody>
+</table></div>
+<p>LV 虽然名字是 LoopVectorize，却以 Function Pass 驱动并自行处理循环；Pass 名字不能直接用来猜它的 manager 层次。</p>
+<p>AnalysisManager 按请求计算并缓存事实。Transform 声称保留的分析可复用，否则失效/重算；“某个 analysis 在这里可用”并不意味着它一定在固定前一行运行。阅读管线时应分清<strong>安排了一个变换</strong>和<strong>按需取得一份分析结果</strong>。</p>
+<h2 id="进入循环优化之前三个层面的准备">进入循环优化之前：三个层面的准备</h2>
+<h3 id="语义事实知道什么不能动">语义事实：知道什么不能动</h3>
+<p>目标循环需要带着正确事实进入中端：</p>
+<ul>
+<li>整数位宽、signedness 相关比较、溢出规则。</li>
+<li>浮点 flags/环境、是否允许 contraction/reassociation。</li>
+<li>调用副作用、异常、volatile/atomic/同步。</li>
+<li>指针别名、参数/对象信息、对齐、已知范围和 assumptions。</li>
+</ul>
+<p>有些由前端直接产生，有些由跨函数属性推导、内联、AA 等后续推导。它们是证明基础，不只是优化速度开关。</p>
+<h3 id="表示形状让循环成为可处理的对象">表示形状：让循环成为可处理的对象</h3>
+<p>常见准备包括：</p>
+<ul>
+<li>SROA/promotion 使可提升的局部状态变成 SSA。</li>
+<li>InstCombine、EarlyCSE、SimplifyCFG 等去掉冗余和多余 CFG。</li>
+<li>内联暴露隐藏计算；TRE 可以把某些自递归变成循环。</li>
+<li>LoopSimplify 整理 preheader、latch、dedicated exits 等可达规范形式。</li>
+<li>LCSSA 把 loop 内定义、loop 外使用的值经退出 PHI 表达。</li>
+</ul>
+<p><strong>这些不是每种优化都必须逐项重新执行的全称清单。</strong> 输入可能早已满足形状；一些不可约 CFG 无法直接规范成所需自然循环；某 Pass 可自行处理特例。</p>
+<h3 id="分析事实知道循环如何运行机器支持什么">分析事实：知道循环如何运行、机器支持什么</h3>
+<p>DominatorTree/LoopInfo、ScalarEvolution、AA、TTI/TLI 和按需要的 MemorySSA 等，回答：</p>
+<pre><code class="language-text">哪里是循环，入口和回边在哪里？
+谁支配谁，某条指令是不是必定执行？
+诱导变量如何递推，trip count 有没有上界或倍数？
+哪些访问可能重叠，哪些写会影响读取？
+目标的向量、访存、指令成本如何？
+</code></pre>
+<p>这些问题回答了，才谈得上“能展开几份”“可以打包多少 lane”“guard 值不值得”。</p>
+<h2 id="一个藏在-adaptor-里的准备过程">一个藏在 adaptor 里的准备过程</h2>
+<p>你可能在管线里只看到：</p>
+<pre><code class="language-cpp">FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM1),
+                                            /*UseMemorySSA=*/true));
+</code></pre>
+<p>却没在旁边看到显式的 LoopSimplify/LCSSA，容易以为它们没运行。实际上本提交 <code>FunctionToLoopPassAdaptor</code> 构造时准备了微型 canonicalization pipeline。</p>
+<p>位置：<code>llvm-project/llvm/include/llvm/Transforms/Scalar/LoopPassManager.h</code>：</p>
+<pre><code class="language-cpp">LoopCanonicalizationFPM.addPass(LoopSimplifyPass());
+LoopCanonicalizationFPM.addPass(LCSSAPass());
+</code></pre>
+<p>执行位置：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopPassManager.cpp</code> 的 <code>FunctionToLoopPassAdaptor::run</code>。有循环时先运行 canonicalization，再取得新的 LoopInfo 和标准分析集合；若请求 UseMemorySSA，再取得并传递 MemorySSA。</p>
+<p>它体现一种很重要的设计：<strong>变换所需的输入形式可由执行框架统一保证，而不必在每个 Pass 前手写一遍准备步骤。</strong></p>
+<p>同时这不是对所有带“loop”字样的 Pass 的普遍承诺；例如 Function 级 LV 自己获取/整理有关循环状态。应追当前实际使用的入口。</p>
+<h2 id="本版本的前期循环管线不是所有-sccp-都在循环前">本版本的前期循环管线：不是所有 SCCP 都在循环前</h2>
+<p>看 <code>PassBuilder::buildFunctionSimplificationPipeline</code>，排除 O1 的专门分支、按本文提交的普通相应路径：</p>
+<pre><code class="language-text">SROA → EarlyCSE
+  → 分支/相关值等简化（部分步骤受选项控制）
+  → SimplifyCFG → InstCombine / AggressiveInstCombine 等
+  → TailCallElim → SimplifyCFG → Reassociate
+  → [Loop adaptor 的 LoopSimplify + LCSSA]
+  → LPM1：LoopInstSimplify、LoopSimplifyCFG、LICM、Rotate、LICM、Unswitch 等
+  → 函数级 SimplifyCFG、InstCombine
+  → LPM2：Idiom、IndVarSimplify、LoopDeletion、FullUnroll 等
+  → SROA 与后续标量清理，包括相应位置的 SCCP、DCE 家族等
+</code></pre>
+<p>这里只截取帮助理解的主骨架，不是完整管线；PGO/LTO、选项、目标 callbacks 和不同优化级别会改变步骤。<strong>特别不要把本图简化成“所有常量传播和 DCE 必须先做完，才开始任何循环展开”。</strong> 本版本在函数简化管线的前期 loop passes 后也安排 SCCP 等；更早折叠与清理仍可通过其他步骤发生。</p>
+<p>为什么完整展开可能在这里很早？小常数循环完全展开后能暴露常量和数组固定索引，再由 SROA、InstCombine 等删除大量工作。等到向量化阶段，它可能已不再是循环。</p>
+<p>为什么向量化常较晚？前期内联、别名/属性推导、结构整理能改善可分析性；向量化会生成主体、guard、fallback、尾部等更复杂结构，太早做可能妨碍其他标量变换。</p>
+<h2 id="分别回答展开向量化线程并行之前要什么">分别回答：展开、向量化、线程并行之前要什么</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>变换</th>
+<th>真正要证明/准备的事</th>
+<th>不要误以为必需</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>保序展开</td>
+<td>当前实现支持的 loop/CFG、正确克隆和退出、trip count/倍数/上界或 runtime 策略、大小与目标成本</td>
+<td>所有迭代必须独立；必须先向量化</td>
+</tr>
+<tr>
+<td>Loop Vectorizer</td>
+<td>能解释的循环状态/指令、内存依赖和浮点合法性、可行 VF 与检查/尾部方案、收益</td>
+<td>helper 必须无条件内联；必须先经过通用 LoopUnroll</td>
+</tr>
+<tr>
+<td>SLP</td>
+<td>同形指令组、可共同调度、访存与外部 uses 合法、打包/shuffle 成本</td>
+<td>必须有 loop；必须先有 trip count</td>
+</tr>
+<tr>
+<td>Polly 线程化</td>
+<td>可建模 SCoP、依赖与 schedule、并行检测、实际线程化策略与运行时生成</td>
+<td>普通 <code>-O3</code> 自动插入所有 OpenMP fork</td>
+</tr>
+<tr>
+<td>MLIR affine parallelization</td>
+<td>保留的 affine loop/access 信息、parallel/reduction 检查、后续 lowering 路线</td>
+<td>必须先从 C 降成普通 LLVM IR 再恢复高层结构</td>
+</tr>
+<tr>
+<td>OpenMP parallel/for</td>
+<td>前端接受规范构造、数据环境与线程语义、outline 和 runtime lowering；再做已有 IR 的优化</td>
+<td>LLVM 必须先从普通循环静态证明所有线程完全独立</td>
+</tr>
+</tbody>
+</table></div>
+<p>这里的 helper 内联是强有力的机会提供者，不是逻辑上唯一道路；有向量函数库等支持时，LV 也可能处理适用调用。</p>
+<p>线程并行尤其不是“在 LV 之后再运行一个普通并行化 Pass”。OpenMP 在前端就有显式并行语义；MLIR 路线可以在高层 IR 分支；Polly 对 LLVM IR 的可分析区域另建模型。它们是不同入口，不应画成一个所有 C 函数都顺序经过的必经步骤。</p>
+<h2 id="快照一个已经方便分析的标量循环">快照：一个已经方便分析的标量循环</h2>
+<p>经过适用的 promotion、内联和规范化后，可得到下面<strong>教学示意</strong>形状；具体目标/版本也可能使用不同计数方式：</p>
+<pre><code class="language-text">entry guard：n 是否为 0？
+      / false（有工作）             \ true
+preheader                            exit
+      |
+header/body：i = phi(0, i.next)
+  连续读取 in[i]
+  计算 a*x+1
+  连续写入 out[i]
+      |
+latch：i.next = i+1；是否还小于 n？
+      └─ 是 → header/body
+      └─ 否 → exit
+</code></pre>
+<p>这时能把每层信息明确说出来：</p>
+<ul>
+<li>SSA 说明 i 的定义/使用和回边状态。</li>
+<li>LoopInfo 说明循环区域，preheader 与 latch。</li>
+<li>SCEV 尝试识别 i 的 <code>{0,+,1}</code> 递推及计数规律。</li>
+<li>AA/LoopAccessAnalysis 综合数组关系，决定是否独立、是否要检查。</li>
+<li>TTI 提供 SIMD 成本与目标限制。</li>
+<li>LV 根据这些事实规划 VPlan，而不是直接读取 C 的 ForStmt。</li>
+</ul>
+<p>如果你能从上一份含 slot 的 IR 自己画出这里的图，就抓住了基础优化为何是高级优化的前提。</p>
+<h2 id="快照最终向量方案比一条-simd-指令复杂">快照：最终向量方案比“一条 SIMD 指令”复杂</h2>
+<p>假设一个候选使用 VF=4、IC=1，普通 fixed-width 主体可概念化为：</p>
+<pre><code class="language-text">入口检查 n
+  → 计算能处理多少完整 4 元素批次
+  → 按需要执行 SCEV/alias/runtime 收益 guard
+  → vector body：向量 load → splat(a)*X+1 → 向量 store，索引加 4
+  → 剩余元素：标量或其他向量尾部
+  → exit
+</code></pre>
+<p>对 noalias 足够的教学参数，不一定需要额外 alias guard。若失去相关事实，可加快路径/原标量 fallback；如果目标选择 tail folding，结构也会改变。</p>
+<p>请注意五个“前后区别”：</p>
+<ol>
+<li>前端的 <code>++i</code> 最初是变量位置上的更新；后面成为 SSA recurrence，再成为向量索引步进。</li>
+<li>helper 最初是一个 call；适用内联后才显露 fmul/fadd。</li>
+<li>本来每次读一个 float，向量主体可每次读多个；但最终还要经过后端目标合法化。</li>
+<li>i.slot 被提升并不意味着 out/in 的实际数据也从内存消失。</li>
+<li>优化后的向量 IR 仍无最终物理寄存器；Greedy 在更后面的 Machine IR 上安排资源。</li>
+</ol>
+<h2 id="c-额外复杂性不能把语言语义当作优化噪声">C++ 额外复杂性：不能把语言语义当作“优化噪声”</h2>
+<p>在简单 C 示例里看不到的内容，真实 C++ CodeGen 可能已放进 IR：</p>
+<ul>
+<li>引用绑定与对象生命周期。</li>
+<li>构造、析构与作用域 cleanup。</li>
+<li>虚调用、对象布局、this 与隐藏 ABI 参数。</li>
+<li>异常的 invoke、unwind 和异常处理块。</li>
+<li>模板实例化后实际可发射的函数体。</li>
+</ul>
+<p>这些可能阻碍推测 load、尾递归、内联或循环向量化。清理它们必须有证明，比如调用实际不会抛异常、对象状态不逃逸；不是优化器觉得“与数值计算无关”就能删。</p>
+<p>此外，Clang 的 C/C++ 前端通常直接走 AST→LLVM IR，<strong>不是默认先经过 MLIR</strong>。MLIR 很适合某些高层域和转换流程，但不能把它插进普通 Clang 默认编译路线当必经层。</p>
+<h2 id="链接与-lto为什么有时优化又跨过目标文件边界">链接与 LTO：为什么有时优化又跨过目标文件边界</h2>
+<p>普通分离编译中，某个 <code>.c/.cpp</code> 编译任务只能优化当前可用 Module 里的内容；外部函数若仅有声明，不能任意克隆它的 body。链接器合并普通机器目标文件，不会自动让已结束的中端重新看到所有函数源码。</p>
+<p>LTO 使 bitcode/摘要等参与链接时的优化阶段：Full LTO 和 ThinLTO 用不同方式获得跨模块信息和进行后续优化，可能打开跨文件内联、属性推导等机会。所以有 pre-link/post-link 管线，而不是一个固定 <code>-O3</code> 清单。</p>
+<p>普通 <code>.ll/.bc</code> 输出也不自动等于已配置 LTO 可执行链接。要区分“保存 IR”“以 IR 参与 LTO”与“链接机器目标文件”三件事。</p>
+<h2 id="怎样亲眼观察每个边界">怎样亲眼观察每个边界</h2>
+<p>以下全部是<strong>未执行的实验配方</strong>。沿用<a href="#practice">源码阅读与实验</a>中的 <code>$Clang</code>、<code>$Opt</code>、<code>$Exp</code>，把本章 C 示例保存到 system TEMP 实验目录的 <code>pipeline.c</code>。无需编译 LLVM 仓库本身即可使用已安装的工具观察；但若要对照本文实现，工具版本应匹配本提交。</p>
+<pre><code class="language-powershell"># 看 driver 准备的命令，不真正执行编译。
+&amp; $Clang '-###' -O2 -c &quot;$Exp\pipeline.c&quot;
+
+# 观察预处理后的 C 与 AST，不启动常规机器输出。
+&amp; $Clang -E &quot;$Exp\pipeline.c&quot; -o &quot;$Exp\pipeline.i&quot;
+&amp; $Clang -Xclang -ast-dump -fsyntax-only &quot;$Exp\pipeline.c&quot; `
+    &gt; &quot;$Exp\pipeline-ast.txt&quot;
+
+# 保留 O1 的前端设置，但禁用 LLVM 中端 Pass。
+# 这是接近中端入口的观察方式，不是绝对无简化的原始 AST。
+&amp; $Clang -O1 -Xclang -disable-llvm-passes -S -emit-llvm `
+    &quot;$Exp\pipeline.c&quot; -o &quot;$Exp\frontend.ll&quot;
+
+# 单独看 promotion，再看生产式 O2 管线。
+&amp; $Opt -S -passes='mem2reg' &quot;$Exp\frontend.ll&quot; `
+    -o &quot;$Exp\promoted.ll&quot;
+&amp; $Opt -S -passes='default&lt;O2&gt;' &quot;$Exp\frontend.ll&quot; `
+    -o &quot;$Exp\optimized.ll&quot;
+
+# 对照 Clang 自己的 O2 输出；它不保证与上面的 opt 管线完全相同。
+&amp; $Clang -O2 -S -emit-llvm &quot;$Exp\pipeline.c&quot; `
+    -o &quot;$Exp\clang-o2.ll&quot;
+</code></pre>
+<p><code>-O0</code> 也是有用的观察点，但常带 <code>optnone</code>；普通可选优化可能因此跳过。可研究 <code>-Xclang -disable-O0-optnone</code>，但这不把 O0 的前端设置变成 O2。也不能保证 <code>-O0</code> 输出完全没有 folding，因为 AST CodeGen、IR 构造和必要整理仍会做工作。</p>
+<h3 id="看某个-pass-前的-ir而不是猜测">看“某个 Pass 前”的 IR，而不是猜测</h3>
+<pre><code class="language-powershell"># 新 PM 执行日志；看实际 manager、analysis 与 pass。
+&amp; $Opt -disable-output -debug-pass-manager -passes='default&lt;O2&gt;' `
+    &quot;$Exp\frontend.ll&quot; 2&gt; &quot;$Exp\pass-manager.txt&quot;
+
+# 只打印若干指定 Pass 前后的 IR，避免无限大的 print-all 日志。
+# 标识名须按你使用的工具版本验证；下列为对应功能的常用标识。
+&amp; $Opt -disable-output -passes='default&lt;O2&gt;' `
+    -print-before=loop-vectorize -print-after=loop-vectorize `
+    &quot;$Exp\frontend.ll&quot; 2&gt; &quot;$Exp\around-vectorize.txt&quot;
+&amp; $Opt -disable-output -passes='mem2reg' `
+    -print-before=mem2reg -print-after=mem2reg `
+    &quot;$Exp\frontend.ll&quot; 2&gt; &quot;$Exp\around-promotion.txt&quot;
+</code></pre>
+<p>区别如下：</p>
+<ul>
+<li>AST dump 回答前端理解了什么。</li>
+<li>frontend.ll 回答 AST 降低成了什么。</li>
+<li>promoted.ll 回答哪些局部内存已成为 SSA。</li>
+<li>around-vectorize 回答 LV 真正接收了哪种 loop，而不是原 C 的形状。</li>
+<li>最终 <code>.s</code> / MIR 回答后端把方案实现成什么、有没有 spill。</li>
+</ul>
+<p>不要把一份最终 <code>-O3</code> IR 当作“Clang 刚从 AST 生成的 IR”；你可能正在看整个中端优化之后的结果。</p>
+<h2 id="用输入输出描述流程比背顺序可靠">用输入输出描述流程，比背顺序可靠</h2>
+<p>把每个阶段写成一句“因为看到了什么，所以能做什么”：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>得到的关键信息</th>
+<th>因而能做的事</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sema</td>
+<td>正确类型、绑定、隐式转换与语言规则</td>
+<td>构造语义正确的 AST</td>
+</tr>
+<tr>
+<td>AST CodeGen</td>
+<td>ABI、对象位置、表达式与控制流</td>
+<td>发射合法 LLVM IR</td>
+</tr>
+<tr>
+<td>promotion</td>
+<td>局部状态的明确 SSA 定义/使用</td>
+<td>稀疏传播、识别 recurrence</td>
+</tr>
+<tr>
+<td>内联/属性/清理</td>
+<td>实参事实、可见计算与更简单 CFG</td>
+<td>折叠、去副作用障碍、暴露 loop body</td>
+</tr>
+<tr>
+<td>canonicalization</td>
+<td>可处理的入口、回边、退出与数据接口</td>
+<td>通用 loop transforms</td>
+</tr>
+<tr>
+<td>SCEV/AA/TTI 等</td>
+<td>计数、依赖、目标能力与成本</td>
+<td>选择合法且值得的展开/向量方案</td>
+</tr>
+<tr>
+<td>并行专门路线</td>
+<td>独立性证明或显式并行语义、执行模型</td>
+<td>线程划分与 runtime lowering</td>
+</tr>
+<tr>
+<td>后端</td>
+<td>目标指令约束和真实活跃范围</td>
+<td>调度、分配寄存器、生成机器码</td>
+</tr>
+</tbody>
+</table></div>
+<p>你现在无需记住整个管线。只要能对一个优化问出 <strong>“它的输入是什么、依赖哪些事实、谁提供这些事实、它输出的结构交给谁”</strong>，就已经有了继续阅读源码的抓手。</p>
+</section>
+
+<section id="sec-01-ssa-basics">
+<h1 id="ssa-basics">SSA 与基础优化</h1>
+<p>本章承接<a href="#compilation-pipeline">从 C/C++ 到优化 LLVM IR</a>：已有前端生成的 IR 后，再解释各基础优化的内部原理，为<a href="#loop-foundations">循环优化的理论基础</a>提供前置知识，先回答“中端到底拿什么做推理”。后面的 SCEV、循环向量化与寄存器分配，都依赖这一层暴露出来的值和控制关系。</p>
+<p><strong>分类提醒：</strong> mem2reg 直接构造标量 SSA；常量传播、死代码删除利用 SSA；内联与尾递归消除是跨函数或控制流变换，必须维护 SSA。它们可以合称基础优化，但不是每个都只负责“建立 SSA”。</p>
+<h2 id="ssa-不是禁止变量更新而是给每次定义命名">SSA 不是禁止变量更新，而是给每次定义命名</h2>
+<pre><code class="language-c">int choose(bool cond, int x) {
+    int y;
+    if (cond) y = x + 1;
+    else      y = x + 2;
+    return y * 3;
+}
+</code></pre>
+<p>SSA 的教学表示：</p>
+<pre><code class="language-llvm">define i32 @choose(i1 %cond, i32 %x) {
+entry:
+  br i1 %cond, label %then, label %else
+then:
+  %y.then = add i32 %x, 1
+  br label %join
+else:
+  %y.else = add i32 %x, 2
+  br label %join
+join:
+  %y = phi i32 [ %y.then, %then ], [ %y.else, %else ]
+  %result = mul i32 %y, 3
+  ret i32 %result
+}
+</code></pre>
+<p><code>%y.then</code>、<code>%y.else</code>、<code>%y</code> 是三个不同定义。PHI 表示从哪个前驱进入 join，就取该边所携带的值，不是两条路径都执行，也不是先计算两边再挑一个。</p>
+<p>普通指令的定义应支配使用；PHI 的 incoming use 则按对应前驱边处理，这让两个分支定义能在 join 合流。只有真的存在不同来源、且结果需要在汇合后使用，才需要保留非平凡 PHI。</p>
+<p><strong>SSA 的核心收益：</strong> 一个值的使用列表直接指向同一定义；替换这个定义的所有使用，就能沿 def-use 链传播结果。不必每次都问“同名变量在到达这里之前最后被谁赋值”。但内存仍可能被任意别名写入，普通 load 不能仅靠寄存器 SSA 获得相同保证。</p>
+<h2 id="mem2reg消除不必要的内存身份">mem2reg：消除不必要的内存身份</h2>
+<h3 id="从-allocaloadstore-到值">从 alloca/load/store 到值</h3>
+<p>前端为了表达可修改局部变量，尤其非优化生成阶段，常产生：</p>
+<pre><code class="language-llvm">entry:
+  %slot = alloca i32
+  br i1 %cond, label %then, label %else
+then:
+  store i32 1, ptr %slot
+  br label %join
+else:
+  store i32 2, ptr %slot
+  br label %join
+join:
+  %v = load i32, ptr %slot
+  ret i32 %v
+</code></pre>
+<p>若 <code>%slot</code> 的地址身份没有被程序观察，内存对象只承担“保存当前标量值”的职责，可以变为：</p>
+<pre><code class="language-llvm">join:
+  %v = phi i32 [ 1, %then ], [ 2, %else ]
+  ret i32 %v
+</code></pre>
+<p>这里的 reg 是 <strong>SSA 虚拟值</strong>，不是分配 RAX 或某个硬件寄存器。最终它也可能在后端被 spill。mem2reg 与<a href="#register-foundations">寄存器分配基础</a>、<a href="#greedy">Greedy 寄存器分配</a>中的 register allocator 是完全不同阶段。</p>
+<h3 id="哪些对象允许提升">哪些对象允许提升</h3>
+<p>两个入口必须分开读：</p>
+<ul>
+<li><code>llvm-project/llvm/lib/Transforms/Utils/Mem2Reg.cpp</code>：Pass 包装，<code>promoteMemoryToRegister</code> 扫描函数 entry 的 allocas，反复收集可提升者并调用 <code>PromoteMemToReg</code>。</li>
+<li><code>llvm-project/llvm/lib/Transforms/Utils/PromoteMemoryToRegister.cpp</code>：<code>isAllocaPromotable</code>、SSA 构建、快路径和重命名的真正实现。</li>
+</ul>
+<p>本提交的判断主要允许直接、非 volatile、类型一致的 load/store，以及规定范围内的 lifetime/droppable 等使用。特别注意：</p>
+<ul>
+<li><code>store ptr %slot, ptr %somewhere</code> 是存储地址本身，不是向 slot 存值；地址可能逃逸，不能这样提升。</li>
+<li>把地址交给普通未知调用，不能当作“私有标量”忽略调用读写。</li>
+<li>任意非零 GEP、聚合字段或数组索引，不属于 mem2reg 直接处理的一般模式。</li>
+<li><code>volatile</code> 访问的可观察语义不能因局部对象而删除。</li>
+<li><strong>本提交并不一律拒绝 atomic load/store。</strong> 对满足这种封闭局部 alloca 使用模式的对象，源码注释解释其原子性没有跨观察者意义；不能把这个结论推广到共享内存。</li>
+<li>alloca 声明的类型不必机械地等于实际访问类型；实现要求相关 load/store 访问类型一致，并按实际使用判断。</li>
+</ul>
+<p>包装器在 entry 找候选，不意味着底层 API 的理论只适用于“第一块叫 entry”的形式。教学复现应以包装 Pass 的输入约束为准。</p>
+<h3 id="理论支配边界与-pruned-ssa">理论：支配边界与 pruned SSA</h3>
+<p>若 block X 定义了变量，在一些分叉、汇合之后，哪个位置需要 PHI？支配边界 DF(X) 可理解为“X 支配某个到达这里的前驱，但不能严格支配这里”的汇合边界。多个定义的边界可能产生 PHI，而 PHI 自身又是新定义，因此需要 <strong>iterated dominance frontier，IDF</strong>。</p>
+<p>但并不是在所有 IDF 点都插 PHI。若一个汇合后的值从不被读取，插入它毫无意义。LLVM 先计算 LiveInBlocks，再用其限制 IDF；这就是 <strong>pruned SSA</strong>：只在需要活跃值的位置合流。</p>
+<p>本提交真实片段，位于 <code>PromoteMem2Reg::run</code>，省略上下文：</p>
+<pre><code class="language-cpp">ComputeLiveInBlocks(AI, Info, DefBlocks, LiveInBlocks);
+IDF.setLiveInBlocks(LiveInBlocks);
+IDF.setDefiningBlocks(DefBlocks);
+SmallVector&lt;BasicBlock *, 32&gt; PHIBlocks;
+IDF.calculate(PHIBlocks);
+</code></pre>
+<p>接着为相应块 <code>QueuePhiNode</code>，再由 <code>RenamePass</code> 遍历 CFG，维护当前 incoming value：遇到 store 更新当前值，遇到 load 以当前值替换，进入带 PHI 的块以 PHI 作为当前值，并填充 incoming edges。</p>
+<p>理论教材常用沿支配树走、每个变量维护定义栈解释重命名；本实现有自己的工作列表、当前值与撤销状态机制。不要把教材伪代码逐行说成 LLVM 的实际实现。</p>
+<p>对于单次 store、同一 block 内所有使用等简单情形，<code>rewriteSingleStoreAlloca</code>、<code>promoteSingleBlockAlloca</code> 等快路径可以避免完整 SSA 构建。未初始化读取不能凭空变成 0：本实现以 <code>UndefValue</code> 等 IR 规则处理相关状态，源语言读取未初始化对象的规则还要另行遵守。</p>
+<h3 id="sroa-与-mem2reg-的关系">SROA 与 mem2reg 的关系</h3>
+<p>结构体、数组或按字段访问的对象，往往需要先把对象分割为更合适的小片段。<code>llvm-project/llvm/lib/Transforms/Scalar/SROA.cpp</code> 做 Scalar Replacement of Aggregates，处理切片并对合适部分进行 promotion；不是“直接对所有数组运行 mem2reg”。</p>
+<p>默认优化管线常直接安排 SROA 及其提升能力，不一定显式列出一个独立 mem2reg。手工运行 <code>opt -passes=mem2reg</code> 是理解算法的好办法，但不要据此断言生产管线只靠这个 Pass 消除局部 load/store。</p>
+<h2 id="常量折叠简化与传播三个相关但不同的问题">常量折叠、简化与传播：三个相关但不同的问题</h2>
+<h3 id="常量折叠已知输入直接求值">常量折叠：已知输入，直接求值</h3>
+<pre><code class="language-llvm">%a = add i32 2, 3
+%b = mul i32 %a, 4
+</code></pre>
+<p>第一条可得到 5，替换其使用后第二条变成常量乘法，可得到 20。folding 是对已知 operands 的计算；“替换并继续传递”才是传播层面的动作。</p>
+<p>主要路径：<code>llvm-project/llvm/lib/Analysis/ConstantFolding.cpp</code> 的 <code>ConstantFoldInstruction</code> 等入口，结合 <code>llvm-project/llvm/lib/IR/ConstantFold.cpp</code> 的常量层实现。</p>
+<p>编译器不是随便用宿主 C++ 算一下：整数位宽、目标 DataLayout、浮点格式和具体 IR 语义都必须正确。APInt/APFloat 等表示帮助避免宿主机器恰巧与你目标相同的假设。</p>
+<h3 id="指令简化输入未知也能利用恒等关系">指令简化：输入未知，也能利用恒等关系</h3>
+<p>例如整数 <code>%x + 0</code> 可简化为 <code>%x</code>，不需要知道 x 的具体数值。<code>llvm-project/llvm/lib/Analysis/InstructionSimplify.cpp</code> 提供简化查询；<code>llvm-project/llvm/lib/Transforms/InstCombine/InstructionCombining.cpp</code> 中的 InstCombine 工作列表可做更广泛的局部等价变换、规范化和持续清理。</p>
+<p>区分两者：InstructionSimplify 的接口通常返回可替代的现有值/常量，不负责任意新建复杂指令序列；InstCombine 作为变换会构造与改写指令，并驱动后续处理。ConstantFolding 则专注常量求值。它们相互调用或协作，不是三套互不接触的编译器。</p>
+<p>不要笼统寻找一个负责所有事情的现代 <code>constprop</code> Pass：折叠能力分布在 IR 构造、InstCombine、SCCP、克隆剪枝等多个地方。</p>
+<h3 id="sccp同时推导什么值与哪些边能走">SCCP：同时推导“什么值”与“哪些边能走”</h3>
+<p>Sparse Conditional Constant Propagation 使用两个相互影响的事实：</p>
+<ol>
+<li>某个 SSA 值能否被确定为常量或限制在一个范围。</li>
+<li>哪些 CFG blocks/edges 可能执行。</li>
+</ol>
+<p>经典教学 lattice 可以写成：</p>
+<pre><code class="language-text">尚无信息 → 常量 c → 不再能用单一常量表示
+</code></pre>
+<p>不同常量合流得到更不精确的状态。<strong>这不是硬件值从未知变成常量；它是分析信息从少到多、逐渐发现更多可能性。</strong> LLVM 当前的 <code>ValueLatticeElement</code> 更丰富，包含 unknown、undef、constant、notconstant、整数范围以及 overdefined；不能把三点格当作精确完整实现。</p>
+<p>路径：<code>llvm-project/llvm/lib/Transforms/Scalar/SCCP.cpp</code>，求解器在 <code>llvm-project/llvm/lib/Transforms/Utils/SCCPSolver.cpp</code>，抽象状态在 <code>llvm-project/llvm/include/llvm/Analysis/ValueLattice.h</code>。</p>
+<pre><code class="language-llvm">entry:
+  br i1 true, label %left, label %right
+left:
+  br label %join
+right:
+  br label %join
+join:
+  %v = phi i32 [ 7, %left ], [ 9, %right ]
+  ret i32 %v
+</code></pre>
+<p>若简单地把 PHI 的所有 syntactic operands 合并，7 与 9 不同，会失去常量结论。SCCP 知道 right 边不可执行，只合并可执行 incoming edges，所以 <code>%v</code> 为 7。这正是 Conditional 的价值；Sparse 则意味着主要沿 SSA 使用链和可执行边传播，避免每轮反复扫描所有无关指令。</p>
+<p>工作列表持续传播到固定点。相关事实变成常量后，可折叠条件、删除不可达结构；函数间版本 IPSCCP 进一步利用可追踪调用和返回，但受可见性与调用者信息限制，不能假定 externally callable 函数只收到你看到的常量实参。</p>
+<h3 id="ir-语义的边界数学相等未必足够">IR 语义的边界：数学相等未必足够</h3>
+<ul>
+<li>固定位宽整数有 wrap、<code>nsw</code> / <code>nuw</code> 等不同约束；违背 no-wrap 条件可能产生 poison。</li>
+<li>浮点 <code>x + 0</code> 不应不加条件地等同于数学实数恒等式，NaN、符号零、异常环境与 flags 都影响判断。</li>
+<li><code>undef</code>、<code>poison</code>、<code>freeze</code> 是 IR 概念，不等价于“一颗可随便设成任意整数的变量”。</li>
+<li>不应在编译时折叠未知、有副作用的普通函数调用；即使你觉得它“结果通常一样”。</li>
+</ul>
+<p>本节是在解释证明边界，不是鼓励程序依赖未定义行为。精确语义应回到 <code>llvm-project/llvm/docs/LangRef.md</code>。</p>
+<h2 id="死代码删除为什么没人用结果不是全部条件">死代码删除：为什么“没人用结果”不是全部条件</h2>
+<h3 id="dce从无用叶子反向剥离">DCE：从无用叶子反向剥离</h3>
+<pre><code class="language-llvm">%a = add i32 %x, 1
+%b = mul i32 %a, 2
+ret i32 0
+</code></pre>
+<p>b 无使用且可安全删除；删掉 b 后，a 也失去最后使用。这种链式过程适合工作列表，不用每删一条就重扫整个函数。</p>
+<p><code>llvm-project/llvm/lib/Transforms/Scalar/DCE.cpp</code> 的 <code>DCEInstruction</code>：</p>
+<pre><code class="language-text">isInstructionTriviallyDead?
+  → 保留可挽救的 debug info / knowledge
+  → 解除 operands 的使用关系
+  → 把因此变死的 operand instructions 加入 WorkList
+  → 删除当前指令
+</code></pre>
+<p>死指令判定与相关公共实现可追 <code>llvm-project/llvm/lib/Transforms/Utils/Local.cpp</code>。</p>
+<p>一个普通 store 没有 SSA 返回值，某个 call 的结果也可能没人用，但它们会修改内存、做 I/O、抛异常或影响执行进展，不能因为 <code>use_empty</code> 就删除。volatile/atomic 与同步语义也必须考虑。特定库调用或 intrinsic 在证明允许时有例外，判断应以精确语义为准。</p>
+<h3 id="adce从有意义的根正向保留而不是只等-use-归零">ADCE：从有意义的根正向保留，而不是只等 use 归零</h3>
+<p>简单 DCE 容易漏掉内部互相使用、却整体没有可观察贡献的环。ADCE 乐观地把指令当 dead，从必须保留的效果、返回等根开始标 live，再沿数据依赖和控制依赖保留所需部分。</p>
+<p>为什么控制依赖重要？若两个分支分别写入 1 和 2，决定走哪条的条件也是可观察效果所必需，不能删掉条件而随机选择其中一边。</p>
+<p>路径：<code>llvm-project/llvm/lib/Transforms/Scalar/ADCE.cpp</code>，会使用 PostDominatorTree 和反向图上的依赖关系处理控制流。postdominate 可粗略理解为某块正常到达出口的路径都经过另一个块；具体算法还要正确处理无出口等情况。</p>
+<p>“死循环里只有无用算术”并不自动等于可以让函数返回。终止性/进展语义也是可观察行为；本提交 ADCE 有默认关闭的 <code>adce-remove-loops</code> 选项处理 may-be-infinite 情况，其他 <code>mustprogress</code> 等事实和 Pass 也会影响能做的事。不要把 ADCE 的 optimistic dead 误解为允许改变任何无限循环。</p>
+<h3 id="dse内存写入的死活另有一套证明">DSE：内存写入的死活，另有一套证明</h3>
+<pre><code class="language-c">*p = 1;
+*p = 2;
+</code></pre>
+<p>若访问不是 volatile/需保留的原子操作，中间没有读者、异常或其他障碍，且第二次覆盖必然在需要的路径发生，第一次写可能死。它不是普通 use-empty DCE 的问题。</p>
+<p><code>llvm-project/llvm/lib/Transforms/Scalar/DeadStoreElimination.cpp</code> 文件头给出 MemorySSA-backed 方法：从较后的 MemoryDef 往上找可能被杀死的定义，再检查期间没有读取、没有阻碍、覆盖范围充分和执行条件成立。</p>
+<p>若中间插入 <code>observe(p)</code>，必须知道该调用是否读 p；如果只覆盖半个对象，不能宣称整个旧 store 都死。<strong>标量 SSA 解决的是值使用，MemorySSA＋别名分析帮助解决的是内存效果。</strong></p>
+<h3 id="simplifycfg-与不可达代码">SimplifyCFG 与不可达代码</h3>
+<p>不可达块、无意义跳转、常量分支、可合并块等，主要由 CFG 清理和其他变换配合处理。路径：<code>llvm-project/llvm/lib/Transforms/Scalar/SimplifyCFGPass.cpp</code>、<code>llvm-project/llvm/lib/Transforms/Utils/SimplifyCFG.cpp</code>。</p>
+<p>因此“死代码清除”是一个家族：DCE、ADCE、DSE、unreachable/CFG cleanup、GlobalDCE 各有对象和证明，不是一个 Pass 包办。</p>
+<h2 id="函数内联消除边界比消除-call-更重要">函数内联：消除边界，比消除 call 更重要</h2>
+<h3 id="一个会暴露常量的调用点">一个会暴露常量的调用点</h3>
+<pre><code class="language-c">static int scale(int x, int mode) {
+    if (mode == 0) return x * 2;
+    return x * 3;
+}
+int caller(int x) {
+    return scale(x, 0) + 1;
+}
+</code></pre>
+<p>内联把 callee 的逻辑带进 caller，并以实参替换形参。第二个实参为 0，所以 mode 分支可折叠，最终可能只剩 <code>x*2+1</code> 的计算。</p>
+<p>节省 call/ret 是一部分；更重要的是暴露：常量实参、对象身份与访问、可删除路径、嵌套调用目标、归约或循环体中的可优化表达式。后续 InstCombine、SROA、SCCP、DCE、LV 才能利用它们。</p>
+<h3 id="设计依旧分策略与施工">设计依旧分“策略”与“施工”</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>部分</th>
+<th>本地路径</th>
+<th>问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调用图层驱动</td>
+<td><code>llvm-project/llvm/lib/Transforms/IPO/Inliner.cpp</code></td>
+<td>哪些 call sites、如何处理 SCC 和新增调用</td>
+</tr>
+<tr>
+<td>推荐策略</td>
+<td><code>llvm-project/llvm/lib/Analysis/InlineAdvisor.cpp</code></td>
+<td>当前调用点是否建议内联、如何记录结果</td>
+</tr>
+<tr>
+<td>成本估计</td>
+<td><code>llvm-project/llvm/lib/Analysis/InlineCost.cpp</code></td>
+<td>特化后成本、热度、体积和预算</td>
+</tr>
+<tr>
+<td>实际改写</td>
+<td><code>llvm-project/llvm/lib/Transforms/Utils/InlineFunction.cpp</code></td>
+<td>克隆 callee、参数映射、返回汇合、异常与属性</td>
+</tr>
+</tbody>
+</table></div>
+<p>本提交 <code>InlinerPass::run</code> 使用 LazyCallGraph SCC；advisor 推荐后仍要调用 <code>InlineFunction</code>，并处理 <code>InlineResult</code> 是否成功。推荐是策略判断，不是合法性或施工成功的保证。</p>
+<p>内联不是文本粘贴：调用点被拆成前后块，callee 基本块和指令被克隆、重新命名；形参映射实参；多个 return 跳到 continuation，并可能经 PHI 合并返回值。还要处理 byval、alloca、lifetime、invoke/异常路径、调试位置与不同函数属性约束。</p>
+<h3 id="理论收益和代价">理论收益和代价</h3>
+<p>收益模型估计的是<strong>这个调用点特化后的结果</strong>，不是原函数源码行数。例如函数本体较大，但常量参数能剪掉绝大多数分支，仍可能值得；小函数位于大量冷调用点，也可能因为体积累计而不划算。</p>
+<p>代价包含：I-cache、编译时间、caller 扩张、寄存器 live ranges、栈大小和递归展开风险。profile 可引导热调用更积极、冷调用更保守，但不是保证每个热 call 必内联。</p>
+<p>SCC（strongly connected component）标识互相递归可达的调用组；无限把自己/互递归函数内联会指数或无限扩张。调用历史、预算、属性与策略限制必须阻止这种情况。函数声明的 C++ <code>inline</code> 也不是“一定消除所有调用”；它有语言层含义，编译器的推荐属性和 alwaysinline/noinline 又是另一层机制，仍受合法性规则约束。</p>
+<p>间接调用需要先知道目标，或由去虚拟化/特化等形成可内联场景；只有外部声明而无可用 body，无法克隆不存在的实现。符号可替换性、链接语义、calling convention 等同样不能忽略。</p>
+<p><strong>与后文连接：</strong> 循环中的小辅助函数被内联后，LV 才看得到逐元素计算；但内联把更多值放到 caller，也可能让 Greedy 需要切分和 spill。不能仅凭 call 指令消失判断净收益。</p>
+<h2 id="尾递归换循环把栈状态显式写成-phi">尾递归换循环：把栈状态显式写成 PHI</h2>
+<h3 id="最干净的尾递归例子">最干净的尾递归例子</h3>
+<pre><code class="language-c">unsigned sum_down(unsigned n, unsigned acc) {
+    if (n == 0) return acc;
+    return sum_down(n - 1, acc + n);
+}
+</code></pre>
+<p>这里自调用后只把结果返回，没有剩余的计算或析构。教学上的循环形式：</p>
+<pre><code class="language-c">unsigned sum_down_loop(unsigned n, unsigned acc) {
+    while (n != 0) {
+        acc += n;
+        --n;
+    }
+    return acc;
+}
+</code></pre>
+<p>在 IR 层，参数的当前值由 loop header PHI 表示：初始边输入函数实参，递归边输入“下一轮实参”。原来的 self-call 和对应 return 换为回边；base case 的 return 保留。</p>
+<pre><code class="language-llvm">define i32 @sum_down_loop(i32 %n0, i32 %acc0) {
+entry:
+  br label %loop
+loop:
+  %n = phi i32 [ %n0, %entry ], [ %n.next, %step ]
+  %acc = phi i32 [ %acc0, %entry ], [ %acc.next, %step ]
+  %done = icmp eq i32 %n, 0
+  br i1 %done, label %exit, label %step
+step:
+  %acc.next = add i32 %acc, %n
+  %n.next = sub i32 %n, 1
+  br label %loop
+exit:
+  ret i32 %acc
+}
+</code></pre>
+<p>这些是教学 IR，不宣称本机已经生成。前端还有 ABI、属性和局部对象信息；真实输出可能不同。</p>
+<h3 id="源码与合法性边界">源码与合法性边界</h3>
+<p>路径：<code>llvm-project/llvm/lib/Transforms/Scalar/TailRecursionElimination.cpp</code>，重点读：</p>
+<ul>
+<li><code>canTRE</code>：本提交拒绝 dynamic allocas，因为迭代之间正确释放动态栈分配尚未在此实现。</li>
+<li><code>AllocaDerivedValueTracker</code> 与 tail-call 标记逻辑：追踪指针是否派生于/逃逸自 caller 栈对象，避免下一轮破坏仍需存在的内存。</li>
+<li><code>TailRecursionEliminator::findTRECandidate</code>：找当前函数的递归调用，并检查 tail-call 等条件。</li>
+<li><code>TailRecursionEliminator::eliminateCall</code>：生成/更新回边、参数 PHI 和相关返回值处理。</li>
+</ul>
+<p>递归语义中的“新栈帧”可能提供独立局部对象；不能在它们的地址仍被下一层使用时无条件复用同一个位置。C++ 析构、EH 清理、call 后 store 或其他效果，也可能使看起来在 return 表达式里的调用并不是真正可消除的尾位置。</p>
+<p>所以这不是“把函数里最后一个 call 改成 goto”这么简单。对没有额外对象问题的干净例子，递归链的调用开销与栈深可消除；不能由此承诺所有包含 allocas 的递归都零额外栈增长。</p>
+<h3 id="非尾递归的部分扩展累加器">非尾递归的部分扩展：累加器</h3>
+<pre><code class="language-c">unsigned fact(unsigned n) {
+    if (n == 0) return 1;
+    return n * fact(n - 1);
+}
+</code></pre>
+<p>乘法在递归返回后执行，原形不是直接尾调用。但若运算与使用形状符合规则，可引入初始为 1 的 accumulator，把每次 n 乘进去，再回边。unsigned 模乘具有适用的结合、交换性质；带不同 no-wrap 或浮点语义时必须另查。</p>
+<p>本提交 <code>canTransformAccumulatorRecursion</code> 检查关联/交换性或支持的特定 unary recurrence、identity、调用结果在 operand 中的使用方式，以及结果仅被相应 return 使用；<code>insertAccumulator</code> 创建状态 PHI。</p>
+<p>这不意味着 LLVM 会自动把任意 Fibonacci 的两分支递归变成线性时间循环。某个尾分支被消除，不等于所有递归结构都被消除，更不等于做了动态规划。</p>
+<h3 id="tre-与后端尾调用不是一件事">TRE 与后端尾调用不是一件事</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>概念</th>
+<th>典型结果</th>
+<th>关键条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>自递归消除 TRE</td>
+<td>同一函数内的 loop/PHI</td>
+<td>自调用、可改写参数与状态、栈对象等安全</td>
+</tr>
+<tr>
+<td>sibling/tail call lowering</td>
+<td>跳转到另一函数，复用当前调用框架</td>
+<td>ABI、calling convention、参数传递、目标支持</td>
+</tr>
+<tr>
+<td><code>musttail</code></td>
+<td>IR 强制尾调用契约</td>
+<td>严格的 LangRef 约束，不是普通优化提示</td>
+</tr>
+</tbody>
+</table></div>
+<p>TRE 属于中端结构变换，能让后续 LoopInfo、SCEV、LICM、展开等看到新循环；普通尾调用 lowering 则通常仍跨函数，不会因此在 caller 中形成一个可向量化 loop。</p>
+<h2 id="把基础-pass-串成一条因果链">把基础 Pass 串成一条因果链</h2>
+<pre><code class="language-text">前端 alloca / load / store
+  → SROA / promotion：移除不必要内存身份，建立清晰值流
+  → 内联：把调用点实参与 callee 计算放进同一推理空间
+  → InstCombine / SCCP：常量与简化传播，识别不能走的路径
+  → DCE / ADCE / DSE / SimplifyCFG：清掉没有贡献的计算与结构
+  → TRE：把适合的递归状态转成显式 loop / PHI
+  → 后续循环分析、结构变换、LV / SLP / unroll
+  → 后端有限寄存器上的资源安排
+</code></pre>
+<p>这是解释依赖关系的图，不是声称 LLVM 默认严格按这一次序各运行一次。<code>llvm-project/llvm/lib/Passes/PassBuilderPipelines.cpp</code> 可见 SROA、InstCombine、SCCP、ADCE、SimplifyCFG 在不同阶段出现；TailCallElim 也在相应函数优化阶段安排。内联作为跨函数管线的一部分，会让后续函数级优化重新获得机会。</p>
+<p>为什么需要多轮？内联暴露常量，常量传播删分支，删分支使 PHI 简化，PHI 简化让某个对象可提升，提升后又暴露 DCE 或循环规律。生产管线通过阶段化和固定预算获得大部分收益，而不是对所有 Pass 无限制跑到全局固定点。</p>
+<h2 id="一个小实验把-ssa控制流和消除连起来">一个小实验，把 SSA、控制流和消除连起来</h2>
+<p>将下面完整教学 IR 保存到 system TEMP 下已有实验目录的 <code>ssa-demo.ll</code>。没有 target-specific 运算，适合先看中端结构。</p>
+<pre><code class="language-llvm">define i32 @ssa_demo() {
+entry:
+  %slot = alloca i32
+  br i1 true, label %left, label %right
+left:
+  store i32 7, ptr %slot
+  br label %join
+right:
+  store i32 9, ptr %slot
+  br label %join
+join:
+  %v = load i32, ptr %slot
+  %unused = mul i32 %v, 100
+  %result = add i32 %v, 1
+  ret i32 %result
+}
+</code></pre>
+<p>沿用<a href="#practice">源码阅读与实验</a>中的 <code>$Opt</code>、<code>$Exp</code>，下面是未执行的配方：</p>
+<pre><code class="language-powershell">&amp; $Opt -S -passes='mem2reg' &quot;$Exp\ssa-demo.ll&quot; `
+    -o &quot;$Exp\ssa-promoted.ll&quot;
+&amp; $Opt -S -passes='mem2reg,sccp,dce,simplifycfg' &quot;$Exp\ssa-demo.ll&quot; `
+    -o &quot;$Exp\ssa-clean.ll&quot;
+</code></pre>
+<p>第一步预期关注 slot 是否被消除、join 是否经 PHI 表示两条输入；第二步关注恒 true 路径使 <code>%v</code> 为 7、result 为 8、无用链与 right 路径被清理。各工具版本的清理分工和中间形状可能不同，不应把某个精确块名当正确性要求。</p>
+<p>基础 Pass 的独立测试入口：</p>
+<ul>
+<li><code>llvm-project/llvm/test/Transforms/Mem2Reg/</code></li>
+<li><code>llvm-project/llvm/test/Transforms/SROA/</code></li>
+<li><code>llvm-project/llvm/test/Transforms/InstCombine/</code></li>
+<li><code>llvm-project/llvm/test/Transforms/SCCP/</code></li>
+<li><code>llvm-project/llvm/test/Transforms/DCE/</code></li>
+<li><code>llvm-project/llvm/test/Transforms/ADCE/</code></li>
+<li><code>llvm-project/llvm/test/Transforms/DeadStoreElimination/</code></li>
+<li><code>llvm-project/llvm/test/Transforms/Inline/</code></li>
+<li><code>llvm-project/llvm/test/Transforms/TailCallElim/</code></li>
+</ul>
+<p>理论进一步阅读可从 Cytron 等（1991）的 SSA 构建与控制依赖工作、Wegman 与 Zadeck（1991）的条件常量传播工作出发。但当前实现的快路径、lattice、属性和内存语义要以本提交源码为准。</p>
+<p><strong>本章要点：</strong> 很多高级优化成功，不是因为它自己突然能理解复杂源码，而是基础 Pass 先去掉了多余的内存和函数边界，使它看到一个简单、可证明、成本可估的计算问题。<a href="#loop-foundations">循环优化的理论基础</a>进一步把这些 SSA 值与控制结构抽象成循环、递推和依赖。</p>
+</section>
+
+<section id="sec-02-foundations">
+<h1 id="loop-foundations">循环优化的理论基础</h1>
+<h2 id="循环首先是一种控制流结构">循环首先是一种控制流结构</h2>
+<p>LLVM 的普通 LoopInfo 主要识别自然循环：header 支配循环内各块，回边回到 header。支配的意思是从函数入口到该块的所有路径都经过支配者。不是所有任意 CFG 环都能直接当作这种 Loop 处理。</p>
+<p>为了让变换有统一入口，编译器常整理出：</p>
+<ul>
+<li><strong>preheader：</strong> 循环外唯一准备入口，适合放检查和外提代码。</li>
+<li><strong>header：</strong> PHI 与循环控制的汇合点。</li>
+<li><strong>latch：</strong> 回边所在块。</li>
+<li><strong>dedicated exits：</strong> 退出块不同时接受无关的循环外边。</li>
+<li><strong>LCSSA：</strong> 循环内定义、循环外使用的值经退出 PHI 输出，像给循环加上清晰的数据接口。</li>
+</ul>
+<p>阅读路径：<code>llvm-project/llvm/lib/Transforms/Utils/LoopSimplify.cpp</code>、<code>llvm-project/llvm/lib/Transforms/Utils/LCSSA.cpp</code>、<code>llvm-project/llvm/include/llvm/Analysis/LoopInfo.h</code>。</p>
+<p>规范化不是为了美观，而是降低每个优化处理 CFG 特例的复杂度。它也解释了为何孤立地运行某个 Pass 与默认管线结果不同：前者可能没有得到相同的前置形式。</p>
+<h2 id="scalarevolution把逐条指令提升成数学规律">ScalarEvolution：把逐条指令提升成数学规律</h2>
+<p>考虑：</p>
+<pre><code class="language-c">for (int i = 0; i &lt; n; ++i)
+    a[i] = b[i] + 1;
+</code></pre>
+<p>逐条读 IR，看到 PHI、add、icmp、GEP；SCEV（Scalar Evolution）尝试将 <code>i</code> 理解成相对于某个 Loop 的递推 <code>{0,+,1}</code>，地址理解成“基址＋步长×迭代号”。<code>SCEVAddRecExpr</code> 就是核心表示之一。</p>
+<p>借助这种抽象，编译器可问：</p>
+<ul>
+<li>回边走几次？迭代次数有没有常量、上界、已知倍数？</li>
+<li>两个地址的距离是否固定？访问是否连续或等步长？</li>
+<li>某个表达式在循环中是否不变？</li>
+<li>某个规律是否只有在额外谓词成立时才有效？</li>
+</ul>
+<p><strong>回边次数和迭代次数不要混淆。</strong> 简单、至少执行一次的循环，迭代数通常是回边次数加一；零次迭代、多个退出和不同计数定义要额外处理。溢出同样重要：数学整数上的 <code>i+1</code> 与有限位宽、可能 wrap 的 IR 运算不是同一回事，<code>nuw</code> / <code>nsw</code> 等事实和证明条件会影响推导。</p>
+<p>路径：<code>llvm-project/llvm/lib/Analysis/ScalarEvolution.cpp</code>，以及 <code>llvm-project/llvm/include/llvm/Analysis/ScalarEvolutionExpressions.h</code>。向量化入口使用 <code>PredicatedScalarEvolution</code>：某些结论依赖运行时可检查的谓词，不是凭空假定不溢出。</p>
+<h2 id="依赖先问重排会不会改变读到的值">依赖：先问“重排会不会改变读到的值”</h2>
+<p>对相同内存位置，重要的三类关系是：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>原执行顺序</th>
+<th>重排风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RAW / true dependence</td>
+<td>写后读</td>
+<td>读不到应读的新值</td>
+</tr>
+<tr>
+<td>WAR / anti-dependence</td>
+<td>读后写</td>
+<td>写提前覆盖应读旧值</td>
+</tr>
+<tr>
+<td>WAW / output dependence</td>
+<td>写后写</td>
+<td>最终留下错误的一次写</td>
+</tr>
+</tbody>
+</table></div>
+<p>两个读之间通常没有这种内存顺序约束。依赖还分<strong>循环内</strong>与<strong>循环携带</strong>：后者跨不同迭代。</p>
+<pre><code class="language-c">// 跨迭代 RAW，距离 1
+for (int i = 1; i &lt; n; ++i)
+    a[i] = a[i - 1] + b[i];
+
+// 若 a、b 不重叠，各迭代可独立
+for (int i = 0; i &lt; n; ++i)
+    a[i] = b[i] + 1;
+</code></pre>
+<p>第一段要求迭代 i 在 i−1 更新以后读取，因此不能直接让两个线程无约束同时执行，也不能直接把相邻四次迭代当独立 lane。它可以保序展开；某些特殊递推可以用专门变换处理，但不是普通独立迭代打包。</p>
+<p>再看距离 4：</p>
+<pre><code class="language-c">for (int i = 4; i &lt; n; ++i)
+    a[i] = a[i - 4] + 1;
+</code></pre>
+<p>在满足其他条件时，以 4 为宽度分批、批之间保序，批内可能没有 RAW 链；更大宽度则可能把生产者和消费者放进同一批。这说明<strong>存在循环携带依赖不等于所有 SIMD 都不可能</strong>，还要看方向、距离、访问顺序和 VF。线程级任意调度的证明往往要求更强。</p>
+<h2 id="别名分析与依赖分析不是一回事">别名分析与依赖分析不是一回事</h2>
+<p>Alias Analysis 回答两次内存访问会不会碰到同一位置；Dependence / LoopAccessAnalysis 进一步问它们在不同迭代如何发生关系。</p>
+<p><code>a</code> 和 <code>b</code> 都是 <code>float *</code> 并不能证明它们不重叠。即使源码看起来写了两个变量，调用者仍可能传入 <code>a=b+1</code>。LLVM 会利用别名信息、SCEV 地址表达式、对象信息和访问关系综合分析。</p>
+<p>路径：<code>llvm-project/llvm/lib/Analysis/BasicAliasAnalysis.cpp</code>、<code>llvm-project/llvm/lib/Analysis/DependenceAnalysis.cpp</code>、<code>llvm-project/llvm/lib/Analysis/LoopAccessAnalysis.cpp</code>。后者的 <code>MemoryDepChecker</code> 与 <code>RuntimePointerChecking</code> 直接连接到循环向量化。</p>
+<p><code>restrict</code> 是程序员的语义契约，不是免费性能按钮。若程序违反限制，不能指望编译器仍保持原本的偶然执行行为。错误的独立性声明是正确性 bug。</p>
+<h2 id="证明不够时versioning-把不确定性变成条件">证明不够时：versioning 把不确定性变成条件</h2>
+<pre><code class="language-text">        进入循环前
+             |
+    指针区间与 SCEV 条件检查
+        /            \
+  可证明安全       条件不成立
+  快速向量循环      原标量循环
+        \            /
+            汇合
+</code></pre>
+<p>对教学上的连续区间，可理解成检查两个半开地址区间是否重叠。但实际 LLVM 必须考虑访问分组、地址步长、溢出、检查数量和生成代码的成本，不是机械地比较两个指针。</p>
+<p>运行时检查不意味着每次迭代都检查；它通常是进入快路径前的开销。循环长时容易摊薄；短循环则可能不值得。路径：<code>llvm-project/llvm/lib/Transforms/Utils/LoopVersioning.cpp</code>、<code>llvm-project/llvm/lib/Transforms/Utils/LoopUtils.cpp</code>，以及前述 LoopAccessAnalysis。</p>
+<p>这个设计很普遍：<strong>静态证明＋动态守卫＋保守回退</strong>。它让编译器不必在“完全知道”和“完全放弃”之间二选一。</p>
+<h2 id="归约不是无依赖而是可转换的依赖">归约：不是无依赖，而是可转换的依赖</h2>
+<pre><code class="language-c">float sum = 0;
+for (int i = 0; i &lt; n; ++i)
+    sum += a[i];
+</code></pre>
+<p>这是 loop-carried recurrence，不是独立迭代。若运算允许结合重排，可维护多个局部累加器，最后归并。</p>
+<ul>
+<li>整数模加法有结合性，但带有特定溢出语义或标志的 IR 仍需按其语义判断。</li>
+<li>浮点加法通常不结合。<code>(large + small) + (-large)</code> 与 <code>large + (small - large)</code> 可能不同。</li>
+<li>min/max、乘法等也必须检查类型、NaN、符号零和具体运算语义。</li>
+<li>某些目标和实现支持 ordered reduction，保持要求的顺序；不能说“没有 fast-math 就绝对不能向量化任何浮点归约”。</li>
+</ul>
+<p>路径：<code>llvm-project/llvm/lib/Analysis/IVDescriptors.cpp</code>，其中 <code>RecurrenceDescriptor</code>、<code>InductionDescriptor</code> 识别这些模式；<code>llvm-project/llvm/lib/Transforms/Vectorize/LoopVectorizationLegality.cpp</code> 的 <code>canVectorizeFPMath</code> 检查相关合法性。</p>
+<p><strong>归约识别的本质：</strong> 找出一种可证明等价的状态重编码，而不是忽略依赖。</p>
+<h2 id="收益模型理论上更并行不保证机器上更快">收益模型：理论上更并行，不保证机器上更快</h2>
+<p>一个粗略教学模型：向量快路径时间约等于“启动检查＋向量批数×每批成本＋尾部成本”，再加 cache、分支和资源因素。LLVM 的 TTI 指令成本是目标估计，不是精确 wall-clock 时间，也不是跨 CPU 永远一致的常数。</p>
+<p>循环优化可能卡在三类瓶颈：</p>
+<ol>
+<li><strong>依赖延迟：</strong> 一个累加器的串行链限制吞吐，多累加器可帮助。</li>
+<li><strong>执行吞吐：</strong> 有足够独立指令，但执行端口饱和。</li>
+<li><strong>访存带宽：</strong> SIMD 和多线程都不能无限提高内存带宽；线程可能只增加争用。</li>
+</ol>
+<p>编译器还必须限制分析时间：两两比较访问可能快速变贵，候选方案搜索也会爆炸。保守上限不是“不懂理论”，而是工程系统必须对整个程序规模负责。</p>
+</section>
+
+<section id="sec-03-vectorization">
+<h1 id="vectorization">自动向量化</h1>
+<h2 id="loop-vectorizer-到底改了什么">Loop Vectorizer 到底改了什么</h2>
+<pre><code class="language-c">void saxpy(float *restrict y, const float *restrict x,
+           float a, int n) {
+    for (int i = 0; i &lt; n; ++i)
+        y[i] = a * x[i] + y[i];
+}
+</code></pre>
+<p>教学上，VF=4 的向量主体可以理解为：</p>
+<pre><code class="language-text">X = load &lt;4 x float&gt; x[i:i+4]
+Y = load &lt;4 x float&gt; y[i:i+4]
+Y = splat(a) * X + Y
+store Y
+ i += 4
+</code></pre>
+<p>这里 <code>splat</code> 是把一个标量广播到各 lane。不是启动四个线程，不是保证生成某条特定 SIMD 指令，也不意味着可擅自融合乘加。是否形成 FMA 另受浮点 contraction 语义和后端选择约束。</p>
+<ul>
+<li><strong>VF（vectorization factor）：</strong> 一次向量操作覆盖多少标量迭代；可为 fixed 或 scalable ElementCount。</li>
+<li><strong>IC（interleave count）：</strong> 一轮向量循环有多少组向量工作，粗略相当于向量主体再作一定展开。</li>
+<li><strong>每轮覆盖量：</strong> 在普通模型下为 VF×IC 次标量迭代；可伸缩向量的实际 lane 数还与运行时 vscale 有关。</li>
+</ul>
+<p>以 VF=4、IC=2 为例，一轮处理两组 4 个元素。它可能增加独立访存与计算，隐藏延迟，但也增加同时活跃的向量临时值。</p>
+<h2 id="源码设计的三层分工">源码设计的三层分工</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>层</th>
+<th>核心源码</th>
+<th>你应追的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>合法性</td>
+<td><code>llvm-project/llvm/lib/Transforms/Vectorize/LoopVectorizationLegality.cpp</code></td>
+<td>这个循环能否安全转成向量</td>
+</tr>
+<tr>
+<td>规划与成本</td>
+<td><code>llvm-project/llvm/lib/Transforms/Vectorize/LoopVectorize.cpp</code></td>
+<td>哪个 VF、IC、尾部方案值得选</td>
+</tr>
+<tr>
+<td>计划表示、变换与执行</td>
+<td><code>llvm-project/llvm/lib/Transforms/Vectorize/VPlan.h</code>、<code>llvm-project/llvm/lib/Transforms/Vectorize/VPlan.cpp</code>、<code>llvm-project/llvm/lib/Transforms/Vectorize/VPlanTransforms.cpp</code></td>
+<td>如何在不提前破坏 IR 的前提下表示候选</td>
+</tr>
+</tbody>
+</table></div>
+<p>主入口 <code>LoopVectorizePass::processLoop</code> 在本提交的 <code>LoopVectorize.cpp:7639</code>。它先看 hints，再创建 PredicatedScalarEvolution 和 LoopVectorizationLegality；<code>canVectorize</code> 失败则报告并退出。之后才进入成本和规划。</p>
+<p>当前代码由 <code>LoopVectorizationPlanner::plan</code> 构建候选，围绕 VPlan 评估、选择，并由 <code>executePlan</code> 实施；与较老版本把主要逻辑归结为 <code>selectVectorizationFactor</code> 的导读相比，阅读本地源码应以本版本规划器为准。</p>
+<h2 id="第一关控制流指令与-phi-能不能解释">第一关：控制流、指令与 PHI 能不能解释</h2>
+<p>在 <code>LoopVectorizationLegality::canVectorizeInstrs</code> 中，header PHI 要能解释为诱导变量、归约或其他支持的递推模式。一个未知的跨迭代状态并不能自动扩成向量。</p>
+<p>循环中的函数调用也要有安全和可向量化的解释：目标是否有向量版本、是否可展开或标量化、副作用和访问语义如何。不能把任意 <code>foo(i)</code> 同时执行四份。</p>
+<p>条件分支可通过 if-conversion 转成掩码/选择：</p>
+<pre><code class="language-c">if (a[i] &gt; 0)
+    b[i] = expensive(a[i]);
+</code></pre>
+<p>教学图是先生成 <code>mask = A &gt; 0</code>，再对活跃 lane 执行。<strong>普通 select 并不能让前面的非法 load 或有副作用调用变得安全</strong>：如果两个候选值已经先执行，未选中的危险操作仍然发生。必须证明推测执行安全，或使用支持的 masked / predicated 运算，必要时标量化。</p>
+<p>本提交还出现 uncountable early exit 的专门检查与开关，因此“所有提前退出循环均不支持”过于绝对。更稳妥的问题是：当前退出形状和副作用是否在此实现支持范围内。</p>
+<h2 id="第二关内存是否允许跨-lane-重排">第二关：内存是否允许跨 lane 重排</h2>
+<p><code>canVectorizeMemory</code> 使用 LoopAccessAnalysis。关键不是“存在 store 吗”，而是所有可能冲突是否安全。</p>
+<p>典型结果有四种：</p>
+<ol>
+<li>静态证明访问独立，直接继续。</li>
+<li>有距离约束，可以限制最大安全 VF。</li>
+<li>存在可动态判定的别名，规划 runtime checks 与 scalar fallback。</li>
+<li>无法证明、无法经济地检查或存在不支持的依赖，拒绝。</li>
+</ol>
+<p>连续 load/store 最便宜；结构体交错访问可以组 interleaved access；不规则访问可能需要 gather/scatter；有些指令按 lane 标量化。后两种可能很贵，向量类型出现在 IR 中也不等于端到端收益。</p>
+<p>别把 <strong>interleaved memory access</strong> 与 <strong>IC</strong> 混淆。前者是地址布局如 <code>RGBRGB...</code> 的访问分组；后者是每轮多少组向量迭代。</p>
+<h2 id="第三关怎样选-vf-和-ic">第三关：怎样选 VF 和 IC</h2>
+<p><code>LoopVectorizationCostModel::computeMaxVF</code> 给出候选边界；<code>LoopVectorizationPlanner::plan</code> 和相关候选成本逻辑在这个边界内选择计划。TTI 给出运算、内存、shuffle、掩码等估价。</p>
+<p>教学上可比较“每批成本 / 本批标量迭代数”，但真实判断还需要：</p>
+<ul>
+<li>外围检查和最低可获益 trip count。</li>
+<li>scalar remainder 或向量 epilogue。</li>
+<li>scalarization、extract/insert、reduction 收尾成本。</li>
+<li>固定与 scalable VF 的目标支持。</li>
+<li>profile、优化体积政策、用户 hints。</li>
+<li>寄存器使用估计。</li>
+</ul>
+<p>本提交 <code>selectInterleaveCount</code> 使用 <code>calculateRegisterUsageForPlan</code>，不是完全忽略寄存器压力的“越宽越好”。但中端的估计仍不是最终分配：目标合法化、指令选择和调度还会改变临时值和生命周期。</p>
+<p><strong>观察推导：</strong> SIMD 节省的是同形工作的执行与控制成本；扩大 VF/IC 同时可能提高 shuffle 和资源成本。所以寻找的是收益峰值，不是最大硬件宽度。</p>
+<h2 id="vplan先表示方案再改写真实程序">VPlan：先表示方案，再改写真实程序</h2>
+<p>直接边分析边改 IR 有一个大问题：选错 VF 后如何回滚？如何比较多个候选？VPlan 用专门的计划图把控制结构和数据流表示出来，允许计划级变换、成本比较，然后统一执行。</p>
+<ul>
+<li><code>VPValue</code> / <code>VPUser</code> 表示计划的数据关系。</li>
+<li>VP basic block / region 表示计划控制流。</li>
+<li><strong>recipe</strong> 描述如何生成 widened、replicated、reduction 或其他 IR。</li>
+<li>计划可以保留标量工作，不要求每个 recipe 都变成一条 SIMD 指令。</li>
+</ul>
+<p>推荐继续读 <code>llvm-project/llvm/lib/Transforms/Vectorize/VPlanRecipes.cpp</code> 与 <code>llvm-project/llvm/lib/Transforms/Vectorize/VPlanTransforms.cpp</code>。要先问一个 recipe 的输入是什么、是否对应 VF 个 lane、是否只有单一标量值，再看它生成的 IR。</p>
+<p>本提交的普通入口断言说明：非 VPlan-native 外循环路径时主要处理最内层循环；外层向量化还有条件与限制。不能由“代码包含外循环逻辑”推论“任意嵌套自动一起向量化”。</p>
+<h2 id="尾部n-不是-vf-的倍数怎么办">尾部：n 不是 VF 的倍数怎么办</h2>
+<p>三类常见办法：</p>
+<ol>
+<li><strong>标量尾循环：</strong> 主体处理完整向量，剩余元素标量执行。</li>
+<li><strong>较小 VF 的向量尾部：</strong> 用另一个方案覆盖余量，再视需要处理最后几个元素。</li>
+<li><strong>tail folding：</strong> 最后一批也进入向量循环，用 active-lane mask 只访问合法元素。</li>
+</ol>
+<p>掩码运算不能越界产生未定义行为；目标的 masked load/store 支持与成本非常重要。tail folding 能减少额外尾循环，也可能增加每轮掩码和谓词成本。</p>
+<p>理解真实 IR 时不要只找 <code>&lt;4 x float&gt;</code>。应把“guard、runtime check、vector body、epilogue、scalar fallback”整条 CFG 画出来，才能解释快路径为什么不适用于所有输入。</p>
+<h2 id="slp不用循环也能自动-simd">SLP：不用循环，也能自动 SIMD</h2>
+<pre><code class="language-c">out[0] = a[0] + b[0];
+out[1] = a[1] + b[1];
+out[2] = a[2] + b[2];
+out[3] = a[3] + b[3];
+</code></pre>
+<p>SLP（Superword Level Parallelism）从局部同形标量指令组寻找 SIMD。实现核心在 <code>llvm-project/llvm/lib/Transforms/Vectorize/SLPVectorizer.cpp</code> 的 <code>BoUpSLP</code>：</p>
+<pre><code class="language-text">寻找 root / 相邻 stores / 可组合值
+  → buildTree：从结果向上匹配同形 operand bundles
+  → 检查依赖和调度可行性，选择 lane 顺序
+  → getTreeCost：向量收益减去 pack / shuffle / extract 等成本
+  → vectorizeTree：生成向量代码，修复外部标量使用
+</code></pre>
+<p>名字叫 tree，但共享值和外部使用让真实结构不必是纯树。不是遇到四个 add 就可以合并：若中间 store 与 load 可能别名、指令不能共同调度，或输出必须频繁提取回标量，可能不划算。</p>
+<p>本提交的 SLP 源码包含 may-alias runtime-check 的规划接口，因此不要引用老印象说“SLP 永远没有动态别名检查”。本文只把它作为本版本能力线索，不宣称所有候选都能自动成功 version。</p>
+<p><strong>Loop Vectorizer 与 SLP 的协作：</strong> 循环展开把跨迭代同形指令显式摆出来，SLP 可能再组合；但 LV 通常直接以迭代为单位规划。两者存在相互作用，不能简单视为互斥开关。</p>
+<h2 id="一个失败原因的解释模板">一个失败原因的解释模板</h2>
+<p>如果 SAXPY 没向量化，不要第一反应就加 pragma。按顺序检查：</p>
+<ol>
+<li>是否被 inline 后消失，或者你观察的是错误函数？</li>
+<li>pass 是否运行、hints 是否禁止？</li>
+<li>别名、递推、副作用或浮点语义哪一项阻止合法性？</li>
+<li>是没有合法方案，还是合法却收益不足？</li>
+<li>IR 已向量化，但目标降低后是否标量化、产生很多 shuffle？</li>
+<li>最终机器码是否因 spill 或带宽瓶颈而不快？</li>
+</ol>
+<p>这六步把“LLVM 不够聪明”的笼统抱怨，转成能够验证的编译阶段问题。</p>
+</section>
+
+<section id="sec-04-unrolling">
+<h1 id="unrolling">自动循环展开</h1>
+<h2 id="先看保序展开">先看保序展开</h2>
+<pre><code class="language-c">for (int i = 0; i &lt; n; ++i)
+    a[i] = a[i] * c + 1;
+</code></pre>
+<p>因子 U=4 的教学结构：</p>
+<pre><code class="language-c">// 示意：实际编译器还必须正确处理边界运算和溢出
+for (; remaining &gt;= 4; i += 4, remaining -= 4) {
+    a[i]     = a[i]     * c + 1;
+    a[i + 1] = a[i + 1] * c + 1;
+    a[i + 2] = a[i + 2] * c + 1;
+    a[i + 3] = a[i + 3] * c + 1;
+}
+for (; remaining &gt; 0; ++i, --remaining)
+    a[i] = a[i] * c + 1;
+</code></pre>
+<p>展开本身仍可保持所有原迭代的顺序，所以有 loop-carried dependence 也不必禁止。例如 <code>a[i]=a[i-1]+b[i]</code> 可以复制四次并保留串行链。只有进一步调度、打包或重关联才需要对应的独立性证明。</p>
+<p><strong>因此展开 ≠ 并行化；展开甚至不保证增加有效 ILP。</strong> 一条长依赖链复制四遍还是一条长依赖链。</p>
+<h2 id="理论收益从哪里来">理论收益从哪里来</h2>
+<ol>
+<li><strong>摊薄控制开销。</strong> U 次工作只执行一次外层控制更新与跳转。</li>
+<li><strong>扩大调度窗口。</strong> 让多个独立 load 和运算同时可见，处理器与编译器能重叠延迟。</li>
+<li><strong>暴露常量。</strong> 完全展开小常数循环，使 <code>i</code> 每次变成常数，分支、地址和 lookup 可折叠。</li>
+<li><strong>促进其他优化。</strong> SLP、CSE、SROA、死代码消除能利用重复体的显式关系。</li>
+<li><strong>在合法时增加累加器。</strong> 拆短归约依赖链，但这不只是复制；必须满足归约重排的语义。</li>
+</ol>
+<p>反向代价包括：代码体积、I-cache 和解码压力、live values 增多、spill、余数处理，以及编译时间。收益常呈先升后降，不是 U 单调越大越好。</p>
+<h2 id="三种展开和一次-peeling">三种展开和一次 peeling</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>策略</th>
+<th>条件 / 行为</th>
+<th>典型适用点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>full unroll</td>
+<td>将有限次迭代显式列出，消除循环</td>
+<td>小常量 trip count，常量传播收益明显</td>
+</tr>
+<tr>
+<td>partial unroll</td>
+<td>每轮复制 U 份，仍有循环</td>
+<td>控制成本、吞吐改善</td>
+</tr>
+<tr>
+<td>runtime unroll</td>
+<td>trip count 运行时才知道，构造分组和余数路径</td>
+<td>能摊薄 setup 的长循环</td>
+</tr>
+<tr>
+<td>peeling</td>
+<td>剥离前几次或特定迭代，剩下循环保留</td>
+<td>第一轮特殊行为、稳定后简化</td>
+</tr>
+</tbody>
+</table></div>
+<p>peeling 与 unroll 都涉及克隆，但目的不同。剥离一轮后可能证明剩余 PHI 固定或分支条件稳定；展开则让一个新主体覆盖多次原迭代。</p>
+<h2 id="llvm-的策略层与施工层">LLVM 的策略层与施工层</h2>
+<p>入口和策略在 <code>llvm-project/llvm/lib/Transforms/Scalar/LoopUnrollPass.cpp</code>：</p>
+<ul>
+<li><code>gatherUnrollingPreferences</code>：收集默认、优化级别、TTI、大小政策与用户覆盖。</li>
+<li><code>tryToUnrollLoop</code>：整理分析、trip count、上界、倍数和 metadata，判断可选动作。</li>
+<li><code>computeUnrollCount</code>：选择因子和 full / partial / runtime 的相关策略。</li>
+<li>最后调用 <code>UnrollLoop</code> 实施。</li>
+</ul>
+<p>真正的 CFG/SSA 重建在：</p>
+<ul>
+<li><code>llvm-project/llvm/lib/Transforms/Utils/LoopUnroll.cpp</code>：<code>UnrollLoop</code>。</li>
+<li><code>llvm-project/llvm/lib/Transforms/Utils/LoopUnrollRuntime.cpp</code>：运行时展开和余数处理。</li>
+<li><code>llvm-project/llvm/lib/Transforms/Utils/LoopPeel.cpp</code>：peeling。</li>
+</ul>
+<p>这种分层很重要：<strong>“选几份”与“如何正确克隆”是两种不同难题。</strong> 前者是启发式，后者必须保持精确语义。</p>
+<h2 id="因子选择不是循环体行数小就展开">因子选择不是“循环体行数小就展开”</h2>
+<p>LLVM 使用 IR/目标成本估计，不是源码行数。常量迭代数、最大迭代数、已知倍数有不同用途：</p>
+<ul>
+<li>精确 TripCount 小，可能全展开。</li>
+<li>只知道上界，仍可能需要保留每轮退出条件，不能无条件执行到上界。</li>
+<li>只知道迭代数是 k 的倍数，可以减少某些余数处理。</li>
+<li>完全未知时，runtime unroll 需要额外计算和 CFG，成本更高。</li>
+</ul>
+<p><code>LoopUnrollPass.cpp</code> 中还有完整展开收益分析：估计复制后的常量化、可删除指令等，允许某些收益特别明显的情况提高可接受阈值。并非所有候选都做无限精细模拟；分析预算也是限制。</p>
+<p>本提交可见默认阈值和 O3 aggressive 阈值等选项，但这些值不是“机器码最多多少字节”，也不是统一性能定律。TTI 和优化体积模式会调整。阅读时关注这些值<strong>为何分层、如何覆盖</strong>，比记住数字更有意义。</p>
+<h2 id="复制循环为什么是复杂工程">复制循环为什么是复杂工程</h2>
+<p>以原 header PHI 为例：</p>
+<pre><code class="language-text">s_phi = phi(initial_s, s_next)
+s_next = f(s_phi, a[i])
+</code></pre>
+<p>展开 U=2 后，第二份的输入必须是第一份的结果，不是再从 original PHI 读一遍；回边要连到最后一份。类似地：</p>
+<ul>
+<li>每个克隆指令的 operand 要映射到正确的一份。</li>
+<li>第 k 份的 induction value 对应原第 k 次迭代。</li>
+<li>中途退出要保持原来该退出点可观察的状态。</li>
+<li>外部使用要通过正确退出 PHI/LCSSA 获得结果。</li>
+<li>LoopInfo、支配关系和 SCEV 必须更新或失效。</li>
+<li>metadata 要避免错误地对新循环重复施加原 transformation request。</li>
+</ul>
+<p>这就是读 <code>UnrollLoop</code> 应带的清单。不要只盯 <code>CloneBasicBlock</code>：clone 只是开始，接线和修复才是正确性的核心。</p>
+<h2 id="unroll-and-jam为什么不是普通双重展开">unroll-and-jam：为什么不是普通双重展开</h2>
+<p>原来：</p>
+<pre><code class="language-c">for (int i = 0; i &lt; m; ++i)
+    for (int j = 0; j &lt; n; ++j)
+        y[i][j] = x[j] * scale[i];
+</code></pre>
+<p>外循环按 2 展开，再把两份内循环 jam：</p>
+<pre><code class="language-c">for (int i = 0; i + 1 &lt; m; i += 2)
+    for (int j = 0; j &lt; n; ++j) {
+        y[i][j]     = x[j] * scale[i];
+        y[i + 1][j] = x[j] * scale[i + 1];
+    }
+// 外层余数另行处理
+</code></pre>
+<p>这里两个外迭代共享 <code>x[j]</code> 的读取，可能减少访存并制造 SLP 机会。但执行顺序从“整个第 i 行，再整个第 i+1 行”变成按列交错，故依赖证明比保序展开更强。数组间别名也会影响合法性。</p>
+<p>路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopUnrollAndJamPass.cpp</code>、<code>llvm-project/llvm/lib/Transforms/Utils/LoopUnrollAndJam.cpp</code>。本版本管线注释专门要求把 unroll-and-jam 放在普通 unroll 前，避免普通展开先破坏想处理的嵌套形状。</p>
+<h2 id="循环展开与寄存器分配的连接">循环展开与寄存器分配的连接</h2>
+<p>假设未展开时只需维持一个地址、一个加载值和一个中间乘积；展开四份后，为了重叠 load，调度可能同时维持四组临时值。</p>
+<pre><code class="language-text">更多 ILP
+   ↘
+    更多同时活跃值 → 超过可用寄存器 → store/reload → 收益可能反转
+   ↗
+更大 VF / IC
+</code></pre>
+<p>不能简单说“展开一定增大压力”：常量折叠、死值消除也可能减少工作；关键是最终调度下的活跃峰值。LLVM 的中端与后端之间不是一次全局最优化求解，所以实验必须看最终机器码，而不只看循环控制少了几条。</p>
+</section>
+
+<section id="sec-05-structure">
+<h1 id="loop-structure">循环结构优化</h1>
+<h2 id="licm把不变工作搬出去">LICM：把不变工作搬出去</h2>
+<pre><code class="language-c">for (int i = 0; i &lt; n; ++i)
+    a[i] = b[i] * (p + q);
+</code></pre>
+<p>若 <code>p+q</code> 的 operands 在循环外定义、运算可安全执行，它可以进 preheader。路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LICM.cpp</code>。</p>
+<p>“地址不变”与“load 结果不变”不同：循环每轮从 <code>*p</code> 加载，若循环中任何 store 可能改 <code>*p</code>，就不能把 load 外提。MemorySSA、别名分析和副作用信息帮助回答这个问题；相关表示在 <code>llvm-project/llvm/lib/Analysis/MemorySSA.cpp</code>。</p>
+<p>还要考虑零次迭代：原来不进入循环就不执行 load；外提之后若无条件访问坏指针，会改变语义。需要能安全推测执行，或原位置必定执行等充分条件。LICM 也可 sinking，或在证明允许时做内存 promotion，不能把它缩减成“把纯表达式搬出去”。</p>
+<p><strong>与后端的连接：</strong> 外提结果贯穿更长路径，可能延长 live range。减少计算与增加寄存器占用之间仍有权衡。</p>
+<h2 id="looprotate把反复判断的形状整理成利于优化的形状">LoopRotate：把反复判断的形状整理成利于优化的形状</h2>
+<p>简单 while 形状可教学性地变成入口 guard 加 do-while：</p>
+<pre><code class="language-c">if (n &gt; 0) {
+    do {
+        body();
+        ++i;
+    } while (i &lt; n);
+}
+</code></pre>
+<p>入口 guard 保持零次执行语义，主体与 latch 更适合若干分析和优化。路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopRotation.cpp</code>。它可能复制 header，所以不是免费的结构整理；<code>-Oz</code> 等体积政策会影响 header duplication。</p>
+<h2 id="unswitch把循环不变分支搬成循环选择">Unswitch：把循环不变分支搬成循环选择</h2>
+<pre><code class="language-c">for (int i = 0; i &lt; n; ++i) {
+    if (mode) a[i] = b[i] + 1;
+    else      a[i] = b[i] * 2;
+}
+</code></pre>
+<p>若 mode 不变且语义允许，可以变成 <code>if(mode)</code> 选两个各自无该分支的循环。这样后续 LV 可能看到更简单的 body。路径：<code>llvm-project/llvm/lib/Transforms/Scalar/SimpleLoopUnswitch.cpp</code>。</p>
+<p>代价是克隆循环。多个不变条件可能造成组合爆炸，因此 non-trivial unswitch 有收益、大小和预算限制。名称里的 Simple 不等于永远只做一个局部替换。</p>
+<h2 id="loopinterchange用依赖约束换局部性">LoopInterchange：用依赖约束换局部性</h2>
+<p>C 的二维连续数组通常行优先。以下按列访问：</p>
+<pre><code class="language-c">for (int j = 0; j &lt; cols; ++j)
+    for (int i = 0; i &lt; rows; ++i)
+        a[i][j] += 1;
+</code></pre>
+<p>若安全，交换 i、j 后内层按行连续，cache line 利用和向量访问更好。</p>
+<p>理论上，对依赖从迭代点 x 指向 y，变换后的执行时间戳必须仍让 x 在 y 前。方向向量记录各维是 <code>&lt;</code>、<code>=</code>、<code>&gt;</code> 或不确定；交换维后，需要满足合法的字典序方向条件。距离向量 <code>(1,-1)</code> 原来第一维先正向，交换成 <code>(-1,1)</code> 就可能把消费者排在生产者前。</p>
+<p>路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopInterchange.cpp</code>。开头定义 <code>CharMatrix</code> 方向矩阵，并有 cache、指令顺序、向量化机会等收益规则；依赖来自 <code>llvm-project/llvm/lib/Analysis/DependenceAnalysis.cpp</code>，cache 估计来自 <code>llvm-project/llvm/lib/Analysis/LoopCacheAnalysis.cpp</code>。</p>
+<p>要分别检查 <strong>数学重排合法性、IR 形状可变换性、收益性</strong>。算法可能因 PHI、归约或不规则 loop nest 不在支持范围而放弃，即使人能设计出一个等价源码。</p>
+<h2 id="loopdistribute把阻碍-simd-的链隔离出去">LoopDistribute：把阻碍 SIMD 的链隔离出去</h2>
+<pre><code class="language-c">for (int i = 1; i &lt; n; ++i) {
+    a[i] = a[i - 1] + b[i];
+    c[i] = d[i] * e[i];
+}
+</code></pre>
+<p>若相关数组不冲突，两组工作之间也无其他依赖，可分成：</p>
+<pre><code class="language-c">for (int i = 1; i &lt; n; ++i)
+    a[i] = a[i - 1] + b[i];
+for (int i = 1; i &lt; n; ++i)
+    c[i] = d[i] * e[i];
+</code></pre>
+<p>第一组串行，第二组可 SIMD。这相当于通过依赖图分区，把有环/递推的部分与独立部分分开。并不是拆掉所有依赖；必须保留分区之间所要求的顺序。</p>
+<p>路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopDistribute.cpp</code>。文件开头明确说主要目标是隔离依赖循环，使用 LoopAccessAnalysis，并特别照顾内存操作的 lexical order；还支持 runtime versioning。</p>
+<p>代价：多一套循环控制、可能减少 producer-consumer cache reuse、重复某些标量计算。遇到共享中间数据，先不要断言分裂必然更快。</p>
+<h2 id="fusionflattenidiom-与强度削弱">Fusion、Flatten、Idiom 与强度削弱</h2>
+<p><strong>Fusion</strong> 把相邻循环合并，减少遍历或让生产者结果马上消费。若 <code>b[i]</code> 在第一个循环生产、第二个消费，可能改善局部性；若第二个实际读取未来 <code>b[i+1]</code>，天真融合就错误。路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopFuse.cpp</code>。它不是“看到两个同上界循环就合并”。</p>
+<p><strong>Flatten</strong> 尝试把合适嵌套变成单个计数循环。理论上可令 <code>t=i*n+j</code>，但边界乘法溢出、索引恢复成本和循环间副作用都是限制。路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopFlatten.cpp</code>；本版本有独立、默认关闭的管线开关。</p>
+<p><strong>Idiom recognition</strong> 识别 memset/memcpy 或其他特定计算模式，把细粒度循环改成目标可进一步优化的操作。路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopIdiomRecognize.cpp</code>。库语义、重叠和访问条件仍必须满足，不能把任何字节拷贝循环都换成 memcpy。</p>
+<p><strong>LoopStrengthReduce</strong> 将部分反复乘法式地址计算重写成目标合适的递增地址/偏移表达。路径：<code>llvm-project/llvm/lib/Transforms/Scalar/LoopStrengthReduce.cpp</code>。它可能增加诱导变量数量，因此也与寄存器压力有关。</p>
+<h2 id="理论更系统的版本tiling">理论更系统的版本：tiling</h2>
+<p>矩阵计算同时涉及三类局部性：数据在 cache 中复用、结果在寄存器中累积、线程处理相对独立的数据块。分块把大迭代域切成小块，块大小与 cache 和寄存器资源匹配。</p>
+<p>不要把“LLVM 有循环优化”理解为普通 C 管线会对任意矩阵乘自动寻找全套最优 blocking。更显式的高层结构通常在 MLIR affine/linalg 或 Polly 中处理。MLIR 分块路径之一：<code>llvm-project/mlir/lib/Dialect/Affine/Transforms/LoopTiling.cpp</code>；多面体路线见<a href="#parallel-openmp">自动并行化与 OpenMP</a>。</p>
+<p><strong>结构优化的共同原则：</strong> 改善后续 Pass 看见的问题。但改写顺序也会毁掉后续机会：先完全展开，可能再没有 loop nest 可交换；先分裂，可能失去融合局部性。所以 pipeline 设计本身是一种带预算的搜索策略，而不是所有优化各跑一次就自动最优。</p>
+</section>
+
+<section id="sec-06-parallel-openmp">
+<h1 id="parallel-openmp">自动并行化与 OpenMP</h1>
+<h2 id="普通-o3-为什么不会把所有-for-变成线程">普通 <code>-O3</code> 为什么不会把所有 for 变成线程</h2>
+<p>普通 LLVM 循环向量化、SLP、展开的职责不是通用线程级自动并行化。默认 C/C++ 优化管线不会仅因为看到独立循环，就普遍插入一组 OpenMP fork/join。</p>
+<p>线程化还要考虑：运行时依赖、线程数、粒度、同步、嵌套并行、可观察副作用和内存模型。原来确定顺序的调用、异常、I/O、volatile 或同步操作，不能随便分散到线程。</p>
+<p>即使每个迭代独立，T 个线程的教学时间模型也有“启动＋调度＋串行部分＋并行部分/T＋同步＋内存争用”。当单次循环很短，启动和同步足以吞掉所有收益。</p>
+<p><strong>SIMD 的收益门槛通常低于线程启动门槛；SIMD 合法性也不总是等价于任意线程调度合法性。</strong> 有限距离依赖可能支持受限 VF，却不支持把所有迭代任意分发。</p>
+<h2 id="polly用多面体统一表示迭代域和调度">Polly：用多面体统一表示迭代域和调度</h2>
+<p>对于规则嵌套：</p>
+<pre><code class="language-c">for (int i = 0; i &lt; m; ++i)
+    for (int j = 0; j &lt; n; ++j)
+        a[i][j] = b[i][j] + 1;
+</code></pre>
+<p>多面体模型把：</p>
+<ul>
+<li><strong>迭代域</strong> 表示成整数点集合，例如 <code>0 &lt;= i &lt; m, 0 &lt;= j &lt; n</code>。</li>
+<li><strong>访问关系</strong> 表示成迭代点到数组位置的映射。</li>
+<li><strong>依赖关系</strong> 表示成必须保序的迭代点对。</li>
+<li><strong>schedule</strong> 表示成迭代点到执行时间戳的映射。</li>
+</ul>
+<p>传统 loop interchange 是交换时间戳维度；tiling 引入块坐标和块内坐标；fusion/distribution 调整不同语句的调度关系。合法性核心是每条依赖边在新 schedule 下仍指向未来。若某个调度维度没有携带依赖，就有并行化机会。</p>
+<p>它不是只能表示 <code>a*i+b*j</code> 这种单一表达：实践有整数集、参数、分段关系和部分非仿射处理；但规则、可分析区域仍是强项。一般指针链、未知副作用或复杂非仿射结构会限制 SCoP 检测与优化。</p>
+<p>源码阅读链：</p>
+<ol>
+<li><code>llvm-project/polly/lib/Analysis/ScopDetection.cpp</code>：哪些区域可建模。</li>
+<li><code>llvm-project/polly/lib/Analysis/ScopInfo.cpp</code>：域、访问与语句模型。</li>
+<li><code>llvm-project/polly/lib/Analysis/DependenceInfo.cpp</code>：构建依赖。</li>
+<li><code>llvm-project/polly/lib/Transform/ScheduleOptimizer.cpp</code>：修改调度。</li>
+<li><code>llvm-project/polly/lib/CodeGen/IslAst.cpp</code>：AST 与并行标记。</li>
+<li><code>llvm-project/polly/lib/CodeGen/IslNodeBuilder.cpp</code>：生成 IR，遇到并行节点转入并行循环生成。</li>
+<li><code>llvm-project/polly/lib/CodeGen/LoopGenerators.cpp</code>：标量/并行 loop 框架。</li>
+</ol>
+<p>Polly 是独立可选组件，不等于普通 LLVM <code>-O3</code> 默认为任意程序开启的线程化功能。</p>
+<h2 id="理论可并行polly-仍可能不执行并行">理论可并行，Polly 仍可能不执行并行</h2>
+<p>本提交 <code>IslAstInfo::isParallel</code> 与 <code>isExecutedInParallel</code> 是两件事。后者在 <code>IslAst.cpp:626</code> 附近先检查 <code>PollyParallel</code>；除非 force，否则不把最内层循环线程化，注释理由是内层迭代常较少、不划算；还要求适用的外层并行标记，并排除这里的 reduction-parallel 情形。</p>
+<p>这说明：</p>
+<blockquote>
+<p>依赖分析的“可并行”是事实；代码生成的“实际线程化”是策略。</p>
+</blockquote>
+<p><code>LoopGenerators.cpp</code> 中可以看到线程数、调度策略、chunk size 设置和 <code>ParallelLoopGenerator::createParallelLoop</code>。继续追具体运行时后端，应读 <code>llvm-project/polly/lib/CodeGen/LoopGeneratorsKMP.cpp</code> 与 <code>llvm-project/polly/lib/CodeGen/LoopGeneratorsGOMP.cpp</code>。</p>
+<p>某处 force 选项也不应被理解为通用地“无视依赖强行线程化”；这里描述的是策略门槛，是否合法仍是前置事实。</p>
+<h2 id="mlir-affineparallelize在更高层-ir-保留结构">MLIR AffineParallelize：在更高层 IR 保留结构</h2>
+<p><code>llvm-project/mlir/lib/Dialect/Affine/Transforms/AffineParallelize.cpp</code> 是很清晰的教学实现：</p>
+<pre><code class="language-text">按 pre-order 访问 affine.for（先外层）
+  → isLoopParallel：判断独立性，按选项识别 reductions
+  → 收集候选
+  → 计算父级 affine.parallel 数量
+  → 不超过 maxNested 时 affineParallelize
+  → 得到 affine.parallel
+</code></pre>
+<p>分析入口位于 <code>llvm-project/mlir/lib/Dialect/Affine/Analysis/LoopAnalysis.cpp</code>。仿射循环与访存信息尚未被低层指令淹没，适合直接进行域和依赖推理。</p>
+<p><strong>得到 affine.parallel 不等于操作系统线程已经启动。</strong> 它表达并行语义；后续要选择 lowering 到 SCF/OpenMP/其他执行模型并链接适当运行时。OpenMP 转换的一条相关路径是 <code>llvm-project/mlir/lib/Conversion/SCFToOpenMP/SCFToOpenMP.cpp</code>，但具体 pipeline 还需要先把对应 affine 结构降低到合适形式。</p>
+<p>这是高层 IR 的价值：先决定“哪些工作可并行”，后决定“在哪种硬件和运行时执行”。</p>
+<h2 id="openmp程序员提供语义编译器负责实现">OpenMP：程序员提供语义，编译器负责实现</h2>
+<pre><code class="language-c">#pragma omp parallel for schedule(static)
+for (int i = 0; i &lt; n; ++i)
+    y[i] = f(x[i]);
+</code></pre>
+<p>这里程序员承担符合 OpenMP 规则、无非法数据竞争的责任；编译器不需要重新证明整段普通 C 循环在任意线程下无竞争，但仍需检查 directive、canonical loop、数据环境等语言要求，并按规范生成实现。</p>
+<p>典型 CPU 路线：</p>
+<pre><code class="language-text">#pragma omp parallel for
+  ↓ Clang Sema：检查规范、循环和 shared/private/reduction
+  ↓ CodeGen：outline 出 worker（microtask）
+  ↓ 生成 runtime fork 调用，传捕获的参数
+  ↓ worker 从运行时得到线程负责的迭代范围
+  ↓ 执行本线程 loop；按构造语义同步和归约
+</code></pre>
+<p>关键源码：</p>
+<ul>
+<li><code>llvm-project/clang/lib/Sema/SemaOpenMP.cpp</code>：前端语义。</li>
+<li><code>llvm-project/clang/lib/CodeGen/CGStmtOpenMP.cpp</code>：<code>EmitOMPParallelDirective</code>、<code>EmitOMPParallelForDirective</code>、<code>EmitOMPWorksharingLoop</code>、<code>EmitOMPSimdDirective</code>。</li>
+<li><code>llvm-project/clang/lib/CodeGen/CGOpenMPRuntime.cpp</code>：<code>emitParallelCall</code>、<code>emitForStaticInit</code>、<code>emitForDispatchInit</code>、<code>emitReduction</code>。</li>
+<li><code>llvm-project/llvm/lib/Frontend/OpenMP/OMPIRBuilder.cpp</code>：构造 OpenMP IR 的共享基础设施；不同构造和配置使用的路径不完全相同。</li>
+</ul>
+<p>在 <code>emitParallelCall</code> 可读到 <code>__kmpc_fork_call(loc, n, microtask, ...)</code> 的调用构造。捕获数组指针不意味着复制整个数组；数据环境决定传递和私有化方式。</p>
+<h2 id="runtime-真正做了哪些事">runtime 真正做了哪些事</h2>
+<p>主要 CPU 运行时在 <code>llvm-project/openmp/runtime/src/</code>：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>阅读焦点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>llvm-project/openmp/runtime/src/kmp_csupport.cpp</code></td>
+<td><code>__kmpc_fork_call</code> 等编译器 ABI 入口</td>
+</tr>
+<tr>
+<td><code>llvm-project/openmp/runtime/src/kmp_runtime.cpp</code></td>
+<td>team、线程生命周期、fork/join 框架</td>
+</tr>
+<tr>
+<td><code>llvm-project/openmp/runtime/src/kmp_sched.cpp</code></td>
+<td>static 循环范围计算</td>
+</tr>
+<tr>
+<td><code>llvm-project/openmp/runtime/src/kmp_dispatch.cpp</code></td>
+<td>dynamic/guided 等 work dispatch</td>
+</tr>
+<tr>
+<td><code>llvm-project/openmp/runtime/src/kmp_barrier.cpp</code></td>
+<td>barrier 与相关同步</td>
+</tr>
+<tr>
+<td><code>llvm-project/openmp/runtime/src/kmp_tasking.cpp</code></td>
+<td>task 执行与调度</td>
+</tr>
+</tbody>
+</table></div>
+<p>不要以为每个 parallel region 必然从零创建全部 OS 线程。运行时会管理团队和复用资源；仍然有唤醒、调度和同步成本。</p>
+<ul>
+<li><strong>static：</strong> 预先划分迭代，调度开销低；工作均匀时合适。</li>
+<li><strong>dynamic：</strong> 工作线程不断领取 chunk，应对负载不均，但有更多调度/同步。</li>
+<li><strong>guided：</strong> 常用递减 chunk 在前期低开销和后期平衡之间取折中。</li>
+</ul>
+<p>chunk 过小会增加调度和可能的 false sharing。两个线程写不同元素也可能写同一 cache line，导致一致性流量；“没有数据竞争”不等于“没有共享代价”。</p>
+<h2 id="parallelforsimd-与组合构造">parallel、for、simd 与组合构造</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>构造</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>omp parallel</code></td>
+<td>建立并行 team，多个线程执行区域</td>
+</tr>
+<tr>
+<td><code>omp for</code></td>
+<td>把迭代分配给既有 team，不单独等价于创建 team</td>
+</tr>
+<tr>
+<td><code>omp simd</code></td>
+<td>SIMD 语义与相关承诺，不创建 CPU team</td>
+</tr>
+<tr>
+<td><code>omp parallel for</code></td>
+<td>创建 team 并分配循环</td>
+</tr>
+<tr>
+<td><code>omp parallel for simd</code></td>
+<td>线程间分工，每个线程内再 SIMD</td>
+</tr>
+<tr>
+<td><code>omp task</code></td>
+<td>建立任务，调度不等于固定迭代静态分片</td>
+</tr>
+<tr>
+<td><code>omp target</code></td>
+<td>offload 执行模型，还涉及设备与映射</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>simd</code> 也不保证最终一定是一条宽 SIMD 指令：目标支持、构造语义和实现限制仍影响 codegen。相反，明确的并行语义可能给优化提供原本难以从普通源码推导的事实。</p>
+<p>归约例子：</p>
+<pre><code class="language-c">float sum = 0;
+#pragma omp parallel for reduction(+:sum)
+for (int i = 0; i &lt; n; ++i)
+    sum += x[i];
+</code></pre>
+<p>线程持有私有部分结果，结束时组合。相比把共享 sum 每轮 atomic，通常减少同步。浮点最终结果可随组合顺序和线程数变化；应用是否接受，需要用户设计，而不是默认把串行 bitwise 一致性当作保证。</p>
+<h2 id="openmpopt-不是从普通-for-发明-openmp">OpenMPOpt 不是“从普通 for 发明 OpenMP”</h2>
+<p>路径：<code>llvm-project/llvm/lib/Transforms/IPO/OpenMPOpt.cpp</code>。</p>
+<p>本提交 <code>OpenMPOpt::run</code> 的可见结构包括：运行 Attributor、重新收集运行时调用使用、删除适用的并行区、去重 runtime 查询，以及在开关允许时合并 parallel regions。module 路径还有设备状态机改写与 SPMD wrapper 等设备相关处理。</p>
+<p>背后观察是：前端为了正确实现各种可能情况，往往生成保守的 runtime 框架；中端若了解 runtime 函数和 worker 语义，就能恢复一些优化机会。</p>
+<ul>
+<li>相同、可合法共用的运行时查询可能去重。</li>
+<li>可证明无相关效果的区域可能移除。</li>
+<li>邻近区域若满足同步、数据环境等条件，可减少 fork/join；合并不能破坏原 barrier 所建立的顺序。</li>
+<li>Attributor 通过跨函数推导属性与行为提供证明；不是猜测 worker 没副作用。</li>
+</ul>
+<p><strong>它优化已有 OpenMP 语义，而非一般自动线程化 Pass。</strong> 将这一点与 Polly、MLIR 的并行检测区分清楚，才不会误读源码目录。</p>
+<h2 id="线程化的正确性清单">线程化的正确性清单</h2>
+<p>对准备并行化的循环依次问：</p>
+<ol>
+<li>哪些数据 private，哪些 shared？地址不同的变量是否可能指向同一对象？</li>
+<li>有无 loop-carried RAW/WAR/WAW？归约是否已正确描述？</li>
+<li>副作用、异常、I/O、同步和原执行顺序怎样处理？</li>
+<li>每个线程是否处理足够多工作，是否发生 false sharing？</li>
+<li>是否已经受限于内存带宽，更多线程只增加竞争？</li>
+<li>与外部线程池、嵌套 parallel、亲和性和 NUMA 是否冲突？</li>
+</ol>
+<p>这是一套比“有没有 for”更接近真实工程的并行化判断。</p>
+</section>
+
+<section id="sec-07-register-foundations">
+<h1 id="register-foundations">寄存器分配基础</h1>
+<h2 id="为什么编译器需要寄存器分配">为什么编译器需要寄存器分配</h2>
+<p>LLVM IR 里的 <code>%x</code>、<code>%y</code> 可以无限多；目标机器只有有限物理寄存器，而且不是完全同质的。指令选择后 Machine IR 用虚拟寄存器表示值，register allocator 决定每段值在何处驻留。</p>
+<pre><code class="language-text">虚拟值与机器指令
+   → 每个值什么时候必须存活
+   → 哪些值不能共用某个物理资源
+   → 指派 / 切分 / spill / rematerialize
+   → 物理寄存器与栈槽
+</code></pre>
+<p>它不是给源代码变量逐个选一个固定寄存器。一个源码变量可以有多个 SSA 值；一个 live range 被切开后，不同段可以用不同寄存器甚至栈。反过来，多个不同时活跃的值可以共用同一物理寄存器。</p>
+<h2 id="liveness值未来还可能被用到吗">liveness：值未来还可能被用到吗</h2>
+<p>基本块层的经典反向数据流方程：</p>
+<pre><code class="language-text">LiveOut(B) = 并集 { LiveIn(S) | S 是 B 的后继 }
+LiveIn(B)  = Use(B) ∪ (LiveOut(B) − Def(B))
+</code></pre>
+<p><code>Use(B)</code> 指在本块对应定义之前读取的值。循环 CFG 上通常需要迭代到固定点。往指令内部细化，可以得到每个程序点的活跃集合。</p>
+<p><strong>interference（冲突）</strong> 意味着两个值在需要保存彼此不同内容的重叠时间不能占同一资源；COPY 和精确机器约束使实际处理比“所有相邻时间都连边”精细。</p>
+<p>一个简化单块例子：</p>
+<pre><code class="language-text">0: a = ...
+1: b = ...
+2: use a
+3: c = ...
+4: use b
+5: use c
+</code></pre>
+<p>忽略子指令 slot，a 约活到 2，b 活到 4，c 从 3 活到 5；a 与 b 冲突，b 与 c 冲突，a 与 c 可复用。分配的目标不是让名字不同，而是让同时所需的信息不被覆盖。</p>
+<h2 id="liveinterval-并不一定是一个连续区间">LiveInterval 并不一定是一个连续区间</h2>
+<p>核心路径：</p>
+<ul>
+<li><code>llvm-project/llvm/include/llvm/CodeGen/LiveInterval.h</code>：LiveRange、Segment、VNInfo、subrange。</li>
+<li><code>llvm-project/llvm/lib/CodeGen/LiveIntervals.cpp</code>：构建与维护区间。</li>
+<li><code>llvm-project/llvm/lib/CodeGen/SlotIndexes.cpp</code>：机器指令的位置编号。</li>
+</ul>
+<p>LLVM 的 live range 可有多个半开 segment，存在空洞；VNInfo 区分值的不同定义来源。subranges / lane masks 又可表达部分子寄存器的活跃性。</p>
+<p>SlotIndex 不只是源码行号：一条机器指令内部需要区分 block boundary、early-clobber、普通 register slot、dead definition 等位置。这帮助处理“输入读取与输出写入”是否可共享物理资源。</p>
+<p>如果把所有段粗暴包成一个从 first def 到 last use 的大区间，就会把实际空洞当作活跃，产生虚假的冲突；这也是现代实现比最简线性扫描更精细的原因之一。</p>
+<h2 id="真实机器比-k-种颜色复杂">真实机器比 K 种颜色复杂</h2>
+<p><strong>寄存器类。</strong> 整数、浮点、向量或特殊指令各有合法候选集合；不是任意值可进任意寄存器。</p>
+<p><strong>别名与 register units。</strong> x86 的 RAX/EAX/AX/AL 存在重叠，向量宽度也涉及资源关系。LLVM 将物理寄存器映射为共享 units，避免把重叠名字误当独立资源。某些写还带有目标特定零扩展等语义。</p>
+<p><strong>固定占用。</strong> 某些指令必须使用特定寄存器，inline asm 有约束，部分寄存器保留给栈指针等用途。</p>
+<p><strong>call regmask。</strong> 调用按约定破坏一组 caller-saved 寄存器。跨 call 活跃值不能仅凭“别的虚拟值没占它”就留在会被 call clobber 的寄存器中。</p>
+<p><strong>callee-saved。</strong> 使用它可能需要函数序言/尾声保存恢复，有第一次启用成本；但对跨调用热值可能比反复 spill 更好。</p>
+<p><strong>two-address 和 tied operands。</strong> 输入输出可能要求同一寄存器；early-clobber 输出可能在其他输入读取前就被覆盖。</p>
+<p>这些约束解释了为何峰值活跃值数≤寄存器数，并不必然可分配：某些值共同只能选择很小的子集合。</p>
+<h2 id="liveregmatrix不必先建立一个巨大冲突图">LiveRegMatrix：不必先建立一个巨大冲突图</h2>
+<p>路径：<code>llvm-project/llvm/lib/CodeGen/LiveRegMatrix.cpp</code>、<code>llvm-project/llvm/lib/CodeGen/LiveIntervalUnion.cpp</code>。</p>
+<p>Greedy/Basic 通过 LiveRegMatrix 查询“当前 LI 放到物理寄存器 p 是否冲突”。每个 unit 可维护已经分配区间的 union，然后按所需时间段查询交集。</p>
+<p><code>checkInterference</code> 区分：</p>
+<ul>
+<li><code>IK_Free</code>：可用。</li>
+<li><code>IK_VirtReg</code>：其他已分配虚拟区间挡路，可能驱逐/切分。</li>
+<li><code>IK_RegUnit</code>：固定物理占用等障碍。</li>
+<li><code>IK_RegMask</code>：调用 clobber 等障碍。</li>
+</ul>
+<p><strong>驱逐其他虚拟值不能消除 fixed 或 regmask 冲突。</strong> 不分清这几类，就会误以为总能“把别人赶走腾位置”。</p>
+<h2 id="四种处理办法assignmentsplittingspillingrematerialization">四种处理办法：assignment、splitting、spilling、rematerialization</h2>
+<ol>
+<li><strong>assignment：</strong> 一整段当前区间分给某个物理寄存器。</li>
+<li><strong>splitting：</strong> 切开区间，在边界插 COPY 或必要的内存转换，让热区与冷区、不同压力区域独立分配。</li>
+<li><strong>spilling：</strong> 部分值驻留栈槽，定义后 store、使用前 reload；reload 后仍然需要一个短生命周期寄存器。</li>
+<li><strong>rematerialization：</strong> 对可廉价且语义安全地重算的值，在使用附近再算，如某些常量生成；不一定非得先存再读。</li>
+</ol>
+<p>“spill 一个虚拟寄存器”不是把所有用途都变成直接内存操作。指令可能允许折叠内存 operand，也可能必须新建 reload vreg。spiller 因而会创造新的分配任务，算法需要闭环。</p>
+<p>路径：<code>llvm-project/llvm/lib/CodeGen/SplitKit.cpp</code>、<code>llvm-project/llvm/lib/CodeGen/LiveRangeEdit.cpp</code>、<code>llvm-project/llvm/lib/CodeGen/InlineSpiller.cpp</code>、<code>llvm-project/llvm/lib/CodeGen/VirtRegMap.cpp</code>。</p>
+<h2 id="llvm-本提交提供的主要方案">LLVM 本提交提供的主要方案</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>核心设计</th>
+<th>优点与定位</th>
+<th>源码</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fast</td>
+<td>基本块局部、反向扫描，跨块值经栈</td>
+<td>编译速度与调试路径优先，代码质量较保守</td>
+<td><code>llvm-project/llvm/lib/CodeGen/RegAllocFast.cpp</code></td>
+</tr>
+<tr>
+<td>Basic</td>
+<td>区间优先队列＋冲突查询，不能放时 spill 当前或阻碍者</td>
+<td>清晰展示共享基础设施，策略较简单</td>
+<td><code>llvm-project/llvm/lib/CodeGen/RegAllocBasic.cpp</code></td>
+</tr>
+<tr>
+<td>Greedy</td>
+<td>优先级分配＋驱逐＋区域/局部切分＋有限重着色</td>
+<td>常用优化路径，质量与编译成本折中</td>
+<td><code>llvm-project/llvm/lib/CodeGen/RegAllocGreedy.cpp</code></td>
+</tr>
+<tr>
+<td>PBQP</td>
+<td>将候选寄存器和 spill 建模为带成本选择问题</td>
+<td>适合表达不规则资源与偏好，有求解代价</td>
+<td><code>llvm-project/llvm/lib/CodeGen/RegAllocPBQP.cpp</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>不要把 Basic 称为本版本经典线性扫描实现。</strong> 它共享 RegAllocBase/LiveRegMatrix，使用 spill weight 优先队列，不是单调起点扫描。</p>
+<p>Fast 文件开头直接说明：无完整数据流 liveness、无 live range splitting、无 interference graph/coalescer；每个块反向走，先遇到 use 获取寄存器，后遇到 def 释放；跨块值用栈槽联通。它并不是把 Greedy 全局计划简单做快一点。</p>
+<p>Basic 的 <code>spillInterferences</code> 要求阻碍者可 spill 且权重不高于当前值，再将其交给 spiller；否则最后 spill 当前值。Greedy 的重要进步是：<strong>不必把驱逐直接等同于 spill；先让被驱逐者重新找位置，并尝试更精细切分。</strong></p>
+<h2 id="经典线性扫描到底线性在哪里">经典线性扫描：到底“线性”在哪里</h2>
+<p>Poletto–Sarkar 风格最简算法：</p>
+<pre><code class="language-text">按 interval.start 排序
+active = 按结束位置排序的已分配区间
+for current:
+    释放所有 end &lt;= current.start 的 active
+    有空闲寄存器 → 分配
+    没有 → 从 current 与 active 选择牺牲者
+           常见简单启发式：结束最晚者
+</code></pre>
+<p>核心观察：沿线性序推进时，已经结束的区间永远不会重新影响未来；用 active 集合就能维护压力，不必先建全图。排序和集合操作仍有成本，“线性扫描”不保证整个实现严格 O(n)，更不代表支持所有机器约束后仍只有一次 pass。</p>
+<p>最简形式损失来源：CFG 被线性化、区间空洞、冷热差异、固定寄存器、复制偏好、跨调用选择。现代 linear scan 可以加入 inactive、拆分和位置约束，不能把整个算法家族都说成只能一次粗暴 spill。</p>
+<h2 id="图着色与-pbqp两种更全局的理解">图着色与 PBQP：两种更全局的理解</h2>
+<p>图着色把值作为节点、冲突作为边、物理寄存器作为颜色。经典 simplify/spill/select 方案在难处做启发式决定；真实分配还要处理预着色、不同候选集合与复制合并。一般寄存器分配的困难不能靠“LLVM IR 是 SSA”完全消除，因为实际机器约束和后端 PHI/两地址处理已经改变问题。</p>
+<p><strong>PBQP（Partitioned Boolean Quadratic Programming）</strong> 的教学模型：每个节点 i 从候选寄存器或 spill 选一个 one-hot 方案；单点成本向量给出选择费用，成对成本矩阵给出相互选择费用。</p>
+<pre><code class="language-text">总成本 = 所有节点所选项成本 + 所有相关边所选组合成本
+冲突值选重叠物理寄存器 → 无穷大 / 不允许
+复制相关值选择相同资源 → 可降低复制成本
+spill 项 → 估计的内存代价
+</code></pre>
+<p><code>RegAllocPBQP.cpp</code> 文件头明确说明：建问题、求解、映射回分配；若选择 spill，插入 spill code 后重复。实际求解器采用寄存器分配特化启发式，不是证明所有函数都求到全局最优。</p>
+<p>继续读 <code>llvm-project/llvm/include/llvm/CodeGen/PBQP/</code>。原理文献在实现文件头给出：Scholz 与 Eckstein（2002），Hames 与 Scholz（2006）。图着色、PBQP 是理解问题的模型；它们不意味着 LLVM Greedy 默认先构造并求解一张完整着色图。</p>
+</section>
+
+<section id="sec-08-greedy">
+<h1 id="greedy">Greedy 寄存器分配</h1>
+<h2 id="总体架构一条可闭环的工作队列">总体架构：一条可闭环的工作队列</h2>
+<p>先读短文件 <code>llvm-project/llvm/lib/CodeGen/RegAllocBase.cpp</code> 的 <code>allocatePhysRegs</code>，再进 RAGreedy。</p>
+<pre><code class="language-text">seedLiveRegs：把需要分配的区间入队
+while 队列非空:
+    取出一个 LI，确认它尚未分配
+    若已无有效使用，清理
+    使受变更影响的冲突查询缓存失效
+    phys, newRanges = selectOrSplit(LI)
+    有 phys → Matrix.assign
+    对被驱逐、切分、spill 产生的新范围重新入队
+结束后由后端完成 rewrite 和整理
+</code></pre>
+<p><code>selectOrSplit</code> 并不保证每次返回一个物理寄存器。返回“没有直接分配，但产生了新范围”是正常进展，而不是失败。RegAllocBase 因此能容纳不同策略，共享区间维护与队列驱动。</p>
+<h2 id="第一个关键观察先安排难摆的长区间但局部情况另论">第一个关键观察：先安排难摆的长区间，但局部情况另论</h2>
+<p>在 <code>llvm-project/llvm/lib/CodeGen/RegAllocGreedy.cpp</code>：</p>
+<ul>
+<li><code>RAGreedy::enqueue</code>（本提交 420 行附近）调用 PriorityAdvisor。</li>
+<li><code>DefaultPriorityAdvisor::getPriority</code>（439 行附近）编码 stage、物理 hint、寄存器类优先级、全局性和 size / 指令距离。</li>
+</ul>
+<p><strong>全局与拆分范围通常 long→short。</strong> 大区间跨很多位置，可放位置少；早发现放不下，尽早切分，可避免它后来一次扰动大量已安排短区间。这里的 size 来自 live segments 的度量，不是“动态执行次数”。</p>
+<p><strong>局部原始区间存在另一套顺序。</strong> 在满足本版本条件时，对单一 MBB 内的 singly-defined 区间按线性指令顺序分配；默认非 reverse 方向用 beginIndex 到末端的距离确定优先级。文件注释指出：没有全局干扰和其他约束时，可得到最优着色。</p>
+<p>这与区间图的性质一致：单块连续生命周期按位置前进，释放已结束区间并复用颜色，可以做到峰值压力所需的颜色数；但加入固定资源、全局区间或不同候选集合，这个理想性质就不能直接套用。</p>
+<p>源码还会把某些很大的 local range 强制按 global 策略处理，并提供目标/选项相关优先级。因此严格说：</p>
+<blockquote>
+<p>LLVM Greedy 中含有局部线性顺序策略；Greedy 整体不是传统 linear scan。</p>
+</blockquote>
+<p>既不能说它完全不利用扫描观察，也不能把整个 allocator 称为“按起点一次扫描”。</p>
+<h2 id="优先级与-spill-weight-不要混淆">优先级与 spill weight 不要混淆</h2>
+<p>队列优先级回答 <strong>“先尝试安排谁”</strong>；spill weight 回答 <strong>“谁更值得留在寄存器”</strong>。两者不是同一个数字。</p>
+<p><code>llvm-project/llvm/lib/CodeGen/CalcSpillWeights.cpp</code> 的 <code>VirtRegAuxInfo::weightCalcHelper</code> 汇总读写使用的频率相关权重，处理 COPY hints、可 rematerialize 的值、某些看起来像 induction update 的情形，并做归一化。</p>
+<p>概念上它估计“因 spill 导致的动态工作 / 这段区间占用的空间”。实际公式有保护常数、目标因子和特殊情形，不应将教学比例当成精确源码公式。</p>
+<p>为什么要归一化？两个值同样使用十次，一个贯穿巨长区间，另一个集中在十条指令内；后者单位资源的收益更高。为什么要用频率？冷路径一次 load 与热循环百万次 load 不应同价。</p>
+<p>没有采样或插桩 profile 时，块频率也可能是静态估计；allocator 不是在编译时知道真实每次运行。能安全重算的常量通常比只能从内存恢复的值更便宜；induction 更新 spill 则可能每轮昂贵。</p>
+<h2 id="第一步tryassign-与寄存器偏好">第一步：tryAssign 与寄存器偏好</h2>
+<p><code>RAGreedy::tryAssign</code>（532 行附近）用 <code>AllocationOrder</code> 遍历合法候选，并问 <code>Matrix-&gt;checkInterference</code>。</p>
+<p><code>AllocationOrder</code> 不是简单从 R0 到 R31：它结合寄存器类、目标顺序、保留寄存器和 hints。COPY 的源/目的若用同一物理寄存器，复制可能在 rewrite 后消失。</p>
+<p>已经发现一个空闲寄存器时，也可能继续改善：</p>
+<ul>
+<li>若 preferred register 被可低代价驱逐的范围占用，可以为 hint 腾位置。</li>
+<li>若 hint 在冷块遇到冲突，可以尝试 around-hint splitting。</li>
+<li>若可用寄存器有额外 cost，可尝试腾出更便宜替代。</li>
+</ul>
+<p>因此 <code>tryAssign</code> 不总是纯粹只读查询；它可能引入驱逐或切分。理解总流程时必须检查 <code>NewVRegs</code>，而不只检查返回值。</p>
+<h2 id="callee-saved-的第一次使用为何单独考虑">callee-saved 的第一次使用为何单独考虑</h2>
+<p><code>selectOrSplitImpl</code> 找到空闲 CSR 后，某些情况下还调用 <code>tryAssignCSRFirstTime</code>。原因：首次启用一个 callee-saved register 可能让函数产生额外保存恢复；对只在冷块使用的值，局部 spill 可能更便宜。</p>
+<p>但不能反过来说 CSR 总是贵：一个热循环或跨大量 calls 的值，避免反复 reload 的收益可能远超一次保存恢复。这里比较的是<strong>增量成本</strong>，受块频率与后续 frame lowering 影响，并不是“一律先用 caller-saved”的充分策略。</p>
+<h2 id="第二步eviction-不等于-spilling">第二步：eviction 不等于 spilling</h2>
+<p>当前区间 A 想用 p，但 B 已占有 p：</p>
+<pre><code class="language-text">若 B 是可移动的虚拟区间且驱逐代价可接受:
+    Matrix.unassign(B)
+    将 B 放回待处理集合
+    将 A 分给 p
+</code></pre>
+<p>B 后续可能换寄存器、切分或最终 spill。<strong>立即 spill 所有阻碍者的是更粗策略；Greedy 先保留修正机会。</strong></p>
+<p><code>RAGreedy::tryEvict</code> 与 <code>evictInterference</code> 在 <code>RegAllocGreedy.cpp</code>；默认判断在 <code>llvm-project/llvm/lib/CodeGen/RegAllocEvictionAdvisor.cpp</code> 的 <code>DefaultEvictionAdvisor::shouldEvict</code> 和相关成本检查。</p>
+<p>需要考虑的不是一个 B：p 的不同 units 和不同时间段可能被多个范围占据。成本会考察多个阻碍者、被破坏 hints、权重和 urgency。某些不可 spill 的短范围或严格受限类，需要更紧急地得到寄存器。</p>
+<p>这里的 ML advisor 文件（<code>llvm-project/llvm/lib/CodeGen/MLRegAllocEvictAdvisor.cpp</code>、<code>llvm-project/llvm/lib/CodeGen/MLRegAllocPriorityAdvisor.cpp</code>）允许用训练策略替代部分启发式，受构建和配置控制。它们不是一套完全独立 RA，也不能据目录存在就说默认启用了机器学习。</p>
+<h2 id="贪心允许反悔为什么不会永远互踢">贪心允许反悔，为什么不会永远互踢</h2>
+<p>如果 A 驱逐 B，B 再驱逐 A，两者即可循环。Greedy 用两类结构限制这种行为：</p>
+<ol>
+<li><strong>cascade 编号：</strong> 记录驱逐链，在策略判断中阻止形成无休止循环；urgent 等特殊情形有自己的规则。</li>
+<li><strong>stage：</strong> 区间逐渐从原始分配阶段进入等待切分、切分与 spill 等阶段，不能无限重复同一探索。</li>
+</ol>
+<p>状态定义可追 <code>llvm-project/llvm/include/llvm/CodeGen/RegAllocEvictionAdvisor.h</code>；附加信息维护在 <code>llvm-project/llvm/lib/CodeGen/RegAllocGreedy.h</code> 的 <code>ExtraRegInfo</code>。</p>
+<p>不能把它夸大为“单个启发式函数保证最优”。它们保证算法在工程预算内取得进展，并避免策略反复制造同类工作；代码质量仍是启发式结果。</p>
+<h2 id="第三步第一次放不下为什么不马上切分">第三步：第一次放不下，为什么不马上切分</h2>
+<p>读 <code>selectOrSplitImpl</code>（本提交 2658 行起）：</p>
+<pre><code class="language-text">tryAssign
+  → 若适用，考虑首次 CSR 成本
+  → tryEvict（stage 条件允许时）
+  → 首轮仍放不下：标记 RS_Split，延后重新入队
+  → 下一阶段 trySplit
+  → 对已到末段/不可 spill 的困难范围尝试 last-chance recoloring
+  → 正常可 spill 的范围，最后交 spiller
+</code></pre>
+<p>首轮延后并不是拖延 bug。长区间先处理时，很多较小区间尚未占位；若立即切分，看到的是不完整的压力图。让小区间先安排，再决定绕哪些冲突切，信息更充分。</p>
+<p>源码注释明确说第一轮不要 split/spill，等第二轮形成更好的 interference 图景。局部策略、阶段和新范围的细节影响实际顺序，上图是主骨架而非逐分支替代源码。</p>
+<p><strong>last-chance recoloring 也不是每次普通失败都立刻执行的万能一步。</strong> 本版本在这里有 stage/unspillable 条件；它用于有限回溯式挪动一组颜色，仍有深度和搜索范围限制。</p>
+<h2 id="切分从整个人留在房间变成按使用场景留不同房间">切分：从“整个人留在房间”变成“按使用场景留不同房间”</h2>
+<p>假设值 v 在入口定义，热循环多次读取，之后冷错误路径也读取：</p>
+<pre><code class="language-text">entry → hot loop → exit
+          |
+       cold error
+</code></pre>
+<p>一个贯穿全图的 LI 若找不到始终空闲的寄存器，不应立即把热循环每次 use 都变成 reload。可形成：</p>
+<pre><code class="language-text">入口 / 冷区：栈或其他片段
+热循环区域：v_hot 长驻一个寄存器
+区域边界：load / store / COPY
+</code></pre>
+<p>边界代价执行一次或很少次，换来热区避免大量访存。这是 Greedy 的核心观察：<strong>资源紧缺具有时间与路径局部性，整段 spill 过于粗糙。</strong></p>
+<p><code>trySplit</code> 会按具体情形尝试 local splitting、region/global splitting、其他适用方案；相关函数如 <code>tryLocalSplit</code>、<code>tryRegionSplit</code> 可在 <code>RegAllocGreedy.cpp</code> 检索。具体编辑由 SplitKit 的 SplitAnalysis / SplitEditor 等完成。</p>
+<ul>
+<li>局部切分沿使用点和冲突空隙寻找适合的片段。</li>
+<li>区域切分尝试围绕特定物理寄存器保留一个可获益区域，其余部分成为别的范围。</li>
+<li>新范围重新计算权重、约束并进入工作队列。</li>
+</ul>
+<p>切分会制造 COPY 与边界转换；若收益不能超过它们，切分并不划算。不能把“切得越碎越好”当成策略。</p>
+<h2 id="spillplacement这里竟然有-hopfield-网络">SpillPlacement：这里竟然有 Hopfield 网络</h2>
+<p>读 <code>llvm-project/llvm/lib/CodeGen/SpillPlacement.cpp</code> 的文件头。这是理解原理的特别好入口：</p>
+<ul>
+<li>CFG 的 edge bundle 对应一个节点。</li>
+<li>节点状态表示该边束上更偏向 register 还是 stack；实现还保留 undecided 状态。</li>
+<li>必须/偏好寄存器或栈的块给节点 bias，按块频率加权。</li>
+<li>transparent blocks 对两端状态施加连接：两端驻留状态不同，可能需要转换。</li>
+<li>通过迭代更新，降低表示 spill 执行频率的能量函数。</li>
+</ul>
+<p>原理不是“用神经网络预测哪个好”。这里是<strong>确定性组合优化模型</strong>，Hopfield 能量是 Lyapunov 函数，更新时不增加，收敛到局部最小；文件标题虽然包含 Optimal，但注释明确说可能只是 locally minimum，不能宣称全局最优。</p>
+<p>数学上可理解为两类代价的折中：某块不用寄存器会多执行多少 reload，邻接驻留状态改变会多执行多少转换。热边上频繁切换代价大，因而倾向在一整个热区域保持同一种状态。</p>
+<p>继续读 <code>llvm-project/llvm/lib/CodeGen/EdgeBundles.cpp</code> 与 <code>llvm-project/llvm/lib/CodeGen/SplitKit.cpp</code>，理解为什么不是对 CFG 每条边随便独立选：bundle 把需要一致处理的边界约束压缩成节点。</p>
+<h2 id="spill-与-rematerialization-的最终落地">Spill 与 rematerialization 的最终落地</h2>
+<p><code>InlineSpiller.cpp</code> 不只负责插 <code>store</code> 和 <code>load</code>：它还可能折叠 memory operand、消除冗余、追踪可重算定义、合并某些片段，并维护 LiveIntervals 与调试位置。</p>
+<p>一个常量 materialization 值若被 spill，某次 use 附近重新生成常量可能比 stack load 便宜。若它依赖其他已经不活跃的输入或不安全操作，则不能任意重算。</p>
+<p>reload snippets 往往已经很短，不能继续无限 spill 成更短片段；某些范围变成 unspillable，需要通过严格约束和有限 recoloring 解决。错误的 inline asm 仍可能让问题无解，LLVM 会报告，不是贪心永远能变出寄存器。</p>
+<p>最终 VirtRegRewriter 根据映射改写 operand，后续栈帧/序言尾声处理把栈槽和保存恢复变成真实目标指令。分配器作出的栈槽选择，不等于那一刻已经确定了最终栈偏移。</p>
+<h2 id="一个手算示例看清驱逐为何比扫描灵活">一个手算示例：看清驱逐为何比扫描灵活</h2>
+<p><strong>教学简化：</strong> 只有 R0/R1，无别名和固定限制。</p>
+<pre><code class="language-text">L: 很长，全局值，只在入口、出口与冷块少量使用
+H: 热循环里高频使用，中等长度
+S: 某个局部短值
+</code></pre>
+<p>可能过程：</p>
+<ol>
+<li>长范围 L 先被安排到 R0；别的范围占 R1。</li>
+<li>H 入队，空闲检查失败；H spill weight 高。</li>
+<li>若符合驱逐策略，H 驱逐 L，得到 R0；L 重新入队。</li>
+<li>L 不一定马上 spill：可能 R1 某区域空闲，或被切成冷区/出口短片段。</li>
+<li>热循环维持 H 在寄存器；只在冷区或边界为 L 做转换。</li>
+</ol>
+<p>传统最简 linear scan 不允许同样的全局反悔：它按 start 单调走、依据当前 active 集合处理。增强型 linear scan 也可以通过 splitting 改善，但 Greedy 的工作顺序和可修正分配从一开始就是主结构。</p>
+<p>这不是声称 LLVM 对该抽象例子一定走这个路径；真实 cascade、hints、stage、成本和物理约束可改变决定。例子用来解释 <strong>“先分配≠永远保住寄存器”</strong>。</p>
+<h2 id="为什么-greedy-是一个很好的工程折中">为什么 Greedy 是一个很好的工程折中</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>观察</th>
+<th>实现对应</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>长范围难安排</td>
+<td>global long→short 优先级</td>
+<td>提前发现大压力源</td>
+</tr>
+<tr>
+<td>局部区间结构简单</td>
+<td>部分 local 线性指令顺序</td>
+<td>利用便宜的区间着色性质</td>
+</tr>
+<tr>
+<td>一次贪心选择会错</td>
+<td>eviction、有限 recoloring</td>
+<td>允许后来的重要值纠错</td>
+</tr>
+<tr>
+<td>压力并非全程都高</td>
+<td>local/region splitting</td>
+<td>保住热区，避免整段 spill</td>
+</tr>
+<tr>
+<td>冷热代价差很多</td>
+<td>块频率、spill weight、SpillPlacement</td>
+<td>优化动态成本而非静态条数</td>
+</tr>
+<tr>
+<td>copy 和 ABI 也有成本</td>
+<td>hints、CSR 首次成本</td>
+<td>降低搬运及保存恢复</td>
+</tr>
+<tr>
+<td>反悔会循环</td>
+<td>cascade、stage、预算</td>
+<td>保障进展与编译时间</td>
+</tr>
+</tbody>
+</table></div>
+<p>最后的精确总结应是：<strong>LLVM Greedy 是基于活跃区间与物理资源冲突查询、可迭代修正的启发式全局分配器，内部包含局部顺序策略与分裂优化；它不是传统线性扫描，也不是全局最优求解器。</strong></p>
+</section>
+
+<section id="sec-09-practice">
+<h1 id="practice">源码阅读与实验</h1>
+<h2 id="先从一个可解释循环开始">先从一个可解释循环开始</h2>
+<p>建议把下列 C 保存到 system TEMP 下自己的实验目录，<strong>不要在 LLVM 仓库内做试验输出</strong>。以下命令是实验配方，本文没有执行；工具必须来自你实际构建/安装的 LLVM，若要复现本文版本，应匹配本文提交。Clang、opt、llc 和 OpenMP runtime 混用不同版本容易造成额外问题。</p>
+<pre><code class="language-c">// demo.c
+void axpy(float *restrict y, const float *restrict x,
+          float a, int n) {
+    for (int i = 0; i &lt; n; ++i)
+        y[i] = a * x[i] + y[i];
+}
+
+void recurrence(float *a, const float *b, int n) {
+    for (int i = 1; i &lt; n; ++i)
+        a[i] = a[i - 1] + b[i];
+}
+
+float sum(const float *a, int n) {
+    float s = 0;
+    for (int i = 0; i &lt; n; ++i)
+        s += a[i];
+    return s;
+}
+</code></pre>
+<p>三段分别体现独立元素、距离 1 递推、浮点归约。不要用“没向量化”一概解释后两段，尤其浮点有序归约受目标和策略影响。</p>
+<h2 id="powershell-配方先看诊断再看-ir-和汇编">PowerShell 配方：先看诊断，再看 IR 和汇编</h2>
+<pre><code class="language-powershell"># 指定你已经存在的 LLVM 工具目录；本文未替你构建 LLVM。
+$LlvmBin = 'C:\path\to\matching-llvm\bin'
+$Clang = Join-Path $LlvmBin 'clang.exe'
+$Opt = Join-Path $LlvmBin 'opt.exe'
+$Llc = Join-Path $LlvmBin 'llc.exe'
+$Exp = Join-Path ([IO.Path]::GetTempPath()) 'llvm-optimization-demo'
+New-Item -ItemType Directory -Force $Exp | Out-Null
+# 将示例保存为 $Exp\demo.c 后再运行：
+&amp; $Clang --version
+&amp; $Clang -O3 -S -emit-llvm &quot;$Exp\demo.c&quot; -o &quot;$Exp\demo-o3.ll&quot; `
+    -Rpass=loop-vectorize -Rpass-missed=loop-vectorize `
+    -Rpass-analysis=loop-vectorize
+&amp; $Clang -O3 -S &quot;$Exp\demo.c&quot; -o &quot;$Exp\demo-o3.s&quot;
+
+# 显式指定可比较的目标，例如 x86-64；按本机工具支持修改。
+&amp; $Clang -O3 -march=x86-64 -S -emit-llvm &quot;$Exp\demo.c&quot; `
+    -o &quot;$Exp\demo-x86.ll&quot;
+</code></pre>
+<p>Windows 环境的汇编格式、target triple 和 ABI 与 Linux 示例可能不同。<code>-march=native</code> 可展示本机特化，但不便于跨机器比较，也不应把其结果声称为 portable baseline。</p>
+<p>IR 阅读清单：向量类型、vector.body、remainder、alias guard、reduction intrinsics、loop metadata。机器码阅读清单：实际 SIMD 指令宽度、shuffle、循环分支、stack loads/stores 和 ABI 保存恢复。</p>
+<p><strong>不要仅按块名判定。</strong> 块名可以变化，结构和指令语义才是证据。</p>
+<h2 id="隔离一个-pass但承认人工管线不等于生产管线">隔离一个 Pass，但承认人工管线不等于生产管线</h2>
+<pre><code class="language-powershell"># O0 常有 optnone；禁掉它，让后续 opt 可以优化。
+&amp; $Clang -O0 -Xclang -disable-O0-optnone -S -emit-llvm `
+    &quot;$Exp\demo.c&quot; -o &quot;$Exp\raw.ll&quot;
+&amp; $Opt -S -passes='mem2reg,loop-simplify,lcssa,loop-vectorize' `
+    &quot;$Exp\raw.ll&quot; -o &quot;$Exp\lv-only.ll&quot;
+&amp; $Opt -S -passes='mem2reg,loop-simplify,lcssa,loop-unroll' `
+    &quot;$Exp\raw.ll&quot; -o &quot;$Exp\unroll-only.ll&quot;
+&amp; $Opt -S -passes='default&lt;O3&gt;' &quot;$Exp\raw.ll&quot; `
+    -o &quot;$Exp\default-o3.ll&quot;
+</code></pre>
+<p>这些是教学用最小管线；实际某个 Pass 可能还需要 canonical induction、常量化、TTI 属性等辅助准备。运行合法不意味着与 Clang <code>-O3</code> 等价，后者还涉及前端 flags、目标属性和完整管线配置。</p>
+<p>用 <code>-debug-pass-manager</code> 可以观察新 PM 执行过程。开发构建可使用相关 <code>-debug-only</code> 标签，但 release build 不保证保留调试输出。Pass 名称与选项在不同提交可能变化；应检查匹配工具，而不是猜一个旧博客的内部参数。</p>
+<h2 id="做三个因果对照而不是只跑一个基准">做三个因果对照，而不是只跑一个基准</h2>
+<h3 id="对照-a别名证据">对照 A：别名证据</h3>
+<p>去掉 axpy 的 restrict，检查是否出现 runtime pointer checks 或失去向量化。再测试实际不重叠、短循环、长循环三种输入。</p>
+<p>要证明收益来自 guard 摊薄，而不是其他原因，需要记录优化诊断、IR 分支结构与测量输入。不要传入不合法 alias 给 restrict 版本做所谓正确性对照。</p>
+<h3 id="对照-b展开因子与归约链">对照 B：展开因子与归约链</h3>
+<p>用 <code>#pragma clang loop unroll_count(4)</code> 与禁用展开等构造观察变化。pragma 仍需合法且实现支持，不保证所有要求都无条件完成。</p>
+<p>比较单累加器与多个累加器；浮点多累加器会改变舍入顺序，只有在应用允许时才是等价对照。看控制减少之外是否实际缩短依赖链，是否出现更高寄存器压力。</p>
+<h3 id="对照-c向量宽度与-ic">对照 C：向量宽度与 IC</h3>
+<p>控制目标能力和 loop hints，观察 wider SIMD 是否带来更多 shuffle、掩码和 spill。不要通过改变 <code>-ffast-math</code> 一次同时改变很多语义再把全部加速归功于“向量宽度”。</p>
+<h2 id="比较-llvm-的多种分配器">比较 LLVM 的多种分配器</h2>
+<p>先生成相同、适合目标的输入 IR，然后改变 llc allocator。为比较优化路径的 allocator，使用优化 codegen 等级，不要把 Fast 的局部管线与 Greedy 的全套前置处理当成只差一个启发式函数。</p>
+<pre><code class="language-powershell">&amp; $Llc -O2 -regalloc=greedy &quot;$Exp\demo-x86.ll&quot; -o &quot;$Exp\greedy.s&quot;
+&amp; $Llc -O2 -regalloc=basic  &quot;$Exp\demo-x86.ll&quot; -o &quot;$Exp\basic.s&quot;
+&amp; $Llc -O2 -regalloc=pbqp   &quot;$Exp\demo-x86.ll&quot; -o &quot;$Exp\pbqp.s&quot;
+&amp; $Llc -O2 -regalloc=fast   &quot;$Exp\demo-x86.ll&quot; -o &quot;$Exp\fast.s&quot;
+
+# 在匹配并支持该 pass 的构建上，保存分配前后 MIR。
+&amp; $Llc -O2 -stop-before=greedy &quot;$Exp\demo-x86.ll&quot; `
+    -o &quot;$Exp\before-ra.mir&quot;
+&amp; $Llc -O2 -stop-after=greedy &quot;$Exp\demo-x86.ll&quot; `
+    -o &quot;$Exp\after-ra.mir&quot;
+</code></pre>
+<p>目标覆盖、pass 注册和 allocator 支持会影响这些命令；若工具拒绝，应以错误信息与该构建的管线为准。<code>-stop-after=greedy</code> 的位置不是整个后端结束：虚拟 operand 可能尚未全部改写，所以不要期待它已经长得像最终汇编。</p>
+<p>对比指标：</p>
+<ul>
+<li>被切出的新虚拟范围与 COPY。</li>
+<li>新栈槽、store/reload、可折叠访存和 rematerialization。</li>
+<li>热循环内动态发生的 spill，不只统计整个函数静态条数。</li>
+<li>额外 callee-saved 保存恢复。</li>
+<li>编译耗时、最终代码大小、执行时间。</li>
+</ul>
+<p>仅看到 <code>[rsp+...]</code> 不能证明它一定是 allocator spill：也可能是 ABI 参数、显式局部对象或其他栈访问。应与 MIR stack objects 和新指令对应。</p>
+<h2 id="openmp-实验要分清-simd-与线程">OpenMP 实验要分清 SIMD 与线程</h2>
+<pre><code class="language-c">void parallel_axpy(float *restrict y, const float *restrict x,
+                   float a, int n) {
+#pragma omp parallel for simd schedule(static)
+    for (int i = 0; i &lt; n; ++i)
+        y[i] = a * x[i] + y[i];
+}
+</code></pre>
+<pre><code class="language-powershell"># 只看 IR 可以先不链接可执行程序。
+&amp; $Clang -O3 -fopenmp -S -emit-llvm &quot;$Exp\omp-demo.c&quot; `
+    -o &quot;$Exp\omp-demo.ll&quot;
+# 只有 simd 需求时，可研究 -fopenmp-simd 对应的构造和 IR。
+</code></pre>
+<p>观察 outlined worker、<code>__kmpc_*</code>、范围计算和 worker 内 SIMD。完整可执行程序需要环境具备合适 OpenMP runtime，不能把缺少 libomp 的链接失败理解成并行分析失败。</p>
+<p>性能实验至少控制：线程数、输入规模、warm-up、结果使用以防 DCE、运行重复、亲和性/NUMA、同机后台负载。分别报告短循环和长循环；对 bandwidth-bound kernel，线程扩展曲线趋平是合理结果，不代表调度器坏了。</p>
+<h2 id="每个领域的测试阅读入口">每个领域的测试阅读入口</h2>
+<p>LLVM 的测试比“猜这个 Pass 应该支持什么”更可靠；IR 测试中的 CHECK 验证结构，MIR 测试表达固定寄存器与压力等具体约束。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>主题</th>
+<th>本地入口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>循环向量化</td>
+<td><code>llvm-project/llvm/test/Transforms/LoopVectorize/</code></td>
+</tr>
+<tr>
+<td>SLP</td>
+<td><code>llvm-project/llvm/test/Transforms/SLPVectorizer/</code></td>
+</tr>
+<tr>
+<td>展开</td>
+<td><code>llvm-project/llvm/test/Transforms/LoopUnroll/</code></td>
+</tr>
+<tr>
+<td>交换</td>
+<td><code>llvm-project/llvm/test/Transforms/LoopInterchange/</code></td>
+</tr>
+<tr>
+<td>分裂</td>
+<td><code>llvm-project/llvm/test/Transforms/LoopDistribute/</code></td>
+</tr>
+<tr>
+<td>OpenMP 优化</td>
+<td><code>llvm-project/llvm/test/Transforms/OpenMP/</code></td>
+</tr>
+<tr>
+<td>Clang OpenMP 降级</td>
+<td><code>llvm-project/clang/test/OpenMP/</code></td>
+</tr>
+<tr>
+<td>MLIR 仿射变换</td>
+<td><code>llvm-project/mlir/test/Dialect/Affine/</code></td>
+</tr>
+<tr>
+<td>Greedy 基础案例</td>
+<td><code>llvm-project/llvm/test/CodeGen/X86/</code> 内搜索 greedy、spill、split、recolor</td>
+</tr>
+</tbody>
+</table></div>
+<p>阅读方法：先读 RUN 行，确认 target 和 pass；再读输入，手算依赖或活跃区间；最后看 CHECK，解释它验证了什么。单个测试通过只证明该用例，不是整个功能普遍支持。</p>
+<h2 id="组会讨论的建议路线">组会讨论的建议路线</h2>
+<p>开始这些讨论前，先用<a href="#compilation-pipeline">从 C/C++ 到优化 LLVM IR</a>进行一次编译流程入门：画出同一个函数从 AST 到内存 IR、SSA 和循环 CFG 的变化，再观察 promotion 与 LV 前后的真实 IR。</p>
+<ol>
+<li><strong>SSA 与基础优化，60 分钟：</strong> 从 alloca 到 PHI，解释 IDF/pruned SSA；对比折叠、SCCP、DCE/DSE；画出内联与 TRE 后的 CFG。对应<a href="#ssa-basics">SSA 与基础优化</a>。</li>
+<li><strong>依赖与证明，30–45 分钟：</strong> 画出 recurrence 的依赖；解释 runtime versioning；区分语言合法性与收益。</li>
+<li><strong>向量化，45–60 分钟：</strong> 从 processLoop 追到 legality、VPlan 和执行；画出含 fallback 与尾部的 CFG。</li>
+<li><strong>结构变换与并行，45–60 分钟：</strong> 手算 interchange 的依赖方向；从 OpenMP pragma 追到 runtime；比较 Polly 和 MLIR。</li>
+<li><strong>分配基础，45 分钟：</strong> 手算 live ranges 与传统 linear scan；解释 register units、regmask、spill snippets。</li>
+<li><strong>Greedy，60 分钟：</strong> 读 enqueue/getPriority、selectOrSplitImpl、eviction advisor、SplitKit、SpillPlacement；解释 stage 与 cascade。</li>
+</ol>
+<p>每次组会只挑一条调用链讲透，不要投影整份巨型源码。先画理论模型，然后标注哪些地方 LLVM 做保守近似、哪里是目标成本、哪里是版本特定工程策略。</p>
+<h2 id="自检问题与参考回答">自检问题与参考回答</h2>
+<p><strong>Q：循环有依赖，就不能展开吗？</strong><br />
+A：保序展开可保留依赖；不能自动推出可 SIMD 或线程并行。</p>
+<p><strong>Q：有 restrict 就一定向量化吗？</strong><br />
+A：只解决部分 alias 证据；递推、调用、浮点语义、形状与成本仍可能阻止。</p>
+<p><strong>Q：为什么 n 很大时加速、n 很小时变慢？</strong><br />
+A：guard、尾部、线程启动等固定成本需要摊薄，缓存工作集也可能不同。</p>
+<p><strong>Q：Greedy 是否总按 spill weight 从大到小分配？</strong><br />
+A：不是。队列优先级与 spill weight 不同；本版本有 stage、global/local、size、hints 与类优先级等。</p>
+<p><strong>Q：Greedy 是不是 linear scan 加一个更好的 spill 公式？</strong><br />
+A：不是。工作队列非单调起点顺序，支持驱逐、再次入队和区域切分；局部区间里才有线性顺序策略。</p>
+<p><strong>Q：SpillPlacement 是否证明全局最优？</strong><br />
+A：文件头说明能量不增、收敛到可能局部的最小；不能误读 Optimal 标题。</p>
+<p><strong>Q：为什么源码里的向量循环仍然慢？</strong><br />
+A：目标降低、访存带宽、shuffle、mask、spill、输入规模和 cache 行为都可能主导最终时间。</p>
+<p><strong>Q：OpenMPOpt 能把普通循环自动变多线程吗？</strong><br />
+A：它主要优化已经具有 OpenMP 语义的 IR。Polly 和 MLIR 的特定路线提供不同层次的并行检测和生成。</p>
+<h2 id="最后把整条因果链串起来">最后把整条因果链串起来</h2>
+<pre><code class="language-text">程序语义与依赖
+  → 限制哪些重排合法
+SSA promotion / 内联 / 常量传播 / 死代码删除 / TRE
+  → 去掉多余边界，把计算和循环状态显式化
+规范化 / SCEV / AA / MemorySSA
+  → 给出可使用的证明
+结构变换
+  → 暴露连续访问、独立工作、常量与归约
+LV / SLP / 展开 / 特定并行路线
+  → 选择数据级、指令级或线程级方案
+目标降低与调度
+  → 决定实际指令和活跃峰值
+Greedy / Fast / Basic / PBQP
+  → 把虚拟资源需求放进有限寄存器，必要时切分或访存
+运行时与硬件
+  → 决定真实吞吐、带宽、同步和延迟
+</code></pre>
+<p>一句话概括本文：<strong>优化不是“把程序改得更并行”这么简单，而是在语义约束下，利用输入与机器的规律，安排工作与有限资源，并让证明、成本和实现三者闭环。</strong></p>
+<h2 id="进一步阅读本地文档与理论文献">进一步阅读：本地文档与理论文献</h2>
+<p>本地文档适合与源码对照，不代替具体提交实现：</p>
+<ul>
+<li><code>llvm-project/llvm/docs/Vectorizers.md</code>：LV 与 SLP 概览。</li>
+<li><code>llvm-project/llvm/docs/TransformMetadata.md</code>：循环 hints、follow-up 与变换 metadata。</li>
+<li><code>llvm-project/llvm/docs/LangRef.md</code>：浮点标志、内存、向量与 IR 精确语义。</li>
+<li><code>llvm-project/llvm/docs/CodeGenerator.md</code>：后端分层。</li>
+<li><code>llvm-project/clang/docs/OpenMPSupport.md</code>：OpenMP 支持状态。</li>
+</ul>
+<p>理论阅读建议：Allen 与 Kennedy 的《Optimizing Compilers for Modern Architectures》帮助系统学习依赖与循环变换；Poletto 与 Sarkar（1999）的 Linear Scan Register Allocation 解释经典扫描；Larsen 与 Amarasinghe（2000）的 SLP 工作解释局部指令打包；PBQP 文献见 RegAllocPBQP.cpp 文件头。</p>
+<p>这些理论是理解模型的背景。不要把经典论文的某个简化算法步骤不加核对地写成当前 LLVM 的实际流程。</p>
+</section>
+
+<section id="sec-10-source-walkthrough">
+<h1 id="source-walkthrough">关键源码逐段导读</h1>
+<p>本章选取相关主题的短实现片段，练习“从代码读出设计”。以下摘录来自本文锁定的提交，省略周边逻辑；不是可单独编译的完整函数。LLVM 源码归其原作者，采用 Apache-2.0 WITH LLVM-exception；此处仅作本地源码教学引用，不改变原许可。</p>
+<h2 id="向量化hints-不能跳过合法性">向量化：hints 不能跳过合法性</h2>
+<p>位置：<code>llvm-project/llvm/lib/Transforms/Vectorize/LoopVectorize.cpp</code>，<code>LoopVectorizePass::processLoop</code>。</p>
+<pre><code class="language-cpp">LoopVectorizationRequirements Requirements;
+LoopVectorizationLegality LVL(L, PSE, DT, TTI, TLI, F, *LAIs, LI, ORE,
+                              &amp;Requirements, &amp;Hints, DB, AC,
+                              /*AllowRuntimeSCEVChecks=*/!OptForSize, AA);
+if (!LVL.canVectorize(EnableVPlanNativePath)) {
+  LLVM_DEBUG(dbgs() &lt;&lt; &quot;LV: Not vectorizing: Cannot prove legality.\n&quot;);
+  Hints.emitRemarkWithHints();
+  return false;
+}
+</code></pre>
+<p>逐项读：</p>
+<ul>
+<li>L 是当前循环；PSE 是带谓词的标量演化；DT/LI 给控制流结构；LAIs/AA 给内存访问与别名。</li>
+<li>TTI/TLI 使合法性也能考虑目标和库调用支持，不是纯数学数组模型。</li>
+<li>Requirements 用来记录所需语义条件，而不是一句“强制向量化就都允许”。</li>
+<li>size 模式影响是否允许 runtime SCEV checks，因为 guard/版本化有代码体积成本。</li>
+<li><code>canVectorize</code> 返回 false 后不进入后面的成本选择。收益高不能补救没有合法性证明。</li>
+</ul>
+<p>这小段足以反驳“pragma vectorize(enable) 会忽略任何依赖”的错误印象。hint 改的是策略选择，不能随意推翻语言与 IR 语义；OpenMP simd 的语义承诺则属于另一层输入事实。</p>
+<h2 id="自动并行化分析与降低是两步">自动并行化：分析与降低是两步</h2>
+<p>位置：<code>llvm-project/mlir/lib/Dialect/Affine/Transforms/AffineParallelize.cpp</code>，<code>AffineParallelize::runOnOperation</code>。</p>
+<pre><code class="language-cpp">std::vector&lt;ParallelizationCandidate&gt; parallelizableLoops;
+f.walk&lt;WalkOrder::PreOrder&gt;([&amp;](AffineForOp loop) {
+  SmallVector&lt;LoopReduction&gt; reductions;
+  if (isLoopParallel(loop, parallelReductions ? &amp;reductions : nullptr))
+    parallelizableLoops.emplace_back(loop, std::move(reductions));
+});
+</code></pre>
+<p>注意 <code>PreOrder</code>：先看外层，后续能控制已有父并行区域数量。<code>parallelReductions</code> 决定是否请求归约识别，并不是把任意递推默认当作 reduction。存候选以后还要检查 <code>maxNested</code> 再调用 <code>affineParallelize</code>。</p>
+<p>这一步生成 parallel IR，后续 lowering 再选择运行时或目标。对着源码区分“检测、改 IR、运行时执行”，便不会把一个分析调用误说成已经创建线程。</p>
+<h2 id="greedy-的局部线性顺序概念纠错的直接证据">Greedy 的局部线性顺序：概念纠错的直接证据</h2>
+<p>位置：<code>llvm-project/llvm/lib/CodeGen/RegAllocGreedy.cpp</code>，<code>DefaultPriorityAdvisor::getPriority</code>。</p>
+<pre><code class="language-cpp">if (Stage == RS_Assign &amp;&amp; !ForceGlobal &amp;&amp; !LI.empty() &amp;&amp;
+    LIS-&gt;intervalIsInOneMBB(LI)) {
+  // ...
+  if (!ReverseLocalAssignment)
+    Prio = LI.beginIndex().getApproxInstrDistance(Indexes-&gt;getLastIndex());
+  else {
+    // ...
+    Prio = Indexes-&gt;getZeroIndex().getApproxInstrDistance(LI.endIndex());
+  }
+} else {
+  // ...
+  Prio = Size;
+  GlobalBit = 1;
+}
+</code></pre>
+<p>省略的注释在完整文件中解释：原始 local range 按线性指令顺序安排；global 和 split range 按长到短。</p>
+<p>同样是 Greedy，对不同结构选择不同启发式。由于优先队列取高优先级，默认 local 路径用“起点到函数末端的距离”，使较早起点更优先；global 路径则使用 Size。其后还会加 stage、hint 和寄存器类等高位。</p>
+<p>读这里时要带三个约束：<strong>不是所有区间都 local；不是所有 local 都走该分支；队列顺序仍不等于 spill weight。</strong></p>
+<h2 id="greedy-的第二轮故意等待更完整的压力信息">Greedy 的第二轮：故意等待更完整的压力信息</h2>
+<p>位置：同文件，<code>RAGreedy::selectOrSplitImpl</code>。</p>
+<pre><code class="language-cpp">if (Stage &lt; RS_Split) {
+  ExtraInfo-&gt;setStage(VirtReg, RS_Split);
+  LLVM_DEBUG(dbgs() &lt;&lt; &quot;wait for second round\n&quot;);
+  NewVRegs.push_back(VirtReg.reg());
+  return MCRegister();
+}
+</code></pre>
+<p>把原来的 vreg 放进 <code>NewVRegs</code> 并不表示它已经被切成新值；在此处是告诉基类再安排一次。空 MCRegister 也不意味着立即报错。</p>
+<p>这一段之前已经尝试 assign/evict；之后才进一步 split/spill。它体现“先粗安排，等其他范围占位后再精修”。若只从函数名字猜 <code>selectOrSplit</code> 永远二选一，就读不懂这个返回协议。</p>
+<h2 id="为什么-greedy-可以产生新任务而不丢失它们">为什么 Greedy 可以产生新任务而不丢失它们</h2>
+<p>位置：<code>llvm-project/llvm/lib/CodeGen/RegAllocBase.cpp</code>，<code>allocatePhysRegs</code>。</p>
+<pre><code class="language-cpp">VirtRegVec SplitVRegs;
+MCRegister AvailablePhysReg = selectOrSplit(*VirtReg, SplitVRegs);
+</code></pre>
+<p>后续在处理特殊失败返回后，若有可用物理寄存器会 <code>Matrix-&gt;assign</code>；然后遍历 SplitVRegs，剔除不再使用者，并将有效区间入队：</p>
+<pre><code class="language-cpp">LLVM_DEBUG(dbgs() &lt;&lt; &quot;queuing new interval: &quot; &lt;&lt; *SplitVirtReg &lt;&lt; &quot;\n&quot;);
+assert(SplitVirtReg-&gt;reg().isVirtual() &amp;&amp;
+       &quot;expect split value in virtual register&quot;);
+enqueue(SplitVirtReg);
+++NumNewQueued;
+</code></pre>
+<p>这给 splitting、eviction 和 spilling 一个共同闭环。算法不是处理完原始 N 个 vreg 就结束，而是工作队列不断吸收修正后的范围。stage/cascade 和预算因此成为必要设计：没有它们，能反悔的贪心容易陷入无限制造任务。</p>
+<h2 id="把短片段还原成整条调用链">把短片段还原成整条调用链</h2>
+<p>最后从这些小片段回到完整文件，按顺序画图：</p>
+<pre><code class="language-text">LoopVectorizePass::processLoop
+  → LoopVectorizationLegality::canVectorize
+  → LoopVectorizationPlanner::plan
+  → 成本与 VF / IC 选择
+  → LoopVectorizationPlanner::executePlan
+
+RegAllocBase::allocatePhysRegs
+  → RAGreedy::selectOrSplit
+  → RAGreedy::selectOrSplitImpl
+  → tryAssign / tryEvict / trySplit / spiller
+  → Matrix.assign + 新范围入队
+</code></pre>
+<p>练习时给每条边标注“输入事实、可修改状态、失败后的回退”。这能把读源码从函数名浏览变成真正的算法理解。</p>
+</section>
+  </article>
+
+  <footer class="colophon">
+    <p>本页由本地构建流水线生成，内容哈希 <code>b9cfd94ee9bd</code>。</p>
+    <p>参考文献、作者名单及致谢按项目约定保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="assets/scripts/reader.js"></script>
+</body>
+</html>

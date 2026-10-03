@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration — 大语言模型调研</title>
+<meta name="description" content="AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration</p>
+    <h1>AWQ：用于 LLM 压缩与加速的激活感知权重量化</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>AWQ：用于 LLM 压缩与加速的激活感知权重量化</dd>
+    <dt>作者</dt>
+    <dd>Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang, Guangxuan Xiao, Xingyu Dang, Chuang Gan, Song Han</dd>
+    <dt>发表</dt>
+    <dd>MLSys · 2024</dd>
+    <dt>阶段</dt>
+    <dd>压缩与推理</dd>
+    <dt>引用</dt>
+    <dd>引用 1,774（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2306.00978">arXiv:2306.00978</a> · <a href="https://arxiv.org/abs/2306.00978v6">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>大语言模型已改变众多 AI 应用。端侧 LLM 日益重要：在边缘设备本地运行可以降低云计算成本并保护用户隐私。然而，庞大的模型规模与有限的硬件资源带来了显著部署挑战。我们提出 Activation-aware Weight Quantization（AWQ），一种硬件友好的低比特纯权重量化方法。AWQ 发现，模型中并非所有权重都同样重要；只保护 1% 的显著权重，就能大幅降低量化误差。识别显著权重通道应参考激活分布，而非权重本身。为避免硬件低效的混合精度量化，我们从数学上推导出，放大显著通道能够减少量化误差。AWQ 通过等价变换缩放并保护这些通道，缩放系数通过离线收集激活统计确定。AWQ 不依赖反向传播或重构，因此能泛化到不同领域与模态，而不对校准集过拟合。它在多种语言建模及代码、数学等专门领域基准上超过现有工作。得益于更好的泛化能力，它在指令微调语言模型上、以及首次在多模态语言模型上获得优良量化表现。配套的 TinyChat 是为 4-bit 端侧 LLM/VLM 定制的高效灵活推理框架，借助 kernel 融合与平台感知的权重打包，在桌面和移动 GPU 上都比 Huggingface FP16 实现快 3 倍以上，并让移动 GPU 部署 70B Llama-2 成为可能。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="gptq.html">← GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers</a>
+<a class="nav-next" href="smoothquant.html">SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>awq</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>LoRA: Low-Rank Adaptation of Large Language Models — 大语言模型调研</title>
+<meta name="description" content="LoRA: Low-Rank Adaptation of Large Language Models">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">LoRA: Low-Rank Adaptation of Large Language Models</p>
+    <h1>LoRA：大语言模型的低秩适配</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>LoRA：大语言模型的低秩适配</dd>
+    <dt>作者</dt>
+    <dd>Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen</dd>
+    <dt>发表</dt>
+    <dd>ICLR · 2022</dd>
+    <dt>阶段</dt>
+    <dd>后训练</dd>
+    <dt>引用</dt>
+    <dd>引用 23,083（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2106.09685">arXiv:2106.09685</a> · <a href="https://github.com/microsoft/LoRA">GitHub (microsoft/LoRA)</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>大规模预训练加下游任务适配，是自然语言处理中的一种重要范式。随着我们预训练的模型越来越大，需要重训所有参数的「全参数微调」变得越来越不可行。以 GPT-3 175B 为例：部署一份单独的微调模型实例就要 175B 参数，代价高得无法承受。我们提出低秩适配（Low-Rank Adaptation，LoRA）：它冻结预训练模型权重，并向 Transformer 架构的每一层注入可训练的秩分解矩阵，从而大幅减少下游任务需要训练的参数数量。与使用 Adam 微调的 GPT-3 175B 相比，LoRA 可把可训练参数量减少 10000 倍，并把 GPU 内存需求减少 3 倍。在 RoBERTa、DeBERTa、GPT-2 和 GPT-3 上，LoRA 的模型质量与全参数微调相当甚至更好，尽管可训练参数更少、训练吞吐更高；而且与 adapter 类方法不同，它不引入额外的推理延迟。我们还对语言模型适配中的秩亏（rank-deficiency）现象进行了实证研究，借以说明 LoRA 的有效性。我们发布了一个便于把 LoRA 与 PyTorch 模型集成的软件包，并公开了在 RoBERTa、DeBERTa 和 GPT-2 上的实现与模型检查点，地址为 https://github.com/microsoft/LoRA 。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>摘要中的对比数据：相对用 Adam 微调的 GPT-3 175B，可训练参数量减少 10000 倍、GPU 内存需求减少 3 倍；在 RoBERTa、DeBERTa、GPT-2、GPT-3 上质量持平或更好。S2 记录年份为 2021（arXiv 首发），ICLR 2022 正式发表。与 QLoRA 及后续一整批变体（AdaLoRA、DoRA 等）构成当前事实上的参数高效微调主线。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="chinchilla.html">← Training Compute-Optimal Large Language Models</a>
+<a class="nav-next" href="qlora.html">QLoRA: Efficient Finetuning of Quantized LLMs →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>lora</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

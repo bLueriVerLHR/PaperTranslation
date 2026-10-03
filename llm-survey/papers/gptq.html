@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers — 大语言模型调研</title>
+<meta name="description" content="GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers</p>
+    <h1>GPTQ：面向生成式预训练 Transformer 的准确训练后量化</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>GPTQ：面向生成式预训练 Transformer 的准确训练后量化</dd>
+    <dt>作者</dt>
+    <dd>Elias Frantar, Saleh Ashkboos, Torsten Hoefler, Dan Alistarh</dd>
+    <dt>发表</dt>
+    <dd>ICLR · 2023</dd>
+    <dt>阶段</dt>
+    <dd>压缩与推理</dd>
+    <dt>引用</dt>
+    <dd>引用 2,572（截至 2026-09-20）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-20 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2210.17323">arXiv:2210.17323</a> · <a href="https://arxiv.org/abs/2210.17323v2">摘要来源（固定版本）</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>GPT 或 OPT 等生成式预训练 Transformer，在复杂语言建模任务中取得突破性表现，同时具有极高的计算和存储成本。由于规模巨大，即使只进行推理，高精度的大型 GPT 模型也可能需要多张高性能 GPU，限制了可用性。虽然模型压缩研究正尝试缓解这一压力，现有技术的适用性和表现仍受 GPT 规模与复杂性的限制。本文提出 GPTQ：一种基于近似二阶信息的新型一次性权重量化方法，兼具高精度和高效率。GPTQ 可在约四个 GPU 小时内量化 1750 亿参数的 GPT 模型，将每个权重降至 3 或 4 bit，相比未压缩基线精度下降可以忽略。与先前的一次性量化方法相比，我们的方法在保持精度的同时将压缩收益提高一倍以上，首次允许在单张 GPU 内对 1750 亿参数模型进行生成式推理。我们还表明，在权重降至 2-bit 乃至三值的极端量化条件下，该方法仍可提供合理精度。实验显示，相比 FP16，这些改善可转化为端到端推理加速：高端 NVIDIA A100 上约 3.25 倍，成本较低的 NVIDIA A6000 上约 4.5 倍。实现已公开。</p>
+  </article>
+
+
+
+<nav class="paper-nav"><a class="nav-prev" href="lost-in-the-middle.html">← Lost in the Middle: How Language Models Use Long Contexts</a>
+<a class="nav-next" href="awq.html">AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>gptq</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>

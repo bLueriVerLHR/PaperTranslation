@@ -1,0 +1,253 @@
+/* Survey stylesheet: hub page and paper detail pages.
+   Loaded after reader.css and reusing its theme variables, so a survey page and a translated
+   paper share one look. Everything here is additive: reader.css keeps owning the page,
+   typography and print rules. */
+
+/* ------------------------------------------------------------------ masthead */
+.survey-masthead .meta {
+  margin-block-start: 0.6rem;
+}
+
+/* ------------------------------------------------------------------ directions */
+.body > h2 {
+  margin-block-start: 3rem;
+  padding-block-start: 1.2rem;
+  border-block-start: 2px solid var(--rule);
+}
+
+.body > h2:first-child {
+  margin-block-start: 0;
+  padding-block-start: 0;
+  border-block-start: none;
+}
+
+/* ------------------------------------------------------------------ paper cards */
+.paper-card {
+  margin: 1.4rem 0;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-inline-start: 4px solid var(--accent);
+  border-radius: 4px;
+  background: var(--figure-bg);
+}
+
+/* A title is not running prose: reader.css justifies `.body p`, which stretches the word
+   spaces of a short English title across the full measure (a 4px gap in "Qwen2-VL: Enhancing
+   Vision-Language Model's" was measured at 92px once `text-wrap: balance` had chosen a two-line
+   break). Titles and other short metadata lines opt back out. */
+.paper-card .paper-title,
+.paper-card .paper-zh-title,
+.paper-card .paper-meta,
+.paper-detail-head .paper-en-title {
+  text-align: start;
+}
+
+.paper-card .paper-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.paper-card .paper-zh-title {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-cjk);
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+
+.paper-card .paper-meta {
+  margin: 0.4rem 0 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.paper-card .paper-links a,
+.paper-facts a {
+  color: var(--accent);
+  text-decoration: none;
+  border-block-end: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.paper-card .paper-links a:hover,
+.paper-facts a:hover {
+  border-block-end-color: var(--accent);
+}
+
+.paper-card .paper-why,
+.paper-card .paper-how {
+  margin: 0.45rem 0;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.paper-label {
+  display: inline-block;
+  min-width: 2.6em;
+  margin-inline-end: 0.5em;
+  padding: 0.05em 0.45em;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 0.82em;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: 0.08em;
+}
+
+.paper-card .paper-why .paper-label {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.paper-card .paper-more {
+  margin: 0.7rem 0 0;
+  font-size: 0.9rem;
+}
+
+.paper-card .paper-more a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.paper-card .paper-more a:hover {
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------------------ detail page */
+.back-link {
+  margin: 0 0 1.2rem;
+  font-size: 0.9rem;
+}
+
+.back-link a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.back-link a:hover {
+  text-decoration: underline;
+}
+
+.paper-detail-head .paper-en-title {
+  margin: 0 0 0.3rem;
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.paper-detail-head h1 {
+  margin-block-start: 0.2rem;
+  font-size: 1.5rem;
+}
+
+.paper-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  margin: 1rem 0 0;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--figure-bg);
+  font-size: 0.88rem;
+}
+
+.paper-facts dt {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.paper-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.paper-notes {
+  margin-block: 1.5rem;
+  padding: 0.8rem 1.1rem;
+  border-inline-start: 3px solid var(--rule);
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.paper-notes h2 {
+  font-size: 1rem;
+}
+
+.abstract-body h2 {
+  margin-block-start: 2rem;
+}
+
+.paper-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 2.5rem 0 1rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--rule);
+  font-size: 0.9rem;
+}
+
+.paper-nav a {
+  color: var(--accent);
+  text-decoration: none;
+  max-width: 45%;
+}
+
+.paper-nav a:hover {
+  text-decoration: underline;
+}
+
+.paper-nav .nav-next {
+  margin-inline-start: auto;
+  text-align: end;
+}
+
+/* ------------------------------------------------------------------ print */
+/* reader.css keeps table, figure and equation unbroken; a card is the same kind of unit, so it
+   must not be split across an A4 boundary either. */
+@media print {
+  .paper-card,
+  .paper-facts {
+    break-inside: avoid;
+  }
+
+  .paper-card {
+    background: none;
+  }
+}
+
+/* ------------------------------------------------------------------ phone */
+@media (max-width: 34rem) {
+  .paper-card {
+    padding: 0.8rem 0.9rem;
+  }
+
+  .paper-facts {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+
+  .paper-facts dd {
+    margin-block-end: 0.5rem;
+  }
+
+  .paper-nav {
+    flex-direction: column;
+  }
+
+  .paper-nav a {
+    max-width: 100%;
+  }
+
+  .paper-nav .nav-next {
+    text-align: start;
+  }
+}

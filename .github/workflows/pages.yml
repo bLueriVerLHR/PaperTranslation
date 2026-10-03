@@ -1,0 +1,55 @@
+name: Deploy reading library
+
+on:
+  push:
+    branches: [main, pages-content]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out pipeline (never execute content-branch code)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: pipeline
+          persist-credentials: false
+      - name: Check out public readers only
+        uses: actions/checkout@v4
+        with:
+          ref: pages-content
+          path: public
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install validator dependency
+        run: python -m pip install Markdown==3.9
+      - name: Validate publication boundary and local links
+        run: python pipeline/tools/pages.py --check public
+      - name: Stage without Git metadata
+        run: |
+          mkdir -p "$RUNNER_TEMP/pages"
+          rsync -a --exclude='.git' --exclude='.github' public/ "$RUNNER_TEMP/pages/"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/pages
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

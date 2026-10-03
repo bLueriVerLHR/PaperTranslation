@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>大语言模型调研</title>
+<meta name="description" content="从生产问题出发：机器学习系统、长上下文、端侧、分布式、多模态（含 VLA）与 Agent">
+<link rel="stylesheet" href="assets/styles/reader.css">
+<link rel="stylesheet" href="assets/styles/survey.css">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../index.html">← 文库</a>
+  <header class="title-block survey-masthead">
+    <h1>大语言模型调研</h1>
+    <p class="subtitle">从生产问题出发：机器学习系统、长上下文、端侧、分布式、多模态（含 VLA）与 Agent</p>
+    <p class="meta">本地调研笔记 · 收录 66 篇论文 · 覆盖 6 个方向 · 生成于 2026-10-03</p>
+  </header>
+
+  <details class="toc" id="toc">
+    <summary>目录</summary>
+    <nav aria-label="目录">
+<ol>
+<li><a href="#1-机器学习系统执行效率优化">1 机器学习系统：执行效率优化</a><ol>
+<li><a href="#11-先定位瓶颈不要先选加速库">1.1 先定位瓶颈，不要先选加速库</a></li>
+<li><a href="#12-复读与文本退化模型在推理时输出平淡重复无意义的文本">1.2 复读与文本退化：模型在推理时输出平淡、重复、无意义的文本</a></li>
+<li><a href="#13-moe-批推理单-token-稀疏整批却几乎访问全部专家">1.3 MoE 批推理：单 token 稀疏，整批却几乎访问全部专家</a></li>
+<li><a href="#14-预训练的两个独立瓶颈训练状态装不下算力跑不满">1.4 预训练的两个独立瓶颈：训练状态装不下、算力跑不满</a></li>
+<li><a href="#15-后训练降低适配成本与调整模型行为是两个独立目标">1.5 后训练：降低适配成本与调整模型行为是两个独立目标</a></li>
+<li><a href="#16-推理服务批处理kv-缓存与投机解码">1.6 推理服务：批处理、KV 缓存与投机解码</a></li>
+</ol></li>
+<li><a href="#2-长上下文装得下算得动找得到是三件事">2 长上下文：装得下、算得动、找得到是三件事</a><ol>
+<li><a href="#21-生产问题把文档全部塞进去服务先慢下来">2.1 生产问题：把文档全部塞进去，服务先慢下来</a></li>
+<li><a href="#22-线性自注意力把注意力改写成递归状态换取线性成本">2.2 线性自注意力：把注意力改写成递归状态，换取线性成本</a></li>
+<li><a href="#23-从累加到选择性记忆可遗忘可修正的状态设计">2.3 从累加到选择性记忆：可遗忘、可修正的状态设计</a></li>
+<li><a href="#24-生产问题有长窗口却漏掉中间关键证据">2.4 生产问题：有长窗口，却漏掉中间关键证据</a></li>
+</ol></li>
+<li><a href="#3-端侧大模型文件下载得下不代表能持续跑得动">3 端侧大模型：文件下载得下，不代表能持续跑得动</a><ol>
+<li><a href="#31-生产问题模型文件很小启动或长对话仍然内存不足">3.1 生产问题：模型文件很小，启动或长对话仍然内存不足</a></li>
+<li><a href="#32-压缩仅权重量化与权重激活同时量化适用的场景不同">3.2 压缩：仅权重量化与权重、激活同时量化，适用的场景不同</a></li>
+<li><a href="#33-模型大到装不进内存把闪存的读写特性纳入模型设计">3.3 模型大到装不进内存：把闪存的读写特性纳入模型设计</a></li>
+<li><a href="#34-不只是压缩大模型也可以专门设计合适的小模型">3.4 不只是压缩大模型，也可以专门设计合适的小模型</a></li>
+</ol></li>
+<li><a href="#4-分布式大模型多一张卡也多一份通信开销和一条故障路径">4 分布式大模型：多一张卡，也多一份通信开销和一条故障路径</a><ol>
+<li><a href="#41-生产问题总算力增加训练却没有按比例加速">4.1 生产问题：总算力增加，训练却没有按比例加速</a></li>
+<li><a href="#42-生产问题跨过一万张卡之后训练效率和稳定性成为同等重要的目标">4.2 生产问题：跨过一万张卡之后，训练效率和稳定性成为同等重要的目标</a></li>
+<li><a href="#43-生产问题少数机器没坏但变慢拖住所有同步参与的机器">4.3 生产问题：少数机器没坏但变慢，拖住所有同步参与的机器</a></li>
+<li><a href="#44-生产问题故障是常态检查点与恢复的代价必须计入训练成本">4.4 生产问题：故障是常态，检查点与恢复的代价必须计入训练成本</a></li>
+<li><a href="#45-生产问题没有私有高速集群弱网与节点退出下还能不能训练">4.5 生产问题：没有私有高速集群，弱网与节点退出下还能不能训练</a></li>
+<li><a href="#46-生产问题长请求的预填充挤占资源正在流式输出的用户出现卡顿">4.6 生产问题：长请求的预填充挤占资源，正在流式输出的用户出现卡顿</a></li>
+</ol></li>
+<li><a href="#5-多模态看懂图像给出答案和根据图像采取行动是两段不同的可靠性">5 多模态：看懂图像给出答案，和根据图像采取行动，是两段不同的可靠性</a><ol>
+<li><a href="#51-生产问题视觉识别能做得很好开放问答却并不可靠">5.1 生产问题：视觉识别能做得很好，开放问答却并不可靠</a></li>
+<li><a href="#52-生产问题从头训练多模态模型成本太高连接方式决定信息瓶颈">5.2 生产问题：从头训练多模态模型成本太高，连接方式决定信息瓶颈</a></li>
+<li><a href="#53-生产问题模型会流畅地描述图片却不按具体任务回答">5.3 生产问题：模型会流畅地描述图片，却不按具体任务回答</a></li>
+<li><a href="#54-生产问题高分辨率和视频让单次请求成本失控">5.4 生产问题：高分辨率和视频让单次请求成本失控</a></li>
+<li><a href="#55-vla-是多模态的一种应用输出从文字变成动作之后要求发生了什么变化">5.5 VLA 是多模态的一种应用：输出从文字变成动作之后，要求发生了什么变化</a></li>
+<li><a href="#56-从语义知识到动作token-接口统一了格式但没有消除物理差异">5.6 从语义知识到动作：token 接口统一了格式，但没有消除物理差异</a></li>
+<li><a href="#57-生产问题不同机器人的数据能合并动作语义却对不上">5.7 生产问题：不同机器人的数据能合并，动作语义却对不上</a></li>
+<li><a href="#58-生产问题模型能开源适配新任务和满足实时控制仍然很昂贵">5.8 生产问题：模型能开源，适配新任务和满足实时控制仍然很昂贵</a></li>
+</ol></li>
+<li><a href="#6-agent把一次回答变成有反馈可验证的任务执行">6 Agent：把一次回答变成有反馈、可验证的任务执行</a><ol>
+<li><a href="#61-生产问题模型能说出步骤却不能可靠地完成整件事">6.1 生产问题：模型能说出步骤，却不能可靠地完成整件事</a></li>
+<li><a href="#62-工具使用先有外部反馈再谈自主性">6.2 工具使用：先有外部反馈，再谈自主性</a></li>
+<li><a href="#63-错误恢复模型反思有用但不能让模型自己判定任务已通过">6.3 错误恢复：模型反思有用，但不能让模型自己判定任务已通过</a></li>
+<li><a href="#64-接口和环境设计决定-agent-的能力上限而不只是模型权重">6.4 接口和环境设计决定 Agent 的能力上限，而不只是模型权重</a></li>
+<li><a href="#65-长程记忆扩大上下文窗口不等于做了状态管理">6.5 长程记忆：扩大上下文窗口不等于做了状态管理</a></li>
+<li><a href="#66-agent-服务一次用户请求会展开成多次模型调用不再彼此独立">6.6 Agent 服务：一次用户请求会展开成多次模型调用，不再彼此独立</a></li>
+</ol></li>
+<li><a href="#7-综合选择从故障单出发的阅读路径">7 综合选择：从故障单出发的阅读路径</a></li>
+</ol>
+    </nav>
+  </details>
+
+  <article class="body">
+<p>这份调研关心的不是「有哪些热门模型」，而是<strong>一个模型从离线分数走到真实服务，中间会撞上什么问题，以及应该在哪一层解决</strong>。全文覆盖六个方向：机器学习系统、长上下文架构、端侧、分布式、多模态（含作为其应用方向的 VLA）与 Agent。多模态与 Agent 把语言模型变成行动系统，要求也从「回答正确」扩展到「完成任务且不越权」。</p>
+<p>阅读顺序是<strong>生产现象 → 原因 → 方法与取舍 → 代表论文</strong>。卡片交代动机与方案，详情页提供原文摘要的简体中文译文；全文翻译按需另做。论文标题、作者与方法名保留 English，数字仅代表各论文报告的设置，不是跨硬件排行榜。</p>
+<p><strong>证据说明。</strong> 选文依据方法影响与问题代表性，而不是只按引用量排序。已有引用量带读取日期；未取得的记录显示「未核实」，不冒充零引用。经典工作与新近预印本分开讨论。正文中的部署建议是基于论文机制的工程归纳，不应误读成论文已经做过相同生产实验。资料核对日期：2026-09-19。</p>
+<h2 id="1-机器学习系统执行效率优化">1 机器学习系统：执行效率优化</h2>
+<h3 id="11-先定位瓶颈不要先选加速库">1.1 先定位瓶颈，不要先选加速库</h3>
+<p>预训练通常追求有效训练吞吐，后训练兼顾适配成本与行为质量，在线推理则同时受首 token 延迟（TTFT）、逐 token 延迟（TPOT）、尾延迟与成本约束。用户真正需要的是<strong>满足质量和延迟约束的吞吐</strong>，不是脱离服务目标的最大 tokens/s。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>生产问题</th>
+<th>主要机制</th>
+<th>首先测什么</th>
+<th>介入层</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型复读、工具 JSON 不结束</td>
+<td>概率分布、解码规则与反馈循环</td>
+<td>重复跨度、EOS 比例、截断率、合法输出率</td>
+<td>训练、解码、服务兜底</td>
+</tr>
+<tr>
+<td>MoE 批一大专家几乎全被访问</td>
+<td>批内路由并集扩大、每专家批碎片化</td>
+<td>活跃专家数、每专家 token 数、通信与访存时间</td>
+<td>路由、kernel、并行布局</td>
+</tr>
+<tr>
+<td>训练显存不足</td>
+<td>参数、梯度、优化器状态和激活共同占用</td>
+<td>各类状态峰值、重计算与通信代价</td>
+<td>分片、并行</td>
+</tr>
+<tr>
+<td>多任务微调成本过高</td>
+<td>每任务复制全套权重</td>
+<td>训练显存、适配器存储、切换延迟</td>
+<td>参数高效适配</td>
+</tr>
+<tr>
+<td>高吞吐但交互卡顿</td>
+<td>排队、长 prefill 干扰、缓存占用</td>
+<td>p95/p99 TTFT、TPOT、好吞吐</td>
+<td>调度、缓存、阶段分离</td>
+</tr>
+</tbody>
+</table></div>
+<p>密集注意力的成对交互项随长度平方增长：2K 到 128K 是长度 64 倍、该项计算约 4096 倍，不能把它误写成总模型成本固定增长 64 倍。小批解码常受带宽约束，但大批、短上下文、MoE 或不同硬件下瓶颈会改变；「解码永远只受访存限制」不是通用结论。</p>
+<h3 id="12-复读与文本退化模型在推理时输出平淡重复无意义的文本">1.2 复读与文本退化：模型在推理时输出平淡、重复、无意义的文本</h3>
+<p><strong>现象与原因。</strong> 这里指的不是模型答错，而是它在推理阶段生成平淡、重复、无意义的文本：重复可以发生在有限输出中，也可能演化成直到 token 上限仍不终止的循环。后者同时浪费预算、拉长尾延迟、阻止上层 Agent 进入下一步。困惑度与任务平均分不足以覆盖它，需要单独测循环率、结束率和结构合法率。虽然现象直到推理才暴露，修复却可能落在训练、解码或服务任一阶段。</p>
+<p>三条研究线索互补：Holtzman 等研究似然最大化解码的退化；Unlikelihood 直接压低不希望出现的重复候选概率；SimCTG 从表示空间各向异性入手。解码一致性工作在其循环语言模型框架下证明某些常用不完全解码算法<strong>可能</strong>生成无限序列；这不是「所有现代 Transformer 每次都会无限复读」的定理，也不是唯一根因。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>介入层</th>
+<th>方法</th>
+<th>代价与边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>预训练或后训练</td>
+<td>Unlikelihood、SimCTG、任务相关偏好数据</td>
+<td>改变分布；需要数据并检查流畅性、任务能力回归</td>
+</tr>
+<tr>
+<td>解码</td>
+<td>nucleus sampling、Mirostat、序列级惩罚</td>
+<td>不重训；调整生成分布，不保证所有任务无循环</td>
+</tr>
+<tr>
+<td>服务</td>
+<td>重复检测、长度/时间预算、有限次重试、合法性校验</td>
+<td>防止资源失控；重试必须有上限，不能替代质量修复</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>不能混淆惩罚参数。</strong> frequency penalty 随出现次数变化；presence penalty 通常只看是否出现；常见 repetition penalty 则按已出现 token 调整 logits，未必按次数累积。它们都可能压制 JSON 中合法重复的字段或标点，但不是所有实现都有同一公式。结构化输出应配合 grammar/schema 约束与结束条件；一味加惩罚或降温未必有效。</p>
+<aside class="paper-card" id="paper-neural-text-degeneration">
+<p class="paper-title">The Curious Case of Neural Text Degeneration</p>
+<p class="paper-zh-title">神经文本退化的奇特案例</p>
+<p class="paper-meta">ICLR · 2020 · 引用 4,552（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/1904.09751">arXiv:1904.09751</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>用 likelihood 作为解码目标会生成平淡而诡异重复的文本，但当时的主流做法——贪心与束搜索——都基于最大化，而随机采样又缺乏原则性指导。论文要回答的是一个反常现象：同一个模型、同样的参数，仅仅换解码策略就会让文本质量剧变。</p>
+<p class="paper-how"><span class="paper-label">方案</span>揭示人类文本与机器文本之间的分布差异，并据此提出核采样（nucleus sampling）：从累积概率刚达到阈值 p 的最小 token 集合中采样，按上下文动态截断不可靠的尾部，同时保留多样性。</p>
+<p class="paper-more"><a href="papers/neural-text-degeneration.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-unlikelihood-training">
+<p class="paper-title">Neural Text Generation with Unlikelihood Training</p>
+<p class="paper-zh-title">神经文本退化与 Unlikelihood 训练</p>
+<p class="paper-meta">ICLR · 2020 · 引用 760（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/1908.04319">arXiv:1908.04319</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>标准的 likelihood 训练与解码导致平淡、重复的输出；而 top-k 与核采样这类事后修正只改解码过程，没有解决一个更根本的事实——模型预测的 token 级概率本身就很差。</p>
+<p class="paper-how"><span class="paper-label">方案</span>对不希望出现的重复候选施加 token 级和序列级 Unlikelihood 损失，降低其概率；论文在保持困惑度的同时改善重复和乏味输出，并与标准贪心或束搜索配合。</p>
+<p class="paper-more"><a href="papers/unlikelihood-training.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-simctg">
+<p class="paper-title">A Contrastive Framework for Neural Text Generation</p>
+<p class="paper-zh-title">面向神经文本生成的对比框架（SimCTG）</p>
+<p class="paper-meta">NeurIPS · 2022 · 引用 345（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2202.06417">arXiv:2202.06417</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>基于最大化的解码方法（如束搜索）常常导致退化解，生成的文本不自然且含有不希望的重复；而已有的采样方法与修改训练目标的方法又往往导致结果缺乏连贯性。</p>
+<p class="paper-how"><span class="paper-label">方案</span>指出模型退化的一个底层原因是 token 表示分布的各向异性，提出 SimCTG——一个校准模型表示空间的对比训练目标，并配合对比搜索（contrastive search）解码，在保持连贯性的同时鼓励多样性。</p>
+<p class="paper-more"><a href="papers/simctg.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-decoding-consistency">
+<p class="paper-title">Consistency of a Recurrent Language Model With Respect to Incomplete Decoding</p>
+<p class="paper-zh-title">循环语言模型在不完全解码下的一致性</p>
+<p class="paper-meta">EMNLP · 2020 · 引用 77（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2002.02492">arXiv:2002.02492</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>常见解码算法在实践中表现出的无限重复与不终止，无法用「模型训练得不好」来解释——模型是按有限长度序列训练的，却会在解码时产出永不终止的序列。论文要给这一现象一个严格定义与判定标准。</p>
+<p class="paper-how"><span class="paper-label">方案</span>定义解码算法的不一致性：该算法可以产出在模型下概率为零的无限长序列。据此证明贪心搜索、束搜索、top-k 采样与核采样全部是不一致的，并提出两种补救——一致的 top-k 与核采样变体，以及自终止（self-terminating）的循环语言模型。</p>
+<p class="paper-more"><a href="papers/decoding-consistency.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-mirostat">
+<p class="paper-title">Mirostat: A Neural Text Decoding Algorithm that Directly Controls Perplexity</p>
+<p class="paper-zh-title">Mirostat：直接控制困惑度的神经文本解码算法</p>
+<p class="paper-meta">arXiv 预印本 · 2020 · 引用 8（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2007.14966">arXiv:2007.14966</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>top-k、top-p 与温度采样都要靠调参才能产出高质量文本，且它们究竟给输出统计量带来何种控制并不清楚；而近期报告显示文本质量只在某个特定的似然区间内最高。</p>
+<p class="paper-how"><span class="paper-label">方案</span>先对 top-k、top-p 与温度采样中的困惑度做理论分析，发现在 Zipf 统计下交叉熵在 top-p 中近似为 p 的线性函数、在 top-k 中却是 k 的非线性函数；据此设计基于反馈的自适应 top-k 解码算法 mirostat，以预设困惑度生成任意长度文本。</p>
+<p class="paper-more"><a href="papers/mirostat.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p><strong>前沿补充：从 token 复现到序列循环。</strong> 以下两篇是生产案例和新近采样工作，不替代上述经典线索。DRY 检查后缀是否延续已有片段；生产案例比较解码与后训练干预。论文中的改善依赖模型、任务和设置，不能直接推广为通用保证。Mirostat 观察到的困惑度—重复率关系同样不是所有模型上的等价定律。</p>
+<aside class="paper-card" id="paper-dry-sampling">
+<p class="paper-title">Don&#x27;t Repeat Yourself: Stopping Verbatim Loops at Sampling Time</p>
+<p class="paper-zh-title">DRY：在采样阶段终止逐字循环</p>
+<p class="paper-meta">arXiv 预印本 · 2026 · 引用 0（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2608.22761">arXiv:2608.22761</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>重复惩罚、存在/频率惩罚与 n-gram 阻断都作用于 token 的复现次数，而不是循环的序列结构，因此往往只有在强度大到同时损害格式与流畅性时才压得住循环。</p>
+<p class="paper-how"><span class="paper-label">方案</span>只在生成某个候选 token 会把当前后缀延长为上下文中早先出现过片段的精确延续时才施加惩罚；引入序列中断符（sequence breakers）保护对话模板与格式 token。</p>
+<p class="paper-more"><a href="papers/dry-sampling.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-repetition-in-production">
+<p class="paper-title">Solving LLM Repetition Problem in Production: A Comprehensive Study of Multiple Solutions</p>
+<p class="paper-zh-title">在生产环境中解决 LLM 重复问题：多种方案的综合研究</p>
+<p class="paper-meta">arXiv 预印本 · 2025 · 引用 2（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2512.04419">arXiv:2512.04419</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>生产环境中的批量代码解读任务频繁遇到模型持续生成重复内容且无法正常终止，导致严重的性能劣化与系统停摆，但这类第一手经验此前缺少系统性整理。</p>
+<p class="paper-how"><span class="paper-label">方案</span>归纳出三种重复模式（业务规则生成、方法调用关系分析、PlantUML 语法生成），用马尔可夫模型分析根因——贪心解码无法逃出重复环并被自增强效应放大——并实验三种方案：带 early_stopping 的束搜索、presence_penalty 超参数、以及 DPO 微调。</p>
+<p class="paper-more"><a href="papers/repetition-in-production.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<h3 id="13-moe-批推理单-token-稀疏整批却几乎访问全部专家">1.3 MoE 批推理：单 token 稀疏，整批却几乎访问全部专家</h3>
+<p><strong>生产现象。</strong> 单个 token 选 k 个专家，但批内不同 token 的路由并集随批增大而扩展。在均匀、独立选择的简化模型下，E 个专家、B 个 token 的期望激活专家数是 E × [1 − (1 − k/E)^B]；真实路由有相关性和偏斜，应以测量代替这个近似。这解释了为什么「单 token 激活参数少」不能直接推导出「整个批权重读取少」。</p>
+<p><strong>重要限定：批内访问所有专家并不会使每 token 都计算所有专家。</strong> 条件计算的 FLOPs 稀疏性仍然存在；变化的是权重访问覆盖、权重复用、每专家矩阵乘的形状，以及 all-to-all 和负载均衡成本。大批也可能改善专家 GEMM 的利用率，因此不能简单说批越大 MoE 越慢。</p>
+<p>另一个约束是常驻专家权重与 KV cache 竞争 HBM。长上下文减少可容纳请求数，路由又把每专家的微批切碎，于是可能同时损失并发和权重复用。比较 MoE 与 dense 时，应同时对齐质量、精度、硬件、上下文、并发与延迟目标。</p>
+<aside class="paper-card" id="paper-switch-transformers">
+<p class="paper-title">Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity</p>
+<p class="paper-zh-title">Switch Transformer：以简单高效的稀疏性扩展到万亿参数模型</p>
+<p class="paper-meta">JMLR · 2022 · 引用 4,806（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2101.03961">arXiv:2101.03961</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>MoE 已有若干显著成功，但其广泛采用受限于复杂性、通信成本与训练不稳定性——这三点恰恰是稀疏模型落地的实际门槛。</p>
+<p class="paper-how"><span class="paper-label">方案</span>把路由算法简化到 top-1，设计通信与计算成本更低的模型结构，提出驯服训练不稳定性的技术，并首次用更低的精度格式（bfloat16）训练大型稀疏模型。</p>
+<p class="paper-more"><a href="papers/switch-transformers.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-mixtral">
+<p class="paper-title">Mixtral of Experts</p>
+<p class="paper-zh-title">Mixtral of Experts：稀疏混合专家语言模型</p>
+<p class="paper-meta">arXiv 预印本 · 2024 · 引用 2,146（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2401.04088">arXiv:2401.04088</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>用稀疏混合专家在固定的激活算力下获得远大于同激活规模稠密模型的有效容量。</p>
+<p class="paper-how"><span class="paper-label">方案</span>每层由 8 个前馈专家组成，每个 token 每层由路由器选择 2 个专家；47B 总参数中每 token 只激活 13B；以 32k token 上下文训练。</p>
+<p class="paper-more"><a href="papers/mixtral.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-tutel">
+<p class="paper-title">Tutel: Adaptive Mixture-of-Experts at Scale</p>
+<p class="paper-zh-title">Tutel：大规模下的自适应混合专家</p>
+<p class="paper-meta">MLSys · 2023 · 引用 317（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2206.03382">arXiv:2206.03382</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>token 路由会在运行时动态决定每个专家的负载量，但现有系统采用静态的并行与流水线，无法适应这种动态负载，因而遭受低效计算。</p>
+<p class="paper-how"><span class="paper-label">方案</span>Flex 为 MoE 模型参数与输入数据的分布设计统一布局，使所有可能的并行或流水线方法都能复用该布局，且不产生数学不等价或张量迁移开销，从而在运行时零成本地做自适应并行/流水线优化。</p>
+<p class="paper-more"><a href="papers/tutel.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-xshare">
+<p class="paper-title">XShare: Collaborative in-Batch Expert Sharing for Faster MoE Inference</p>
+<p class="paper-zh-title">XShare：面向更快 MoE 推理的批内协同专家共享</p>
+<p class="paper-meta">arXiv 预印本 · 2026 · 引用 6（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2602.07265">arXiv:2602.07265</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>在生产推理中，请求批处理与投机解码会显著放大专家激活，侵蚀 MoE 的效率收益——批一大，单批内激活专家的并集就逼近全部专家。</p>
+<p class="paper-how"><span class="paper-label">方案</span>把批感知的专家选择建模为模块化优化问题，并为不同部署场景设计高效贪心算法：通过最大化所选专家的总门控分数来减少激活专家数。无需重训，可对每个批次动态自适应，且在批次内请求来自异构数据集时仍然有效。</p>
+<p class="paper-more"><a href="papers/xshare.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-qs-inequality">
+<p class="paper-title">The $qs$ Inequality: Quantifying the Double Penalty of Mixture-of-Experts at Inference</p>
+<p class="paper-zh-title">qs 不等式：量化混合专家在推理时的双重惩罚</p>
+<p class="paper-meta">arXiv 预印本 · 2026 · 引用 1（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2603.08960">arXiv:2603.08960</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>MoE 以低训练 FLOPs 交付高质量，但这种效率在推理时往往消失；此前缺少一个能预测「MoE 何时相对质量对齐的稠密模型在结构上处于劣势」的判据。</p>
+<p class="paper-how"><span class="paper-label">方案</span>识别出解码阶段的双重惩罚：专家路由碎片化微批次并降低权重复用，同时庞大的常驻专家池压缩了 HBM 留给 KV cache 的空间。把这一现象形式化为「复用量碎片化」，并提出 qs 不等式，统一稀疏度 s（每 token 激活的参数比例）与质量等价因子 q（稠密模型匹配 MoE 表现所需的规模倍数）。</p>
+<p class="paper-more"><a href="papers/qs-inequality.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Switch 与 Mixtral 说明容量、总参数和激活计算量为何分离；Tutel 改善动态负载下的执行；XShare 在批内共享专家；qs 工作则分析特定条件下 dense 的优势。后两篇是新近预印本，不是「MoE 应被淘汰」的定论。qs 摘要报告的 DeepSeek-V3、128k 下 4.5 倍 dense 吞吐优势必须连同其质量匹配和性能分析假设阅读，不能当作所有线上系统的实测结论。</p>
+<p><strong>部署路线补充。</strong> 可从通信、路由与布局三处继续推进：MoETuner 优化专家放置；SERE 重路由以减少批内冗余访问；Moebius 随负载切换 TP/EP。重路由改变原始模型计算路径，需要质量回归；并行布局切换则要计入迁移时间与切换收益。</p>
+<aside class="paper-card" id="paper-moetuner">
+<p class="paper-title">MoETuner: Optimized Mixture of Expert Serving with Balanced Expert Placement and Token Routing</p>
+<p class="paper-zh-title">MoETuner：以均衡的专家放置与 token 路由优化混合专家服务</p>
+<p class="paper-meta">arXiv 预印本 · 2025 · 引用 41（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2502.06643">arXiv:2502.06643</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>MoE 模型规模增大后需要跨 GPU 分布，专家并行因而面临 token 路由与专家激活不均衡、以及 GPU 间通信倾斜，导致通信长尾延迟与处理低效。已有方案无法同时解决负载不均衡与通信倾斜这对双重挑战。</p>
+<p class="paper-how"><span class="paper-label">方案</span>提出整数线性规划形式化，联合考虑 token 负载、通信与计算成本来优化专家放置；利用跨层存在 token 路由依赖这一性质（某一层被路由到某专家的 token，在后续层很可能只落到一小组专家）缩小搜索空间。</p>
+<p class="paper-more"><a href="papers/moetuner.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-sere">
+<p class="paper-title">SERE: Similarity-based Expert Re-routing for Efficient Batch Decoding in MoE Models</p>
+<p class="paper-zh-title">SERE：面向 MoE 高效批解码的基于相似度的专家重路由</p>
+<p class="paper-meta">ICLR · 2026 · 引用 1（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2602.07616">arXiv:2602.07616</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>MoE 需要批推理来优化硬件效率，但批处理会造成过度的专家激活，从而拖慢访存受限的解码阶段——这是批解码与专家稀疏性之间的根本张力。</p>
+<p class="paper-how"><span class="paper-label">方案</span>以输入感知的方式动态减少激活专家数：把 token 从次要专家重路由到与其最相似的主要对应专家，并利用相似度模式识别与保留关键专家以防能力损失。基于批次级专家冗余做动态专家跳过，而非静态的专家剪枝或合并。</p>
+<p class="paper-more"><a href="papers/sere.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-moebius">
+<p class="paper-title">Moebius: Serving Mixture-of-Expert Models with Seamless Runtime Parallelism Switch</p>
+<p class="paper-zh-title">Moebius：以无缝运行时并行切换服务混合专家模型</p>
+<p class="paper-meta">arXiv 预印本 · 2026 · 引用 1（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2606.26607">arXiv:2606.26607</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>服务单个 MoE 需要多卡并行，而最优选择取决于在途请求数：低并发时张量并行（TP）更快，高并发时专家并行（EP）胜出。生产负载会持续跨越这条边界——在线服务的突发到达、强化学习 rollout 的高并发突发加长尾——因此固定任何一种布局都会在另一侧损失性能。</p>
+<p class="paper-how"><span class="paper-label">方案</span>关键洞察是 EP 与 TP 是同一个模型的两套布局，而不是两个模型：它们在字节相同的专家权重与 KV cache 上计算同一个函数，切换只改变每个 rank 拥有的切片归属。Moebius 用融合的 GPU 到 GPU 传输 kernel 在固定地址处重新分片唯一的权重与缓存副本，从而在两个解码步之间完成切换，无需重启引擎或丢弃在途请求。</p>
+<p class="paper-more"><a href="papers/moebius.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<h3 id="14-预训练的两个独立瓶颈训练状态装不下算力跑不满">1.4 预训练的两个独立瓶颈：训练状态装不下、算力跑不满</h3>
+<p>混合精度 Adam 训练每参数常需十几字节的权重、梯度和优化器状态，另有激活、临时缓冲与碎片；具体实现可能不同，不能只用参数量判定能否装下。GPipe 按层切分并以微批填流水线，Megatron-LM 在层内切矩阵，ZeRO 分片冗余状态。它们分别付出气泡、通信或重计算代价，组合效果取决于网络拓扑。</p>
+<aside class="paper-card" id="paper-gpipe">
+<p class="paper-title">GPipe: Efficient Training of Giant Neural Networks using Pipeline Parallelism</p>
+<p class="paper-zh-title">GPipe：用流水线并行高效训练巨型神经网络</p>
+<p class="paper-meta">NeurIPS · 2019 · 引用 2,275（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/1811.06965">arXiv:1811.06965</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>模型容量突破单卡内存上限后，此前的做法要么为特定架构定制算法，要么使用通信开销高昂、开发难度大的模型并行，都无法迁移到其他任务。数据并行则根本不省内存，因为每张卡都完整复制了参数、梯度与优化器状态。</p>
+<p class="paper-how"><span class="paper-label">方案</span>把网络按层序列切成若干段放到不同设备上，并用一种批拆分（batch-splitting）流水线算法把 mini-batch 进一步拆成更细的 micro-batch 依次灌入流水线，用微批填补设备空闲，从而在切分后仍接近线性加速。由于只要求网络能表示为层序列，它对架构基本无假设。</p>
+<p class="paper-more"><a href="papers/gpipe.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-zero">
+<p class="paper-title">ZeRO: Memory Optimizations Toward Training Trillion Parameter Models</p>
+<p class="paper-zh-title">ZeRO：面向万亿参数模型训练的内存优化</p>
+<p class="paper-meta">SC (Supercomputing) · 2020 · 引用 2,057（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/1910.02054">arXiv:1910.02054</a> · <a href="https://doi.org/10.1109/SC41405.2020.00024">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>数据并行与模型并行各自有根本性限制：前者每张卡都复制完整的参数、梯度与优化器状态，显存开销与卡数无关；后者虽能装下模型，却带来高昂通信与开发成本。论文的切入点是分清哪些内存是「必须的」、哪些只是冗余复制。</p>
+<p class="paper-how"><span class="paper-label">方案</span>按分片粒度依次消除冗余：ZeRO-1 只切优化器状态，ZeRO-2 追加切梯度，ZeRO-3 连参数也切。每次前向/反向按需临时取回其他分片后立即释放，因此通信量与数据并行同量级而不随分片阶段增长。混合精度下每参数约 16 字节开销被摊薄到与卡数成反比，使模型规模可随设备数线性增长。</p>
+<p class="paper-more"><a href="papers/zero.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-megatron-lm">
+<p class="paper-title">Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism</p>
+<p class="paper-zh-title">Megatron-LM：用模型并行训练数十亿参数语言模型</p>
+<p class="paper-meta">arXiv · 2019 · 引用 3,163（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/1909.08053">arXiv:1909.08053</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>流水线并行按层切分，对单层内部就是巨型矩阵的模型（如超宽 FFN）无能为力：一层装不进一张卡，整体就装不下。此前可行的层内并行往往依赖专用编译器或库改动，移植成本高。</p>
+<p class="paper-how"><span class="paper-label">方案</span>把 Transformer 单层内部的矩阵乘法切开（张量并行）：多头注意力按 head 维切分、MLP 按隐藏维切分，只需在原生 PyTorch 中插入少量 all-reduce 通信即可完整实现，且与流水线并行正交互补。论文同时报告了一个反直觉的工程结论：BERT 类模型随规模增大时，层归一化的位置安排对性能影响显著。</p>
+<p class="paper-more"><a href="papers/megatron-lm.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>FlashAttention 保留精确注意力，利用分块与重计算减少 HBM 读写；它不把密集注意力的算术复杂度从平方变成线性。Chinchilla 则改变模型规模与训练 token 的预算配比：固定训练算力下，参数和数据应共同规划。训练最优也不必然等于全生命周期成本最优——当推理量极大时，更小但训练更久的模型可能更合适。</p>
+<aside class="paper-card" id="paper-flashattention">
+<p class="paper-title">FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</p>
+<p class="paper-zh-title">FlashAttention：具备 IO 意识的快速、省内存精确注意力</p>
+<p class="paper-meta">NeurIPS · 2022 · 引用 5,289（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2205.14135">arXiv:2205.14135</a> · <a href="https://doi.org/10.52202/068431-1189">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>自注意力的时间与内存随序列长度二次增长，而当时一批近似注意力方法降低了理论计算量却拿不到挂钟加速。论文认为缺失的原则是 IO 意识：真正的瓶颈不是乘加次数，而是 GPU 高带宽显存（HBM）与片上 SRAM 之间的读写次数。</p>
+<p class="paper-how"><span class="paper-label">方案</span>用分块（tiling）把注意力计算搬进 SRAM：QKV 分块加载，配合在线 softmax 累积归一化因子，避免把完整的 N×N 注意力矩阵写回 HBM。因此它是精确注意力而非近似，反向传播时还能用重计算省下中间矩阵。论文进一步给出 IO 复杂度分析，证明它对一定范围的 SRAM 大小是最优的，并扩展到块稀疏注意力。</p>
+<p class="paper-more"><a href="papers/flashattention.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-chinchilla">
+<p class="paper-title">Training Compute-Optimal Large Language Models</p>
+<p class="paper-zh-title">训练算力最优的大语言模型（Chinchilla）</p>
+<p class="paper-meta">NeurIPS · 2022 · 引用 3,738（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2203.15556">arXiv:2203.15556</a> · <a href="https://doi.org/10.52202/068431-2176">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>在大模型竞赛中，算力几乎全部投给了扩大参数量，而训练数据量基本不变。论文质疑这一隐含假设：如果参数量翻倍而数据量不变，多出来的参数实际上处于训练不足的状态，算力被浪费了。</p>
+<p class="paper-how"><span class="paper-label">方案</span>在 7000 万至 160 亿参数、50 亿至 5000 亿 token 的范围内训练 400 多个模型，拟合出给定算力下「参数量 × token 数」的最优配比，结论是两者应等比例增长：模型规模翻倍，训练 token 也应翻倍。随后用同一算力预算训练 700 亿参数的 Chinchilla 加以验证（数据量是 Gopher 的 4 倍）。</p>
+<p class="paper-more"><a href="papers/chinchilla.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<h3 id="15-后训练降低适配成本与调整模型行为是两个独立目标">1.5 后训练：降低适配成本与调整模型行为是两个独立目标</h3>
+<p>多任务全参微调需要维护多份权重。LoRA 训练低秩增量，QLoRA 在量化冻结基座上训练适配器；部署时能否合并、合并后精度和切换开销仍需实测。偏好对齐解决的是「用户想要什么」，不是单纯压缩参数。</p>
+<aside class="paper-card" id="paper-lora">
+<p class="paper-title">LoRA: Low-Rank Adaptation of Large Language Models</p>
+<p class="paper-zh-title">LoRA：大语言模型的低秩适配</p>
+<p class="paper-meta">ICLR · 2022 · 引用 23,083（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2106.09685">arXiv:2106.09685</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>全参数微调要求重训并保存全部权重，在 GPT-3 175B 这个量级上等于每适配一个任务就部署一份 175B 模型，成本不可承受。而 adapter 类方法虽然减少了可训练参数，却在每层引入额外串接计算，带来推理延迟。</p>
+<p class="paper-how"><span class="paper-label">方案</span>冻结预训练权重，在 Transformer 每层注入可训练的秩分解矩阵（A·B，秩 r 远小于维度），只训练这两个小矩阵。因为 ΔW 与 W 同形，训练完可合并为 W + BA，推理时与原模型结构完全一致、零额外延迟——这是它与 adapter 的关键区别。论文还实证研究了适配中的秩亏现象。</p>
+<p class="paper-more"><a href="papers/lora.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-qlora">
+<p class="paper-title">QLoRA: Efficient Finetuning of Quantized LLMs</p>
+<p class="paper-zh-title">QLoRA：量化大模型的高效微调</p>
+<p class="paper-meta">NeurIPS · 2023 · 引用 5,647（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2305.14314">arXiv:2305.14314</a> · <a href="https://doi.org/10.52202/075280-0441">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>LoRA 把可训练参数压到了极小，但<strong>基座权重本身</strong>仍以 16-bit 常驻显存——650 亿参数的基座仍需上百 GB，因此微调门槛依然落在显存上。矛盾在于：量化能省显存，但朴素量化会让训练时的高精度梯度反传失去精度基础。</p>
+<p class="paper-how"><span class="paper-label">方案</span>把基座权重量化到 4-bit 冻结保存，梯度穿过这个量化基座反传进 16-bit 的 LoRA 适配器。三项关键设计：（a）NF4——为服从正态分布的权重设计的信息论最优 4-bit 数据类型；（b）双重量化——对量化常数本身再量化，压掉其开销；（c）分页优化器——借统一内存应对梯度累积时的内存尖峰。</p>
+<p class="paper-more"><a href="papers/qlora.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-instructgpt">
+<p class="paper-title">Training language models to follow instructions with human feedback</p>
+<p class="paper-zh-title">用人类反馈训练语言模型遵循指令（InstructGPT）</p>
+<p class="paper-meta">NeurIPS · 2022 · 引用 24,147（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2203.02155">arXiv:2203.02155</a> · <a href="https://doi.org/10.52202/068431-2011">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>把语言模型做得更大并不会自然让它更遵循用户意图——大模型会生成不真实、有毒或对用户无用的输出。「与用户不对齐」是目标函数的问题，不是规模的问题，因此单纯扩大参数量无法解决。</p>
+<p class="paper-how"><span class="paper-label">方案</span>三阶段流程：（1）用标注员演示的期望行为数据做监督微调；（2）用模型输出的排序数据训练奖励模型；（3）用该奖励模型做基于人类反馈的强化学习（PPO）进一步微调。论文的核心结论是这条路径的<strong>性价比</strong>：对齐带来的收益可以超过参数量带来的收益。</p>
+<p class="paper-more"><a href="papers/instructgpt.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-dpo">
+<p class="paper-title">Direct Preference Optimization: Your Language Model is Secretly a Reward Model</p>
+<p class="paper-zh-title">直接偏好优化：你的语言模型其实就是一个隐式奖励模型</p>
+<p class="paper-meta">NeurIPS · 2023 · 引用 10,558（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2305.18290">arXiv:2305.18290</a> · <a href="https://doi.org/10.52202/075280-2338">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>RLHF 的流程复杂且常常不稳定：先要拟合奖励模型，再用强化学习最大化这个估计奖励，同时还得约束策略不偏离原模型太远。两阶段之间误差累积，超参数敏感，训练期间还要反复从语言模型采样，工程与算力成本都高。</p>
+<p class="paper-how"><span class="paper-label">方案</span>论文重新参数化 RLHF 中的奖励模型，使「带 KL 约束的最优策略」具有闭式解，于是奖励可以改写成策略自身的对数概率比。这样标准 RLHF 问题就退化成一个简单的分类损失（对偏好对做二分类），不再需要显式奖励模型，也不需要采样。得到的 DPO 训练稳定、算力轻量。</p>
+<p class="paper-more"><a href="papers/dpo.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>InstructGPT 的小模型偏好优势来自特定人工评估，不表示其在全部能力上超过大模型。DPO 简化奖励—策略优化流程，但偏好数据质量和分布仍决定结果。<strong>LoRA/QLoRA 冻结基座，不意味着 RLHF/DPO 必须冻结基座</strong>；行为目标与可训练参数范围是可独立组合的选择。</p>
+<h3 id="16-推理服务批处理kv-缓存与投机解码">1.6 推理服务：批处理、KV 缓存与投机解码</h3>
+<p>请求长度不齐时，请求级静态批处理会浪费完成槽位并阻塞后续到达。Orca 将调度粒度降到迭代；PagedAttention 分页管理按请求增长的 KV cache，减少预留浪费并支持共享。两者共同扩大可服务并发，但长 prefill 对交互 decode 的干扰还需要第 4 节第 4.6 小节的阶段分离。</p>
+<aside class="paper-card" id="paper-orca">
+<p class="paper-title">Orca: A Distributed Serving System for Transformer-Based Generative Models</p>
+<p class="paper-zh-title">Orca：面向 Transformer 生成式模型的分布式服务系统</p>
+<p class="paper-meta">USENIX OSDI · 2022 · 引用 932（截至 2026-09-20）</p>
+<p class="paper-why"><span class="paper-label">动机</span>生成式推理有「多迭代」特征：一个请求要跑多次前向，每次只产出一个 token。此前的服务系统调度粒度是<strong>请求</strong>，批次一旦组成就不能变动——批中先完成的请求无法提前返回，新到达的请求只能干等，造成队头阻塞与 GPU 空转。</p>
+<p class="paper-how"><span class="paper-label">方案</span>迭代级调度（iteration-level scheduling）：把调度粒度从请求降到单次迭代，每跑完一步就重新组批，完成的请求立刻退出、新请求立刻补位。配套提出选择性批处理（selective batching），只对适合批处理的算子做批，让 Transformer 中形状随请求变化的部分单独执行。另有面向数千亿参数模型的分布式扩展设计。</p>
+<p class="paper-more"><a href="papers/orca.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-pagedattention">
+<p class="paper-title">Efficient Memory Management for Large Language Model Serving with PagedAttention</p>
+<p class="paper-zh-title">用 PagedAttention 为 LLM 服务实现高效内存管理（vLLM）</p>
+<p class="paper-meta">ACM SOSP · 2023 · 引用 8,368（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2309.06180">arXiv:2309.06180</a> · <a href="https://doi.org/10.1145/3600006.3613165">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>高吞吐服务要求同时批处理足够多的请求，但每个请求的 KV cache 很大且长度事先未知、随生成过程增长。此前系统按请求分配<strong>连续</strong>显存，导致两类浪费：长度预估不准带来的内部碎片与超额预留，以及同一前缀（如系统提示词）在多个请求中被重复保存。这些浪费直接限制了批大小。</p>
+<p class="paper-how"><span class="paper-label">方案</span>PagedAttention 借用操作系统虚拟内存与分页的思路：把 KV cache 切成固定大小的块（page），按需分配、逻辑上连续而物理上可不连续，从而几乎消除碎片；同时块可以在请求内部与<strong>请求之间</strong>共享（如共享前缀只存一份），进一步减少占用。在此之上实现服务系统 vLLM。</p>
+<p class="paper-more"><a href="papers/pagedattention.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>投机解码用小模型串行提出候选，再由大模型并行验证。满足论文的接受/拒绝与修正采样条件时，可保持目标分布；它不是小模型必然「并行猜词」，也不是所有近似实现都无损。收益依赖接受率、草稿成本、批大小与模型架构；饱和的大批服务可能没有小批下的加速。</p>
+<aside class="paper-card" id="paper-speculative-decoding">
+<p class="paper-title">Fast Inference from Transformers via Speculative Decoding</p>
+<p class="paper-zh-title">通过投机解码实现 Transformer 的快速推理</p>
+<p class="paper-meta">ICML · 2023 · 引用 2,018（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2211.17192">arXiv:2211.17192</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>自回归解码本质上是串行的：解码 K 个 token 必须跑 K 次前向，而每次前向的计算量远不能占满硬件——瓶颈在访存而非算力（memory-bound），因此 GPU 大量时间处于闲置。问题在于如何在不改变输出分布的前提下打破这一串行约束。</p>
+<p class="paper-how"><span class="paper-label">方案</span>先用一个便宜得多的近似模型（draft model）自回归地猜出 γ 个候选 token，再把这一整串候选一次性交给大模型做<strong>单次并行前向</strong>验证。关键在于一种新的采样方法：对候选做接受/拒绝测试并按残差分布修正被拒绝的位置，使最终输出分布与原模型完全一致。因此它是<strong>无损加速</strong>——不需要重训、不改架构、输出逐 token 相同。</p>
+<p class="paper-more"><a href="papers/speculative-decoding.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p><strong>本方向的落地顺序：</strong> 先固定任务质量与 SLO，再分解权重、KV、计算、通信和排队成本，最后选择优化。任何倍数都必须标注基线；跨论文的最佳加速比不能相乘。</p>
+
+<h2 id="2-长上下文装得下算得动找得到是三件事">2 长上下文：装得下、算得动、找得到是三件事</h2>
+<p><strong>三个词的含义。</strong> 本方向的全篇都围绕这三件事：“装得下”指接口允许的上下文长度；“算得动”指 prefill 与 decode 的实际成本；“找得到”指模型能否真正用上窗口里的关键证据。三者互不代替——窗口放得进不等于算得起，算得起也不等于找得到。</p>
+<h3 id="21-生产问题把文档全部塞进去服务先慢下来">2.1 生产问题：把文档全部塞进去，服务先慢下来</h3>
+<p>合同审阅、代码仓库问答和长程 Agent 会把输入从短问题扩展到多文档历史。窗口长度只是接口允许的上限；真正成本包含长 prefill 的计算、每请求 KV cache 的容量、decode 对历史的读取，以及多租户争抢显存后的排队。</p>
+<p>普通自回归 Transformer 的 KV 存储量近似为 2 × 层数 × KV 头数 × 头维度 × token 数 × 每元素字节数 × 并发请求数；这是未计分页碎片、共享前缀和其他状态的预算式。GQA/MQA、量化、滑动窗口会改变其中因素。不能把「权重已量化为 4-bit」理解为「KV cache 也自动缩小四倍」。</p>
+<aside class="paper-card" id="paper-long-context-deployment">
+<p class="paper-title">Challenges in Deploying Long-Context Transformers: A Theoretical Peak Performance Analysis</p>
+<p class="paper-zh-title">长上下文 Transformer 的部署挑战：理论峰值性能分析</p>
+<p class="paper-meta">arXiv 预印本 · 2024 · 引用 47（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2405.08944">arXiv:2405.08944</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>部署 100K 到 10M 上下文的长上下文模型，相比 4K 上下文的变体成本高得令人却步；此前缺少一个能在有限的 HBM 容量下定量分析多请求服务效率的框架。</p>
+<p class="paper-how"><span class="paper-label">方案</span>在论文的并发服务与峰值性能模型下，分析长 prefill、KV 常驻、解码读取和换出带来的成本，指出 KV 规模是重要系统约束；这是一项带假设的性能分析。</p>
+<p class="paper-more"><a href="papers/long-context-deployment.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p><strong>先分清四类方法。</strong> 它们解决不同约束，不宜统一叫作「长上下文加速」。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>路线</th>
+<th>改变什么</th>
+<th>保留什么</th>
+<th>主要代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FlashAttention</td>
+<td>IO 和执行顺序</td>
+<td>精确密集注意力</td>
+<td>算术仍是平方复杂度</td>
+</tr>
+<tr>
+<td>位置扩展、继续训练</td>
+<td>模型可用位置范围与训练分布</td>
+<td>通常仍存全部 KV</td>
+<td>需要验证外推、并发与召回</td>
+</tr>
+<tr>
+<td>稀疏/滑窗注意力</td>
+<td>允许交互的 token 对</td>
+<td>局部或选定位置的显式 KV</td>
+<td>远距离信息可能不可达</td>
+</tr>
+<tr>
+<td>线性注意力、递归状态、SSM</td>
+<td>历史的表示与更新机制</td>
+<td>有限状态中的压缩信息</td>
+<td>精确信息检索与状态容量权衡</td>
+</tr>
+</tbody>
+</table></div>
+<p>RAG 是另一条应用侧路线：先选证据再送入模型，降低无关上下文，但检索遗漏会成为新的上限。它不与长窗口互斥。</p>
+<h3 id="22-线性自注意力把注意力改写成递归状态换取线性成本">2.2 线性自注意力：把注意力改写成递归状态，换取线性成本</h3>
+<p><strong>为什么能线性？</strong> 将注意力相似度写成特征映射的内积后，可先把历史 key 和 value 聚合，再由 query 读取。以带归一化的因果核注意力为例：</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>t</mi></msub><mo>)</mo><msubsup><mi>v</mi><mi>t</mi><mi>T</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>z</mi><mi>t</mi></msub><mo>=</mo><msub><mi>z</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>t</mi></msub><mo>)</mo></mrow></math></p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><mrow><msub><mi>y</mi><mi>t</mi></msub><mo>=</mo><mfrac><mrow><msup><mrow><mi>φ</mi><mo>(</mo><msub><mi>q</mi><mi>t</mi></msub><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>S</mi><mi>t</mi></msub></mrow><mrow><msup><mrow><mi>φ</mi><mo>(</mo><msub><mi>q</mi><mi>t</mi></msub><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>z</mi><mi>t</mi></msub></mrow></mfrac></mrow></math></p>
+<p>其中 S 保存键值外积的累加，z 用于归一化；实现还需处理数值稳定性。在特征维度固定时，处理 N 个 token 的成本随 N 线性增长，decode 不必随历史长度保存每个位置的 KV。但状态矩阵仍有特征维度 × value 维度的成本；「长度线性」不是对隐藏维度也线性，更不表示训练激活完全不随长度增长。</p>
+<p><strong>为什么不是免费午餐？</strong> 普通 softmax 不能直接靠交换括号得到完全相同的结果。Linear Transformer 更换了核形式，Performer 用随机特征近似 softmax。有限状态将多个关联叠加，彼此可能干扰；精确复制任意很早的标识符、检索大量键值，与压缩全局语义不是同一种难度。</p>
+<aside class="paper-card" id="paper-linear-transformer">
+<p class="paper-title">Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention</p>
+<p class="paper-zh-title">Transformer 是 RNN：使用线性注意力的快速自回归 Transformer</p>
+<p class="paper-meta">ICML · 2020 · 引用 3,146（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2006.16236">arXiv:2006.16236</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>完整注意力随输入长度平方增长，长序列自回归生成尤其昂贵。需要在避免显式构造所有 token 对的同时保留可训练的序列交互。</p>
+<p class="paper-how"><span class="paper-label">方案</span>以核特征映射的内积表达注意力，重排矩阵乘法，并将因果计算写成递归状态更新。固定特征维度下，序列长度方向的复杂度降为线性；它改变注意力机制，不是精确 softmax 的免费加速。</p>
+<p class="paper-more"><a href="papers/linear-transformer.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-performer">
+<p class="paper-title">Rethinking Attention with Performers</p>
+<p class="paper-zh-title">使用 Performer 重新思考注意力</p>
+<p class="paper-meta">ICLR · 2021 · 引用 2,466（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2009.14794">arXiv:2009.14794</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>希望逼近完整 softmax 注意力，而不是预先假设注意力稀疏或低秩，同时避免长度平方的存储与计算。</p>
+<p class="paper-how"><span class="paper-label">方案</span>FAVOR+ 用正交正随机特征近似 softmax 核，提供无偏或近无偏、统一收敛与低方差性质。随机特征数同时影响计算量和近似质量；其线性复杂度不能理解为零误差。</p>
+<p class="paper-more"><a href="papers/performer.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<h3 id="23-从累加到选择性记忆可遗忘可修正的状态设计">2.3 从累加到选择性记忆：可遗忘、可修正的状态设计</h3>
+<p>累加状态容易保留过时信息，纯遗忘又可能删掉稍后需要的证据。Mamba 用输入相关的状态空间更新决定信息传播；Gated DeltaNet 则结合门控与 delta rule，使记忆不仅能衰减，还能定向修正。Mamba 是选择性 SSM，并非上述核化注意力的同义词；将它们放在一起，是因为都在研究<strong>固定状态怎样取代不断增长的历史</strong>。</p>
+<aside class="paper-card" id="paper-mamba">
+<p class="paper-title">Mamba: Linear-Time Sequence Modeling with Selective State Spaces</p>
+<p class="paper-zh-title">Mamba：基于选择性状态空间的线性时间序列建模</p>
+<p class="paper-meta">COLM · 2024 · 引用 9,107（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2312.00752">arXiv:2312.00752</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>早期次二次序列模型在语言上的表现不及注意力，一个关键困难是难以按内容选择记忆与遗忘。</p>
+<p class="paper-how"><span class="paper-label">方案</span>让状态空间参数依赖输入，并以硬件感知的并行扫描实现选择性状态更新。Mamba 属于选择性 SSM，不应与核化线性注意力混为一谈；两者共享固定递归状态带来的效率与记忆容量权衡。</p>
+<p class="paper-more"><a href="papers/mamba.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-gated-deltanet">
+<p class="paper-title">Gated Delta Networks: Improving Mamba2 with Delta Rule</p>
+<p class="paper-zh-title">Gated Delta Networks：用 Delta Rule 改进 Mamba2</p>
+<p class="paper-meta">ICLR · 2025 · 引用 473（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2412.06464">arXiv:2412.06464</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>固定状态的线性模型在精确检索与长上下文任务上仍受限制；单纯累计键值会产生干扰，需要可控遗忘和有针对性的写入。</p>
+<p class="paper-how"><span class="paper-label">方案</span>结合快速清除记忆的门控与定向修正关联的 delta rule，并设计并行训练算法。与滑动窗口注意力或 Mamba2 的混合展示了效率与召回之间的折中，而非证明固定状态可无损保存任意历史。</p>
+<p class="paper-more"><a href="papers/gated-deltanet.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>混合模型保留部分显式注意力层或滑动窗口，让精细局部访问与压缩状态互补。取舍不是单选「线性或 Transformer」：应测状态大小、长距离精确检索、训练稳定性、预填充吞吐和实际 kernel 利用率。修改架构通常需要重新训练或适配，不能把现有 softmax checkpoint 直接替换为线性层后期待质量不变。</p>
+<h3 id="24-生产问题有长窗口却漏掉中间关键证据">2.4 生产问题：有长窗口，却漏掉中间关键证据</h3>
+<aside class="paper-card" id="paper-lost-in-the-middle">
+<p class="paper-title">Lost in the Middle: How Language Models Use Long Contexts</p>
+<p class="paper-zh-title">迷失在中间：语言模型如何使用长上下文</p>
+<p class="paper-meta">TACL · 2024 · 引用 5,063（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2307.03172">arXiv:2307.03172</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>产品能接受很长输入，并不表示模型能稳定利用其中任意位置的证据；只测窗口大小会掩盖真实召回失败。</p>
+<p class="paper-how"><span class="paper-label">方案</span>在多文档问答与键值检索中移动相关信息的位置，观察明显的位置敏感性，尤其是中间位置性能下降。由此应将位置、干扰项和多证据组合纳入长上下文评估。</p>
+<p class="paper-more"><a href="papers/lost-in-the-middle.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Lost in the Middle 的价值是把「窗口容量」与「有效使用能力」拆开。若系统只在开头放关键条款，离线测试会过于乐观；真实输入位置不固定，多个相似条款还会互相干扰。</p>
+<p><strong>验收矩阵。</strong> 至少覆盖短/长输入、证据在开头/中间/结尾、单证据/多跳、多干扰项/近似键、精确字符串复制和最终任务正确率；同时固定并发测 TTFT、TPOT 与峰值内存。单一 needle-in-a-haystack 成功既不能证明复杂推理成功，也不能证明部署成本可接受。</p>
+<p><strong>选择建议。</strong> 文档内容可检索时先建立 RAG 基线；必须逐字追溯证据时保留显式访问通道；长流式信号或状态压缩价值高时测试线性/SSM；混合架构则在统一任务质量门槛下比较召回—吞吐曲线，而不是只比理论复杂度。</p>
+
+<h2 id="3-端侧大模型文件下载得下不代表能持续跑得动">3 端侧大模型：文件下载得下，不代表能持续跑得动</h2>
+<h3 id="31-生产问题模型文件很小启动或长对话仍然内存不足">3.1 生产问题：模型文件很小，启动或长对话仍然内存不足</h3>
+<p>手机、笔记本与嵌入式设备的约束不只是参数大小，还包括应用共享内存、KV cache、激活、运行时缓冲、权重展开与设备间复制。磁盘中的 4-bit 文件也可能在某些不支持低比特算子的路径上临时解包为较高精度。</p>
+<p>端侧推理的价值来自离线可用、隐私边界和避免网络往返；但本地并不自动意味着更快、更省电或完全私密——日志、远端回退与遥测仍需审查。这里需要同时区分 prefill 与 decode、冷启动与热启动、短时峰值与热稳定后的持续性能。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因</th>
+<th>方法方向</th>
+<th>必须一起验证</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>权重装不下</td>
+<td>模型容量超过可用 DRAM</td>
+<td>GPTQ、AWQ、小模型设计</td>
+<td>峰值内存、质量、加载时间</td>
+</tr>
+<tr>
+<td>量化后不加速</td>
+<td>缺少对应 kernel，解包/拷贝抵消收益</td>
+<td>算子融合、布局与后端匹配</td>
+<td>端到端而非 GEMM 微基准</td>
+</tr>
+<tr>
+<td>激活量化失真</td>
+<td>通道离群值拉大量化范围</td>
+<td>SmoothQuant 等等价变换</td>
+<td>校准集外任务、算术/代码</td>
+</tr>
+<tr>
+<td>闪存溢出很慢</td>
+<td>随机小块读取与搬运量过大</td>
+<td>按需加载与连续读取</td>
+<td>I/O、缓存命中、冷/热状态</td>
+</tr>
+<tr>
+<td>连续使用速度下降</td>
+<td>热约束、功耗与系统调度</td>
+<td>更小模型、限频下预算、任务切分</td>
+<td>持续吞吐、能耗和温度</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="32-压缩仅权重量化与权重激活同时量化适用的场景不同">3.2 压缩：仅权重量化与权重、激活同时量化，适用的场景不同</h3>
+<p>GPTQ 用近似二阶信息减少量化重构误差；AWQ 依据激活识别重要权重通道，以缩放保护它们。这两条工作适合说明 weight-only 低比特路线。SmoothQuant 则把激活离群值的困难迁移到权重，使 W8A8 更易使用高效整数矩阵乘。</p>
+<aside class="paper-card" id="paper-gptq">
+<p class="paper-title">GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers</p>
+<p class="paper-zh-title">GPTQ：面向生成式预训练 Transformer 的准确训练后量化</p>
+<p class="paper-meta">ICLR · 2023 · 引用 2,572（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2210.17323">arXiv:2210.17323</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>大模型推理的权重存储需求阻碍部署，而既有压缩方法难以兼顾超大规模的量化成本与精度。</p>
+<p class="paper-how"><span class="paper-label">方案</span>利用近似二阶信息进行一次性逐层权重量化，在 175B 模型上展示 3/4-bit 量化。它主要压缩权重，不能替代 KV cache、激活和目标设备 kernel 的预算分析。</p>
+<p class="paper-more"><a href="papers/gptq.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-awq">
+<p class="paper-title">AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration</p>
+<p class="paper-zh-title">AWQ：用于 LLM 压缩与加速的激活感知权重量化</p>
+<p class="paper-meta">MLSys · 2024 · 引用 1,774（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2306.00978">arXiv:2306.00978</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>端侧低比特权重量化既要保护重要通道，又不能依赖硬件低效的混合精度或过拟合校准集。</p>
+<p class="paper-how"><span class="paper-label">方案</span>依据激活统计识别重要权重通道，通过等价缩放保护它们，并以 TinyChat 的融合 kernel 和平台适配打包实现实际加速。质量提升来自量化，速度收益还依赖执行实现。</p>
+<p class="paper-more"><a href="papers/awq.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-smoothquant">
+<p class="paper-title">SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models</p>
+<p class="paper-zh-title">SmoothQuant：准确高效的大语言模型训练后量化</p>
+<p class="paper-meta">ICML · 2023 · 引用 1,886（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2211.10438">arXiv:2211.10438</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>仅压缩权重不足以高效使用 INT8 矩阵乘，激活离群值又使权重与激活联合量化容易失真。</p>
+<p class="paper-how"><span class="paper-label">方案</span>利用等价缩放将量化难度从激活迁移到权重，支持 W8A8。它与 AWQ 的目标精度和部署场景不同，不能用 bit 数直接推导谁更快。</p>
+<p class="paper-more"><a href="papers/smoothquant.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p><strong>取舍。</strong> 小批 decode 中权重搬运常占重要比例，weight-only 压缩很有价值；大批或 prefill 场景中，激活精度与矩阵乘硬件路径更重要。但这只是定位假设，不是跨设备规律。论文中的 GPU 加速不能直接等价于手机 NPU 加速：算子支持、内存统一性、分组量化格式与编译器融合都可能不同。</p>
+<p>量化验收不能只看通用困惑度。工具 JSON、罕见术语、长文复制、数学、代码与视觉问答应分别回归，尤其检查低概率但高代价的格式破坏。权重、激活与 KV 的精度也应分开记录。</p>
+<h3 id="33-模型大到装不进内存把闪存的读写特性纳入模型设计">3.3 模型大到装不进内存：把闪存的读写特性纳入模型设计</h3>
+<aside class="paper-card" id="paper-llm-in-a-flash">
+<p class="paper-title">LLM in a flash: Efficient Large Language Model Inference with Limited Memory</p>
+<p class="paper-zh-title">LLM in a flash：有限内存下的高效大语言模型推理</p>
+<p class="paper-meta">ACL · 2024 · 引用 307（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2312.11514">arXiv:2312.11514</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>压缩后的模型仍可能超过 DRAM；朴素地从闪存逐次搬运权重会让交互推理受 I/O 支配。</p>
+<p class="paper-how"><span class="paper-label">方案</span>建立闪存感知成本模型，通过 windowing 复用近期激活神经元、row-column bundling 扩大连续读取。论文加速相对朴素加载，不是相对全部权重常驻 DRAM 的系统。</p>
+<p class="paper-more"><a href="papers/llm-in-a-flash.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>LLM in a flash 把「如何搬」作为核心问题：近期激活的神经元可能复用，闪存更适合较大连续读取，因而需要同时降低传输量和碎片读取次数。它相对朴素加载的倍数不代表比全部权重常驻内存更快；依赖稀疏性和访问局部性的收益，也需要在目标模型上重测。</p>
+<p><strong>工程陷阱。</strong> 只测已经读热的文件缓存，会把存储瓶颈藏起来；只测首轮几秒，会把热降频藏起来。测试应记录真实可用内存、存储状态、并发后台应用、上下文长度，以及持续运行后的性能曲线。</p>
+<h3 id="34-不只是压缩大模型也可以专门设计合适的小模型">3.4 不只是压缩大模型，也可以专门设计合适的小模型</h3>
+<aside class="paper-card" id="paper-mobilellm">
+<p class="paper-title">MobileLLM: Optimizing Sub-billion Parameter Language Models for On-Device Use Cases</p>
+<p class="paper-zh-title">MobileLLM：面向端侧场景优化十亿参数以下语言模型</p>
+<p class="paper-meta">ICML · 2024 · 引用 319（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2402.14905">arXiv:2402.14905</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>手机未必需要把大模型一路压缩到极低比特；从头设计适合小规模的架构可能有更好的质量与延迟平衡。</p>
+<p class="paper-how"><span class="paper-label">方案</span>采用深而窄的架构、embedding sharing 与 GQA，并研究相邻块权重共享。在 125M/350M 的比较中改善准确率；API 调用接近某个 7B 基线不代表全面能力等价。</p>
+<p class="paper-more"><a href="papers/mobilellm.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>MobileLLM 提醒我们，小模型的架构选择仍很重要。深窄网络、共享 embedding、GQA、块级权重共享各有不同的容量和执行代价。某类 API 调用接近 7B 模型，不等于知识覆盖、长推理与开放聊天都已等价；但对手机上的有限任务，专门的高质量小模型可能比过度量化的大模型更合适。</p>
+<p><strong>落地决策。</strong> 先写清离线任务与质量底线，建立小模型基线，再比较压缩大模型；若选择端云协作，应明确哪些输入可外发、断网时如何降级。验收表至少包含模型/量化格式/执行后端、冷启动时间、TTFT、TPOT、峰值内存、持续性能、能耗与隐私边界。这里的能耗与热约束是部署建议，不声称上述每篇论文都已测过同一款手机。</p>
+
+<h2 id="4-分布式大模型多一张卡也多一份通信开销和一条故障路径">4 分布式大模型：多一张卡，也多一份通信开销和一条故障路径</h2>
+<h3 id="41-生产问题总算力增加训练却没有按比例加速">4.1 生产问题：总算力增加，训练却没有按比例加速</h3>
+<p>单机效率关注怎样使用一组资源，分布式则必须决定状态归谁、数据何时移动，以及所有参与者怎样保持一致。数据并行的梯度同步、张量并行的层内通信、流水线边界的激活传输、专家并行的 all-to-all，都对拓扑提出不同要求。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>并行方式</th>
+<th>主要切分对象</th>
+<th>代价</th>
+<th>常见误判</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据并行/状态分片</td>
+<td>样本和训练状态</td>
+<td>同步、all-gather、reduce-scatter</td>
+<td>认为显存节省不增加通信</td>
+</tr>
+<tr>
+<td>张量并行</td>
+<td>层内矩阵</td>
+<td>频繁集合通信</td>
+<td>把高速机内互联的方案照搬弱网</td>
+</tr>
+<tr>
+<td>流水线并行</td>
+<td>网络层</td>
+<td>气泡、边界传输</td>
+<td>只按参数量切层，忽略算子耗时</td>
+</tr>
+<tr>
+<td>专家并行</td>
+<td>专家权重和 token 路由</td>
+<td>all-to-all、偏斜与长尾</td>
+<td>只看平均负载，不看最慢 rank</td>
+</tr>
+</tbody>
+</table></div>
+<p>第 1 节的 ZeRO 是状态分片基础，这里重用同一论文详情页。减少冗余存储和减少通信并不总同向；资源应按训练阶段、网络和微批大小共同规划。</p>
+<aside class="paper-card" id="paper-zero--2">
+<p class="paper-title">ZeRO: Memory Optimizations Toward Training Trillion Parameter Models</p>
+<p class="paper-zh-title">ZeRO：面向万亿参数模型训练的内存优化</p>
+<p class="paper-meta">SC (Supercomputing) · 2020 · 引用 2,057（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/1910.02054">arXiv:1910.02054</a> · <a href="https://doi.org/10.1109/SC41405.2020.00024">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>数据并行与模型并行各自有根本性限制：前者每张卡都复制完整的参数、梯度与优化器状态，显存开销与卡数无关；后者虽能装下模型，却带来高昂通信与开发成本。论文的切入点是分清哪些内存是「必须的」、哪些只是冗余复制。</p>
+<p class="paper-how"><span class="paper-label">方案</span>按分片粒度依次消除冗余：ZeRO-1 只切优化器状态，ZeRO-2 追加切梯度，ZeRO-3 连参数也切。每次前向/反向按需临时取回其他分片后立即释放，因此通信量与数据并行同量级而不随分片阶段增长。混合精度下每参数约 16 字节开销被摊薄到与卡数成反比，使模型规模可随设备数线性增长。</p>
+<p class="paper-more"><a href="papers/zero.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-alpa">
+<p class="paper-title">Alpa: Automating Inter- and Intra-Operator Parallelism for Distributed Deep Learning</p>
+<p class="paper-zh-title">Alpa：自动化分布式深度学习的算子间与算子内并行</p>
+<p class="paper-meta">OSDI · 2022 · 引用 274（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2201.12023">arXiv:2201.12023</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>并行组合与切分位置的搜索空间巨大，人工策略依赖模型和硬件，有限模板难以覆盖异构架构。</p>
+<p class="paper-how"><span class="paper-label">方案</span>将搜索分成算子间与算子内两层，编译生成数据、算子和流水线并行计划，再由运行时协调执行。代价模型和拓扑条件决定计划是否适合真实部署。</p>
+<p class="paper-more"><a href="papers/alpa.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Alpa 把策略搜索系统化，但自动计划不意味着无需测量。代价模型若没覆盖真实带宽争抢、异构设备或动态序列长度，离线最优计划可能在生产变差。应监测有效训练 tokens/s、通信重叠率、流水线气泡，以及完成同等训练目标所需的总时间。</p>
+<h3 id="42-生产问题跨过一万张卡之后训练效率和稳定性成为同等重要的目标">4.2 生产问题：跨过一万张卡之后，训练效率和稳定性成为同等重要的目标</h3>
+<p>集群规模量变会引起质变。作业时长从数天延伸到数月，通信占比重到不能只靠「算得快」解决，而故障与慢节点从偶发异常变成每天都会发生的事。此时优化目标不再只是单次迭代速度，而是<strong>整个作业在数月里能有效推进多少</strong>——这要求同时盯住 MFU 和中断时间。</p>
+<aside class="paper-card" id="paper-megascale">
+<p class="paper-title">MegaScale: Scaling Large Language Model Training to More Than 10,000 GPUs</p>
+<p class="paper-zh-title">MegaScale：把大语言模型训练扩展到一万张 GPU 以上</p>
+<p class="paper-meta">NSDI · 2024 · 引用 400（截至 2026-09-22） <span class="paper-links"><a href="https://arxiv.org/abs/2402.15627">arXiv:2402.15627</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>训练规模跨过一万张 GPU 之后，效率与稳定性同时变成一等公民问题：作业可能持续数月，故障与慢节点是常态而非异常，而相当一部分稳定性问题只在超大集群上才暴露。</p>
+<p class="paper-how"><span class="paper-label">方案</span>全栈协同设计：模型结构与优化器、计算通信重叠、算子优化、数据流水线与网络调优一起做，并配套一套深入系统各层的诊断工具来定位根因、实现容错与缓解慢节点。论文报告在 12,288 张 GPU 上训练 175B 模型达到 55.2% MFU，相对 Megatron-LM 提升 1.34 倍，并给出定位与修复故障、慢节点的运维经验。</p>
+<p class="paper-more"><a href="papers/megascale.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-datacenter-characterization">
+<p class="paper-title">Characterization of Large Language Model Development in the Datacenter</p>
+<p class="paper-zh-title">数据中心里大语言模型开发的刻画研究</p>
+<p class="paper-meta">NSDI · 2024 · 引用 186（截至 2026-09-22） <span class="paper-links"><a href="https://arxiv.org/abs/2403.07648">arXiv:2403.07648</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>高效利用大规模集群资源来开发 LLM 并不容易：硬件故障频繁、并行策略复杂、资源利用不均衡。缺少对真实生产负载的量化刻画时，系统优化很容易只凭直觉，把传统任务特定深度学习负载的结论直接套用过来。</p>
+<p class="paper-how"><span class="paper-label">方案</span>对自建 GPU 数据中心 Acme 采集的六个月 LLM 开发负载 trace 做深入刻画，分析 LLM 与既有任务特定深度学习负载的差异、资源利用模式，以及各类作业失败造成的影响；并给出两项系统工作：用模型参与故障诊断与自动恢复的容错预训练，以及通过试验分解与调度优化提供及时性能反馈的解耦评估调度。</p>
+<p class="paper-more"><a href="papers/datacenter-characterization.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>MegaScale 的价值不只在 55.2% MFU 这个数字，而在于它把效率与稳定性放在同一套全栈设计里讲：模型块与优化器结构、计算与通信重叠、算子、数据流水线与网络调优需要一起动，许多稳定性问题<strong>只在大规模下才暴露</strong>，所以「可观测性」（能深入各层定位根因的诊断工具）本身是生产系统的一部分。数据中心刻画研究则从负载 trace 给出另一半证据：LLM 作业与任务特定深度学习负载的故障模式、并行策略与资源利用并不相同，半年 trace 里频繁硬件故障、复杂并行与不均衡利用同时存在，因此容错预训练与解耦评估调度是两条被提出的系统方向。</p>
+<p><strong>工程含义。</strong> 到了这个规模，报告「平均 GPU 利用率」几乎无法说明问题：要同时看有效训练吞吐、通信重叠率、慢节点比例、作业中断次数与每次中断的恢复耗时。规划容量时也应把容错与恢复的冗余算进去，而不是假设所有卡都满负荷干活。</p>
+<h3 id="43-生产问题少数机器没坏但变慢拖住所有同步参与的机器">4.3 生产问题：少数机器没坏但变慢，拖住所有同步参与的机器</h3>
+<p>同步训练按最慢参与者前进。GPU 降速、CPU 数据供给、链路拥塞都可能形成 fail-slow；它不同于可立即检测的进程退出。只监控存活信号会把长时间的低效当作正常。</p>
+<aside class="paper-card" id="paper-falcon">
+<p class="paper-title">FALCON: Pinpointing and Mitigating Stragglers for Large-Scale Hybrid-Parallel Training</p>
+<p class="paper-zh-title">FALCON：定位并缓解大规模混合并行训练中的慢节点</p>
+<p class="paper-meta">arXiv 预印本 · 2024 · 引用 20（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2410.12588">arXiv:2410.12588</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>fail-slow（慢节点）在横跨数千台 GPU 服务器、持续数周到数月的大规模混合并行训练中常见却基本被忽视：既无法快速检测，也无法有效缓解。当时的做法是人工发现后简单当作故障停机，走检查点加重启的故障转移流程，既费人力又费时间。</p>
+<p class="paper-how"><span class="paper-label">方案</span>先在一个超过 10,000 张 GPU 的共享生产集群上做刻画研究，据此构建 FALCON——一个能快速定位发生 fail-slow 的 GPU 与/或通信链路、并以多级缓解机制有效处理的框架，全程无需人工介入。</p>
+<p class="paper-more"><a href="papers/falcon.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>FALCON 研究定位慢 GPU 与链路并做多级缓解，补上「检测故障」之外的性能退化问题。恢复设计还应区分：可重试通信、可迁移参与者、需要回滚的训练状态，以及重启造成的已完成工作损失。</p>
+<h3 id="44-生产问题故障是常态检查点与恢复的代价必须计入训练成本">4.4 生产问题：故障是常态，检查点与恢复的代价必须计入训练成本</h3>
+<p>如果把一万卡集群的故障率直接乘上「检查点 + 重启」的耗时，会发现恢复流程本身就是一笔可观开销。这一组工作从不同角度处理同一件事：让中断变短、变少，或者变得可以容忍。</p>
+<aside class="paper-card" id="paper-byterobust">
+<p class="paper-title">Robust LLM Training Infrastructure at ByteDance</p>
+<p class="paper-zh-title">ByteRobust：字节跳动的稳健大模型训练基础设施</p>
+<p class="paper-meta">SOSP · 2025 · 引用 28（截至 2026-09-22） <span class="paper-links"><a href="https://arxiv.org/abs/2509.16293">arXiv:2509.16293</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>LLM 的训练规模已经达到数万张 GPU 并仍在扩大，随之而来的是故障的普遍化：CUDA 错误、NaN 值、作业挂起等都会出现。任何大规模 LLM 训练基础设施都需要追求最小训练中断、高效故障诊断与有效容错，才能让训练连续高效地跑下去。</p>
+<p class="paper-how"><span class="paper-label">方案</span>ByteRobust 是一个面向 LLM 稳健稳定训练的大规模 GPU 基础设施管理系统。它利用 LLM 训练过程自身的特点，把故障检测与恢复当作常规工作：借助训练所用的并行方式与训练特征，实现高容量容错、快速的故障分界与定位，并以数据驱动方式持续保障训练连续高效。论文报告该系统的生产部署在 9,600 张 GPU 上运行三个月的训练作业达到 97% ETTR。</p>
+<p class="paper-more"><a href="papers/byterobust.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-bytecheckpoint">
+<p class="paper-title">ByteCheckpoint: A Unified Checkpointing System for Large Foundation Model Development</p>
+<p class="paper-zh-title">ByteCheckpoint：面向大模型开发的统一检查点系统</p>
+<p class="paper-meta">NSDI · 2025 · 引用 41（截至 2026-09-22） <span class="paper-links"><a href="https://arxiv.org/abs/2407.20143">arXiv:2407.20143</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>保存训练状态不只用于故障恢复：GPU 资源或并行配置变化后要接着训练，检查点还要分发给评估任务、或在预训练到后训练等阶段之间移交。这些场景都要求把分布式检查点从一种并行方式重切分到另一种。生产中不同模型规模与训练规模又对应不同训练框架和存储后端，因此需要一套大规模、高性能的检查点管理能力。</p>
+<p class="paper-how"><span class="paper-label">方案</span>提出工业级检查点系统 ByteCheckpoint：与并行方式无关的检查点表示使加载时可高效重切分；通用保存/加载流程适配多种训练框架与不同存储后端；全栈优化保证 I/O 效率与可扩展性；并提供一组监控工具简化大规模性能分析与瓶颈定位。论文报告相对已有开源检查点系统，运行时检查点停顿平均减少 54.20 倍，保存与加载时间最多改善 9.96 倍与 8.80 倍。</p>
+<p class="paper-more"><a href="papers/bytecheckpoint.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>ByteRobust 代表「把故障检测与恢复当作基础设施常规工作」的思路：利用 LLM 训练自身的并行方式与过程特征，做高容量容错和快速的故障分界与定位，目标是最小化训练中断。ByteCheckpoint 则指出检查点不只是故障恢复手段——并行配置或 GPU 资源变化后继续训练、把检查点分发去做评估、从预训练移交到后训练，都要求把分布式检查点<strong>从一种并行方式重切分到另一种</strong>，因此与并行方式无关的表示和统一存储接口比单点 I/O 优化更重要。</p>
+<aside class="paper-card" id="paper-oobleck">
+<p class="paper-title">Oobleck: Resilient Distributed Training of Large Models Using Pipeline Templates</p>
+<p class="paper-zh-title">Oobleck：用流水线模板实现大模型的弹性分布式训练</p>
+<p class="paper-meta">SOSP · 2023 · 引用 122（截至 2026-09-22） <span class="paper-links"><a href="https://arxiv.org/abs/2309.08125">arXiv:2309.08125</a> · <a href="https://doi.org/10.1145/3600006.3613152">DOI</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>流水线并行把模型切分固定在具体设备拓扑上，一旦有节点失效，重新切分与恢复代价很高；而在等待替换设备期间，剩余资源还可能被闲置。需要一种能在故障发生时仍然用满现有资源的训练方案。</p>
+<p class="paper-how"><span class="paper-label">方案</span>采用规划与执行协同设计：先离线生成一组异构的流水线模板，并实例化至少 f+1 个逻辑等价的流水线副本，以容忍任意 f 个同时发生的故障；执行期间直接利用已复制的模型状态实现快速恢复。论文证明初始模板中的某种组合总能覆盖 f 个及以内故障后的全部可用资源，因此不会闲置资源，并在十亿参数级模型上报告吞吐一致较高，最高优于 Bamboo、Varuna 等容错方案 29.6 倍。</p>
+<p class="paper-more"><a href="papers/oobleck.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-bamboo">
+<p class="paper-title">Bamboo: Making Preemptible Instances Resilient for Affordable Training of Large DNNs</p>
+<p class="paper-zh-title">Bamboo：让可抢占实例可靠地承载大规模 DNN 训练</p>
+<p class="paper-meta">NSDI · 2023 · 引用 136（截至 2026-09-22） <span class="paper-links"><a href="https://arxiv.org/abs/2204.12013">arXiv:2204.12013</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>用可抢占实例（spot 实例）训练可以大幅降低成本，但它们随时可能被优先级更高的用户抢走。这种频繁抢占的故障模型与正常集群里「偶尔失败、检查点重启」完全不同，需要新的容错与效率机制，而不是把原有做法照搬过来。</p>
+<p class="paper-how"><span class="paper-label">方案</span>把冗余计算引入训练流水线：让一个节点不仅计算自己负责的层，还额外计算邻居节点的一部分层。关键观察是大模型训练常用流水线并行、其中天然存在「流水线气泡」，Bamboo 把冗余计算仔细填入这些气泡，从而以较低成本获得容错能力。论文报告在多种常用 DNN 上，训练吞吐优于传统检查点方案 3.7 倍，相对全程使用按需实例的方案把成本降低 2.4 倍。</p>
+<p class="paper-more"><a href="papers/bamboo.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Oobleck 与 Bamboo 都针对「节点随时会消失」的环境，但路径不同。Oobleck 用规划与执行协同设计，预先实例化至少 f+1 个逻辑等价的流水线副本，从而对任意 f 个同时故障给出有保证的容错，并用已复制的状态换取快速恢复——代价是容错能力在故障发生前就已付出冗余资源。Bamboo 则把冗余计算填入流水线气泡，让节点顺带计算邻居的部分层，用被浪费的算力换低成本容错，更适合抢占频繁、但愿意牺牲一点效率的场景。</p>
+<p><strong>恢复设计清单。</strong> checkpoint 不只保存权重，还需按训练算法保存优化器、随机状态、调度与数据进度；保存频率要平衡写入成本和故障损失；异步保存还必须保证得到一致快照；换并行度重启时还需可重切分的存储格式。以上是这一组工作共同指向的设计要求，具体收益数字各自绑定其故障模型与测试规模。</p>
+<h3 id="45-生产问题没有私有高速集群弱网与节点退出下还能不能训练">4.5 生产问题：没有私有高速集群，弱网与节点退出下还能不能训练</h3>
+<aside class="paper-card" id="paper-petals">
+<p class="paper-title">Petals: Collaborative Inference and Fine-tuning of Large Models</p>
+<p class="paper-zh-title">Petals：大模型的协作推理与微调</p>
+<p class="paper-meta">ACL System Demonstrations · 2023 · 引用 145（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2209.01188">arXiv:2209.01188</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>开放权重并不等于人人能使用超大模型；内存卸载太慢，托管 API 又不能提供研究所需的内部状态访问。</p>
+<p class="paper-how"><span class="paper-label">方案</span>聚合多方设备共同承载模型分块，支持推理和参数高效微调。代价是网络时延、节点可用性及对远端执行者的信任；不能把公共协作网络当作私有可信集群。</p>
+<p class="paper-more"><a href="papers/petals.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-swarm-parallelism">
+<p class="paper-title">SWARM Parallelism: Training Large Models Can Be Surprisingly Communication-Efficient</p>
+<p class="paper-zh-title">SWARM 并行：训练大模型可以出人意料地省通信</p>
+<p class="paper-meta">ICML · 2023 · 引用 80（截至 2026-09-22） <span class="paper-links"><a href="https://arxiv.org/abs/2301.11913">arXiv:2301.11913</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>十亿参数级模型的训练通常被认为必须依赖专用 HPC 集群。但廉价的可抢占实例、或多个地域的既有闲置资源同样可能可用，只是这些环境的网络更弱、设备更异构、节点也更不可靠，需要重新审视并行策略而不是直接套用集群内的结论。</p>
+<p class="paper-how"><span class="paper-label">方案</span>先分析现有模型并行算法在弱连接、异构、不可靠条件下的表现，发现在某些配置下训练更大模型反而更省通信；据此提出面向这类环境的 SWARM 并行——在节点之间建立临时的随机流水线，节点失效时重新平衡。论文在低于 200Mb/s 网络的可抢占 T4 GPU 上训练了一个 1B 共享参数（共享前约 13B）的 Transformer 语言模型，并结合压缩策略。</p>
+<p class="paper-more"><a href="papers/swarm-parallelism.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Petals 展示了跨多方资源协作的另一种分布式目标：可访问性，而非一味追求高端集群吞吐。按块分摊模型可以避免单个用户拥有全部显存，但交互路径经过多个节点，网络与节点退出会进入尾延迟。SWARM 并行从训练侧提出同一个问题的另一种答案：在弱网、异构、不可靠的设备上，用临时随机流水线在节点失效后重新平衡，甚至出现「训练更大模型反而更省通信」的配置。两者都说明<strong>并行的最优形状取决于网络与可靠性，而不是只取决于参数量</strong>。</p>
+<p><strong>可信边界。</strong> 公共节点不应自动获得敏感输入或内部状态。加密传输只保护传输过程，不保证远端计算正确，也不能使接收方看不到明文激活。企业私有部署、公共协作与本地执行是三种不同安全模型；不能只因都叫分布式就共用部署假设。</p>
+<h3 id="46-生产问题长请求的预填充挤占资源正在流式输出的用户出现卡顿">4.6 生产问题：长请求的预填充挤占资源，正在流式输出的用户出现卡顿</h3>
+<aside class="paper-card" id="paper-distserve">
+<p class="paper-title">DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving</p>
+<p class="paper-zh-title">DistServe：分离预填充与解码以优化 LLM 服务好吞吐</p>
+<p class="paper-meta">OSDI · 2024 · 引用 971（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2401.09670">arXiv:2401.09670</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>prefill 与 decode 混跑产生干扰，且强迫两阶段使用耦合的资源与并行策略，难以同时满足 TTFT 和 TPOT。</p>
+<p class="paper-how"><span class="paper-label">方案</span>将两阶段放到不同 GPU，并联合优化各自资源、并行与集群带宽下的放置。收益以满足双重延迟约束的请求率衡量，而不是无约束吞吐；KV 传输是额外成本。</p>
+<p class="paper-more"><a href="papers/distserve.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-megascale-infer">
+<p class="paper-title">MegaScale-Infer: Serving Mixture-of-Experts at Scale with Disaggregated Expert Parallelism</p>
+<p class="paper-zh-title">MegaScale-Infer：用分离式专家并行大规模服务混合专家模型</p>
+<p class="paper-meta">arXiv 预印本 · 2025 · 引用 49（截至 2026-09-22） <span class="paper-links"><a href="https://arxiv.org/abs/2504.02263">arXiv:2504.02263</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>MoE 让模型能以较低计算代价扩大容量，但稀疏激活把每层的前馈网络从计算密集变成访存密集，推理时 GPU 利用率明显偏低、运营成本升高。注意力与 FFN 对资源的需求并不相同，混在同一组设备上会让两者互相迁就。</p>
+<p class="paper-how"><span class="paper-label">方案</span>在每层模型内把注意力与 FFN 模块分离，使两者可以独立扩展、采用各自合适的并行策略并异构部署；针对 MoE 的稀疏性引入乒乓流水线并行，把请求批次切成微批在注意力与 FFN 之间往返，从而隐藏通信开销；并提供高性能 M2N 通信库以消除不必要的 GPU-CPU 拷贝、组初始化开销与 GPU 同步。论文报告每 GPU 吞吐最高比当时最优方案高 1.90 倍。</p>
+<p class="paper-more"><a href="papers/megascale-infer.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>prefill 处理整段输入，decode 反复生成下一 token。将两者混跑可提高资源复用，却可能让长 prefill 冲击逐 token 延迟。DistServe 分离两阶段并分别优化并行布局，以 <strong>goodput：同时满足 TTFT 与 TPOT 要求的请求率</strong> 衡量收益。MegaScale-Infer 把「分离」推到模型内部：注意力与 FFN 对资源的需求本就不同，MoE 的稀疏激活又让 FFN 从计算密集转向访存密集，因此让两者独立扩展、各自选择并行策略并异构部署，再用乒乓流水线在微批之间往返以隐藏通信开销。</p>
+<p>分离会增加 KV 或激活传输和调度复杂度。在低带宽网络、小负载或很短输入下，收益可能不足以覆盖开销；chunked prefill 等共置方案也应作为比较基线。不要为了架构图好看就默认拆服务。</p>
+<p><strong>本方向验收。</strong> 在固定质量、请求分布与 SLO 下，分别测试稳定负载、突发到达、长短混合、慢节点与节点退出。训练关注有效进度和恢复成本，服务关注好吞吐和尾延迟；把两者都简化成 GPU 利用率会漏掉真正故障。</p>
+
+<h2 id="5-多模态看懂图像给出答案和根据图像采取行动是两段不同的可靠性">5 多模态：看懂图像给出答案，和根据图像采取行动，是两段不同的可靠性</h2>
+<p>多模态在这里指把语言之外的信号（图像、视频、文档截图）接入语言任务。它可以停在「理解并回答」，也可以继续走到「输出动作」，后者就是 VLA（Vision-Language-Action）。把两者放在同一方向，是因为它们共享同一段信息通路——<strong>视觉信号先被压缩成表示，再交给语言侧使用</strong>——而可靠性问题恰好是沿着这条通路逐段叠加的：识别能做，不等于开放问答可靠；问答可靠，也不等于动作安全。</p>
+<p>因此本节前四小节讨论「理解与回答」这条线的故障，后四小节把它推进到「理解并执行」，把 VLA 当作多模态的一个应用方向，而不是另一门独立的模型学科。</p>
+<h3 id="51-生产问题视觉识别能做得很好开放问答却并不可靠">5.1 生产问题：视觉识别能做得很好，开放问答却并不可靠</h3>
+<p>商品检索、文档截图、视频分析需要把视觉信息接入语言任务。这里至少有三种不同能力：把图和文字映射到可比较的表示；根据视觉证据生成答案；按用户指令完成交互任务。前一种成功并不自动保证后两种成功。</p>
+<aside class="paper-card" id="paper-clip">
+<p class="paper-title">Learning Transferable Visual Models From Natural Language Supervision</p>
+<p class="paper-zh-title">从自然语言监督中学习可迁移的视觉模型</p>
+<p class="paper-meta">ICML · 2021 · 引用 55,852（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2103.00020">arXiv:2103.00020</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>固定类别的视觉监督限制开放词汇迁移，新概念往往必须重新标注和训练。</p>
+<p class="paper-how"><span class="paper-label">方案</span>用大规模图文匹配的对比目标学习共享表示，以自然语言描述构造零样本任务。CLIP 是对齐和表征基础，不是能够可靠读小字、推理视频顺序或生成答案的完整 VLM。</p>
+<p class="paper-more"><a href="papers/clip.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>CLIP 的突破是利用自然语言监督学习开放词汇表示。它改变了固定标签分类的使用方式，也为后续视觉编码器提供了重要基础。但图文相似度高不代表精确定位、读取小字、计数或理解前后顺序正确。</p>
+<p><strong>工程问题的根源。</strong> 视觉信号经过压缩后才进入语言模型；丢掉的局部证据不能由语言先验可靠补回。答案读起来流畅，甚至符合常识，仍可能与图像不符。因此应保留图片区域、帧号或文档位置等可核验出处，而不仅展示最终自然语言答案。</p>
+<h3 id="52-生产问题从头训练多模态模型成本太高连接方式决定信息瓶颈">5.2 生产问题：从头训练多模态模型成本太高，连接方式决定信息瓶颈</h3>
+<aside class="paper-card" id="paper-flamingo">
+<p class="paper-title">Flamingo: a Visual Language Model for Few-Shot Learning</p>
+<p class="paper-zh-title">Flamingo：用于少样本学习的视觉语言模型</p>
+<p class="paper-meta">NeurIPS · 2022 · 引用 6,587（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2204.14198">arXiv:2204.14198</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>多模态新任务往往缺少标注，模型需要像语言模型那样通过交错的图文示例在上下文内适配。</p>
+<p class="paper-how"><span class="paper-label">方案</span>连接预训练视觉与语言模型，支持交错图文以及图像和视频输入，利用多模态网页训练少样本能力。它重点解决条件生成与接口连接，不是单纯的图文检索模型。</p>
+<p class="paper-more"><a href="papers/flamingo.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-blip2">
+<p class="paper-title">BLIP-2: Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models</p>
+<p class="paper-zh-title">BLIP-2：利用冻结图像编码器和大语言模型启动视觉语言预训练</p>
+<p class="paper-meta">ICML · 2023 · 引用 9,205（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2301.12597">arXiv:2301.12597</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>端到端更新大型视觉和语言网络昂贵，已有预训练模型的知识应当复用而非重新学习。</p>
+<p class="paper-how"><span class="paper-label">方案</span>冻结两侧骨干，训练轻量 Q-Former 分两阶段完成表示对齐与生成连接。可训练参数少不代表端到端前向计算或 KV 成本等比例减少。</p>
+<p class="paper-more"><a href="papers/blip2.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Flamingo 关注如何连接已有视觉和语言模型、处理交错图文并获得少样本能力；BLIP-2 通过冻结骨干和 Q-Former 降低可训练参数规模。这两者说明，视觉特征怎样压缩和送入语言模型，是独立于「语言模型多大」的设计问题。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>接口选择</th>
+<th>收益</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>固定数量查询/重采样表示</td>
+<td>控制语言侧输入长度</td>
+<td>高密度文档和细小对象可能压缩不足</td>
+</tr>
+<tr>
+<td>更多 patch 或图像切块</td>
+<td>保留细节</td>
+<td>token、KV 与 prefill 成本增加</td>
+</tr>
+<tr>
+<td>冻结骨干、训练连接模块</td>
+<td>降低训练成本</td>
+<td>适配能力受连接模块和原表示约束</td>
+</tr>
+<tr>
+<td>多模态指令微调</td>
+<td>改善交互与指令遵循</td>
+<td>合成答案噪声、语言先验掩盖视觉错误</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="53-生产问题模型会流畅地描述图片却不按具体任务回答">5.3 生产问题：模型会流畅地描述图片，却不按具体任务回答</h3>
+<aside class="paper-card" id="paper-llava">
+<p class="paper-title">Visual Instruction Tuning</p>
+<p class="paper-zh-title">视觉指令微调</p>
+<p class="paper-meta">NeurIPS · 2023 · 引用 11,097（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2304.08485">arXiv:2304.08485</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>图文对齐不自动产生交互式指令遵循能力，真实多模态助手需要多样的问答与对话训练数据。</p>
+<p class="paper-how"><span class="paper-label">方案</span>用纯语言 GPT-4 生成视觉指令数据，连接视觉编码器与 LLM 并微调，形成 LLaVA。合成指令降低数据门槛，但生成答案可能包含与图像不一致的先验。</p>
+<p class="paper-more"><a href="papers/llava.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>LLaVA 把指令微调延伸到视觉语言场景，降低了构建交互助手的数据门槛。但以语言模型生成训练答案，也可能把模板化的常识和推断当作视觉事实。验收应覆盖「图片没有该物体」「无法看清」「问题前提错误」等反例，允许拒答，而不是奖励总能说出一段话。</p>
+<p>对文档任务，OCR 准确率、表格结构、跨页引用与答案事实性应分开评分；对 GUI 任务，图像理解后还要正确定位可点击目标。只测通用聊天偏好会漏掉这些生产故障。</p>
+<h3 id="54-生产问题高分辨率和视频让单次请求成本失控">5.4 生产问题：高分辨率和视频让单次请求成本失控</h3>
+<aside class="paper-card" id="paper-qwen2-vl">
+<p class="paper-title">Qwen2-VL: Enhancing Vision-Language Model&#x27;s Perception of the World at Any Resolution</p>
+<p class="paper-zh-title">Qwen2-VL：增强视觉语言模型对任意分辨率世界的感知</p>
+<p class="paper-meta">arXiv · 2024 · 引用 4,986（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2409.12191">arXiv:2409.12191</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>固定分辨率丢失小字和细节，而直接提高分辨率、增加视频帧又会扩大视觉 token 与服务成本。</p>
+<p class="paper-how"><span class="paper-label">方案</span>动态分辨率生成不同数量的视觉 token，用 M-RoPE 处理文本、图像、视频的位置信息，并统一图像和视频处理。动态 token 预算需要配套调度；它不是所有输入成本相同的接口。</p>
+<p class="paper-more"><a href="papers/qwen2-vl.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Qwen2-VL 的动态分辨率和 M-RoPE 体现了新的接口：输入可以按分辨率产生不同数量视觉 token，同时表达文本、空间与时间位置。它改善表达灵活性，却也让每请求成本更加不均匀——一张低分辨率图片和多页高分辨率截图不能按相同 QPS 预算处理。</p>
+<p>视频又增加一层权衡：多取帧保存瞬时事件，却推高预处理、视觉编码和语言 prefill 成本；少取帧节省资源，却可能漏掉「拿起之前」「放下之后」等时间关系。<strong>把若干帧分别描述得正确，不代表模型理解事件顺序。</strong> 本节以 Flamingo 和 Qwen2-VL 的图像/视频接口为代表，不声称它们解决了任意长度的视频理解。</p>
+<p><strong>部署方法。</strong> 为像素、帧数、视觉 token 分别设预算；先测解码/缩放等 CPU 预处理，再测视觉编码、prefill 与 decode；对长视频可考虑粗到细选帧或分段检索，但必须以事件召回评估信息损失。编码阶段偏计算密集、语言 decode 可能偏带宽密集时，可以评估异步流水或分离资源，而非让两者无条件抢同一设备。</p>
+<p><strong>验收矩阵。</strong> 图像覆盖尺寸、文字大小、对象数量、遮挡与不存在对象；视频覆盖时序反转、短时关键帧、多个相似事件；服务覆盖预处理队列、峰值显存、TTFT、TPOT 和多租户尾延迟。训练参数更少与在线视觉成本更低是两件不同的事。</p>
+<h3 id="55-vla-是多模态的一种应用输出从文字变成动作之后要求发生了什么变化">5.5 VLA 是多模态的一种应用：输出从文字变成动作之后，要求发生了什么变化</h3>
+<p>前面四节的输出都是文本，写错了可以重生成。VLA 把同一条视觉—语言通路接到动作上：视觉观测和语言指令映射为动作，研究目标不只是识别物体，而是让机器执行任务。<strong>语言答案可以重生成，物理动作不能随意重试</strong>，这条差异把多模态的可靠性要求整体抬高了一档。</p>
+<p>数据往往来自昂贵的真实机器人演示，失败还涉及设备和人员风险。因此「网页知识迁移到动作」与「跨机器人共享经验」成为两条主线。</p>
+<p>本节同时纳入 RT-1、Octo 等通用机器人策略作为前置脉络；它们不都以大型语言模型为骨干，不应因接收语言指令就一概称为同类 LLM-VLA。</p>
+<aside class="paper-card" id="paper-rt1">
+<p class="paper-title">RT-1: Robotics Transformer for Real-World Control at Scale</p>
+<p class="paper-zh-title">RT-1：用于大规模真实世界控制的 Robotics Transformer</p>
+<p class="paper-meta">RSS · 2023 · 引用 2,823（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2212.06817">arXiv:2212.06817</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>真实机器人数据昂贵，按任务分别训练的策略难以共享经验，需要验证大容量通用策略是否随数据多样性扩展。</p>
+<p class="paper-how"><span class="paper-label">方案</span>在真实机器人多任务数据上研究 Robotics Transformer，分析数据量、模型规模与数据多样性如何影响泛化。它是通用机器人策略的基础线索，不等同于直接把网页预训练 LLM 接上机械臂。</p>
+<p class="paper-more"><a href="papers/rt1.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>RT-1 说明大容量、多任务训练可以形成通用策略，但模型、数据量与多样性必须共同研究。只在同一桌面重复一个任务，不能证明泛化到新环境。</p>
+<h3 id="56-从语义知识到动作token-接口统一了格式但没有消除物理差异">5.6 从语义知识到动作：token 接口统一了格式，但没有消除物理差异</h3>
+<aside class="paper-card" id="paper-rt2">
+<p class="paper-title">RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control</p>
+<p class="paper-zh-title">RT-2：视觉语言动作模型将网页知识迁移到机器人控制</p>
+<p class="paper-meta">CoRL · 2023 · 引用 4,218（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2307.15818">arXiv:2307.15818</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>机器人演示覆盖有限，但网页视觉语言预训练包含丰富语义知识；关键是如何把语义能力转成端到端动作策略。</p>
+<p class="paper-how"><span class="paper-label">方案</span>将动作表示为文本 token，在机器人轨迹和网页视觉语言任务上共同微调，形成 VLA。语义泛化不自动等于动力学、碰撞或实时控制的可靠性。</p>
+<p class="paper-more"><a href="papers/rt2.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>RT-2 将机器人动作编码为 token，并与视觉语言数据共同微调，从而让网页知识帮助理解未见指令和物体。关键收益是语义迁移：例如理解物体可能的用途。但知道「石头可当锤子」不代表已经掌握合适力度、接触模型与安全轨迹；动作 token 的坐标系、尺度、频率和末端执行器约束仍要明确。</p>
+<p><strong>与文本 Agent 的区别。</strong> 两者都是观察—行动循环，但网页动作通常有离散状态，而物理世界持续变化，观测延迟会直接变成控制误差。网络重试或生成第二个答案，不能撤回已经执行的危险动作。第 6 节讨论的 Agent 同属这一闭环家族，区别只在于它的动作作用在可回滚的软件环境里。</p>
+<h3 id="57-生产问题不同机器人的数据能合并动作语义却对不上">5.7 生产问题：不同机器人的数据能合并，动作语义却对不上</h3>
+<aside class="paper-card" id="paper-open-x-embodiment">
+<p class="paper-title">Open X-Embodiment: Robotic Learning Datasets and RT-X Models</p>
+<p class="paper-zh-title">Open X-Embodiment：机器人学习数据集与 RT-X 模型</p>
+<p class="paper-meta">arXiv · 2023 · 引用 1,182（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2310.08864">arXiv:2310.08864</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>不同机器人各自收集数据、训练模型，传感器与动作差异阻碍经验共享；需验证跨本体数据能否带来正迁移。</p>
+<p class="paper-how"><span class="paper-label">方案</span>将多机构、多机器人操作数据整理为统一格式，训练 RT-X 并研究跨平台迁移。统一容器格式不代表坐标系、动作归一化与执行频率已经天然一致。</p>
+<p class="paper-more"><a href="papers/open-x-embodiment.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-octo">
+<p class="paper-title">Octo: An Open-Source Generalist Robot Policy</p>
+<p class="paper-zh-title">Octo：开源通用机器人策略</p>
+<p class="paper-meta">RSS · 2024 · 引用 1,822（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2405.12213">arXiv:2405.12213</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>通用策略不仅要跨任务，还必须适配不同传感器、动作空间和新平台，否则预训练知识难以复用。</p>
+<p class="paper-how"><span class="paper-label">方案</span>在 Open X-Embodiment 的 80 万轨迹上预训练可由语言或目标图像指定任务的 Transformer 策略，强调快速适配新观测与动作空间。其定位是通用机器人策略，不必等同于 LLM 骨干 VLA。</p>
+<p class="paper-more"><a href="papers/octo.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Open X-Embodiment 提供跨机器人数据标准化与正迁移证据；Octo 进一步研究适配不同传感输入和动作空间。两者的重要性在于把数据复用从口号变成实验对象，但「统一数据文件格式」并不自动解决本体差异。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>迁移差异</th>
+<th>失败表现</th>
+<th>需要处理的接口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>相机内外参、视角和遮挡</td>
+<td>看到了物体却定位偏移</td>
+<td>视觉校准与观测适配</td>
+</tr>
+<tr>
+<td>关节/末端动作定义</td>
+<td>同一数字在另一机器人上意义不同</td>
+<td>坐标、单位、动作归一化</td>
+</tr>
+<tr>
+<td>控制频率与执行时延</td>
+<td>轨迹过冲、跟不上变化</td>
+<td>时间戳、插值、低层控制器</td>
+</tr>
+<tr>
+<td>训练对象和环境分布</td>
+<td>熟悉场景成功、变化后失败</td>
+<td>分层泛化测试和新数据采集</td>
+</tr>
+</tbody>
+</table></div>
+<p>正迁移与负迁移都可能发生；应按机器人、任务和环境拆分报告，避免数据量最大的来源掩盖其他平台退步。</p>
+<h3 id="58-生产问题模型能开源适配新任务和满足实时控制仍然很昂贵">5.8 生产问题：模型能开源，适配新任务和满足实时控制仍然很昂贵</h3>
+<aside class="paper-card" id="paper-openvla">
+<p class="paper-title">OpenVLA: An Open-Source Vision-Language-Action Model</p>
+<p class="paper-zh-title">OpenVLA：开源视觉语言动作模型</p>
+<p class="paper-meta">CoRL / PMLR · 2025 · 引用 3,363（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2406.09246">arXiv:2406.09246</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>已有 VLA 多数封闭，且缺少面向新任务的高效微调方法，限制了复用与研究。</p>
+<p class="paper-how"><span class="paper-label">方案</span>公开基于 Llama 2 与 DINOv2/SigLIP 融合视觉特征的 7B 模型，在 97 万真实演示上训练，并研究 LoRA 与量化。基准成功率提升需要结合具体任务分布阅读。</p>
+<p class="paper-more"><a href="papers/openvla.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>OpenVLA 把开放模型、预训练数据和高效微调连在一起，让新任务适配更容易复现。LoRA 与量化也由此与第 1、3 节形成联系：减少可训练状态、降低部署内存，都是把研究模型变成可使用控制策略的一部分。</p>
+<p><strong>实时性不是一个统一 Hz。</strong> 不同机器人和任务的观测、策略推理、动作块执行、伺服回路频率不同。必须先定义截止时间，再测最坏或高分位端到端观测到动作延迟；不能拿桌面 GPU 的平均前向时间替代控制系统验收。动作分块可摊薄推理开销，但长块会减少重新观察的机会；异步推理改善吞吐，却要防止执行过时观测对应的动作。</p>
+<p><strong>安全边界与评估。</strong> 策略之外仍需要工作空间、速度/力约束、碰撞检查、低层稳定控制、人工急停与审计。论文成功率不等于安全认证。评估至少分开：已见任务复现、新物体、新布局、新指令、新本体，以及失败后的恢复；报告成功率之外，还应报告干预次数、危险事件、完成时间与延迟违约。</p>
+<p><strong>本方向验收。</strong> 理解侧按 5.4 的矩阵与「拒答反例」验收；行动侧另加一套验收：延迟违约、动作语义一致性、分布变化后的成功率、干预与安全事件。两侧共用的底线是——<strong>保留可核验的证据出处，不要用流畅或成功的表象替代事实。</strong></p>
+
+<h2 id="6-agent把一次回答变成有反馈可验证的任务执行">6 Agent：把一次回答变成有反馈、可验证的任务执行</h2>
+<p><strong>内部指代。</strong> 下文的“行动”指模型请求调用的一次工具或一次环境操作，“观察”指工具或环境返回的结果；两者交替循环，就是 Agent 的执行过程。</p>
+<h3 id="61-生产问题模型能说出步骤却不能可靠地完成整件事">6.1 生产问题：模型能说出步骤，却不能可靠地完成整件事</h3>
+<p>Agent 是 LLM 的通用应用形态，而不是必须新增一种模型架构。它围绕目标反复进行<strong>观察 → 决策 → 工具行动 → 检查结果</strong>，维护任务状态并决定继续、恢复或停止。固定流程适合边界清晰的任务；只有当下一步依赖运行中的观察时，才有充分理由引入更自由的 Agent。多 Agent 也不是默认升级：通信、重复上下文与责任划分会增加成本。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>故障</th>
+<th>根因或放大因素</th>
+<th>方法线索</th>
+<th>验收对象</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>计划合理但事实错误</td>
+<td>不查证、旧知识或忽略观察</td>
+<td>ReAct、工具检索</td>
+<td>证据与最终状态</td>
+</tr>
+<tr>
+<td>API 调错或参数不合法</td>
+<td>工具选择和 schema 理解不足</td>
+<td>Toolformer、约束输出</td>
+<td>参数合法性、权限与结果</td>
+</tr>
+<tr>
+<td>失败后无限重试</td>
+<td>没有更新状态、反馈不可靠</td>
+<td>Reflexion、显式预算</td>
+<td>恢复率、重复调用和成本</td>
+</tr>
+<tr>
+<td>仓库/网页导航低效</td>
+<td>人类界面不适合模型上下文</td>
+<td>SWE-agent、接口设计</td>
+<td>动作效率、任务通过率</td>
+</tr>
+<tr>
+<td>长程任务忘记约束</td>
+<td>历史膨胀、摘要丢失、检索遗漏</td>
+<td>MemGPT、分层记忆</td>
+<td>约束保留、来源与更新</td>
+</tr>
+<tr>
+<td>单步看似成功但任务未完成</td>
+<td>把动作发出当作结果成立</td>
+<td>WebArena、状态断言</td>
+<td>端到端功能正确性</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="62-工具使用先有外部反馈再谈自主性">6.2 工具使用：先有外部反馈，再谈自主性</h3>
+<aside class="paper-card" id="paper-react">
+<p class="paper-title">ReAct: Synergizing Reasoning and Acting in Language Models</p>
+<p class="paper-zh-title">ReAct：协同语言模型中的推理与行动</p>
+<p class="paper-meta">ICLR · 2023 · 引用 11,358（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2210.03629">arXiv:2210.03629</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>只生成计划无法获取新证据，单独生成动作又缺少跟踪和修订计划的机制，错误容易沿链条传播。</p>
+<p class="paper-how"><span class="paper-label">方案</span>交错进行 reasoning、action 与 observation，让环境返回的信息修正后续行动。工程实现应记录可核验的状态与行动结果，而非把模型自述当作成功证据。</p>
+<p class="paper-more"><a href="papers/react.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<aside class="paper-card" id="paper-toolformer">
+<p class="paper-title">Toolformer: Language Models Can Teach Themselves to Use Tools</p>
+<p class="paper-zh-title">Toolformer：语言模型能够自学工具使用</p>
+<p class="paper-meta">NeurIPS · 2023 · 引用 5,648（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2302.04761">arXiv:2302.04761</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>语言模型在算术和事实查找等基础功能上仍可能弱于专门工具，难点是学习何时调用、传什么参数以及如何消费结果。</p>
+<p class="paper-how"><span class="paper-label">方案</span>用少量 API 示例构造自监督工具调用训练，学习工具选择和结果融合。它与 ReAct 的区别在于训练模型使用 API，而不只是设计推理时的交互提示。</p>
+<p class="paper-more"><a href="papers/toolformer.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>ReAct 研究推理与行动交错，工具的观测可以纠正计划；Toolformer 研究让模型通过训练学会 API 的选择、时机、参数和结果融合。两者处于不同层次：一个偏交互结构，一个偏工具使用学习。</p>
+<p><strong>工程边界。</strong> 生成合法 JSON 只是语法正确；参数可能错、权限可能不足、工具可能超时、返回的网页可能包含恶意指令。需要把模型提出的行动与运行时实际允许的行动分离：schema 验证、工具白名单、最小权限、超时、幂等键和确认门槛应由执行层落实。外部页面与工具文本是待核实的数据，不是能提高权限的指令。</p>
+<p>任务完成证据应来自实际文件、测试、数据库状态或页面状态，而不是「模型说已完成」。工具返回成功也未必等于业务目标满足，例如提交了表单却创建了错误对象。</p>
+<h3 id="63-错误恢复模型反思有用但不能让模型自己判定任务已通过">6.3 错误恢复：模型反思有用，但不能让模型自己判定任务已通过</h3>
+<aside class="paper-card" id="paper-reflexion">
+<p class="paper-title">Reflexion: Language Agents with Verbal Reinforcement Learning</p>
+<p class="paper-zh-title">Reflexion：通过语言反馈强化的语言 Agent</p>
+<p class="paper-meta">NeurIPS · 2023 · 引用 5,318（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2303.11366">arXiv:2303.11366</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>Agent 失败后需要利用反馈改进，但为每次试错更新模型权重既昂贵又低效。</p>
+<p class="paper-how"><span class="paper-label">方案</span>将任务反馈转换为反思文本，保存到情景记忆并用于后续尝试，不更新权重。收益取决于反馈质量；自我解释不是可靠标签，重复尝试仍需要预算上限。</p>
+<p class="paper-more"><a href="papers/reflexion.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>Reflexion 把试错反馈变成可供下一轮使用的文字记忆，避免每次都更新权重。这很适合解释 Agent 与单次生成的差别：前一次失败可以改变下一次行动。但模型可能给出错误的失败解释；测试、编译器与环境反馈通常比自我评价更可核验。</p>
+<p><strong>有界恢复。</strong> 对重试次数、工具调用数、总 token、墙钟时间和花费同时设预算；相同状态下重复相同行动时应中断或换策略。对有副作用的调用，不应因网络超时直接重复提交，而应先查状态。第 1 节的复读在这里会放大成循环调用或重复付费，需要模型层与编排层共同兜底。</p>
+<h3 id="64-接口和环境设计决定-agent-的能力上限而不只是模型权重">6.4 接口和环境设计决定 Agent 的能力上限，而不只是模型权重</h3>
+<aside class="paper-card" id="paper-swe-agent">
+<p class="paper-title">SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering</p>
+<p class="paper-zh-title">SWE-agent：Agent—计算机接口使自动化软件工程成为可能</p>
+<p class="paper-meta">NeurIPS · 2024 · 引用 1,805（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2405.15793">arXiv:2405.15793</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>通用 shell 或面向人的工具界面未必适合模型；读文件、定位、编辑和测试的接口设计会影响成功率。</p>
+<p class="paper-how"><span class="paper-label">方案</span>设计专门的 Agent-Computer Interface，围绕仓库导航、编辑与验证缩短交互路径。结果表明系统接口与模型能力同样重要，不能把 Agent 改善全归因于换更大模型。</p>
+<p class="paper-more"><a href="papers/swe-agent.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>SWE-agent 说明仓库导航、有限窗口读文件、编辑反馈和测试接口会影响模型行为。输出太长会淹没关键信息；输出太短又丢失上下文。工具应返回结构化、可定位、可追溯的结果，并清楚地区分“未找到”“没有权限”“执行失败”。</p>
+<aside class="paper-card" id="paper-webarena">
+<p class="paper-title">WebArena: A Realistic Web Environment for Building Autonomous Agents</p>
+<p class="paper-zh-title">WebArena：用于构建自主 Agent 的真实感网页环境</p>
+<p class="paper-meta">ICLR · 2024 · 引用 2,021（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2307.13854">arXiv:2307.13854</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>简化合成环境中的工具调用成功，不代表 Agent 能完成真实网站上长链条、具有副作用的任务。</p>
+<p class="paper-how"><span class="paper-label">方案</span>提供可复现的完整网站与长程任务，以最终功能状态验证完成情况。论文原始成功率是当时模型与设置的结果，不是当前 Agent 的能力上限。</p>
+<p class="paper-more"><a href="papers/webarena.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>WebArena 将评估推进到可复现网站上的真实感长程任务。成功率必须按完整任务计算，而不是挑出一两个成功工具调用。基准还应控制环境初始状态、账号权限、模型版本、最大预算与尝试次数；不同试错预算下的 pass@1 或任务成功率不能直接横比。</p>
+<h3 id="65-长程记忆扩大上下文窗口不等于做了状态管理">6.5 长程记忆：扩大上下文窗口不等于做了状态管理</h3>
+<aside class="paper-card" id="paper-memgpt">
+<p class="paper-title">MemGPT: Towards LLMs as Operating Systems</p>
+<p class="paper-zh-title">MemGPT：迈向作为操作系统的 LLM</p>
+<p class="paper-meta">arXiv · 2023 · 引用 1,335（截至 2026-09-20） <span class="paper-links"><a href="https://arxiv.org/abs/2310.08560">arXiv:2310.08560</a></span></p>
+<p class="paper-why"><span class="paper-label">动机</span>上下文窗口有限，长对话和大文档需要选择什么留在当前窗口、什么放在外部，以及何时取回。</p>
+<p class="paper-how"><span class="paper-label">方案</span>借鉴操作系统分层内存，将有限上下文与外部存储间的数据移动和控制流显式化。它与单次 RAG 检索有关但不等同，持久记忆还需要来源、更新、权限与删除规则。</p>
+<p class="paper-more"><a href="papers/memgpt.html">详情页：原文摘要译文 →</a></p>
+</aside>
+
+<p>RAG 通常从外部语料寻找当前问题的证据；Agent 记忆还要记录已经做过什么、未完成什么、用户的长期约束以及哪些旧信息已失效。二者可共享检索组件，但生命周期不同。MemGPT 用分层存储与数据移动管理有限上下文，是这一问题的代表线索，而非无限无损记忆。</p>
+<p><strong>摘要与压缩的风险。</strong> 压缩应保留目标、权限边界、未解决问题、已执行副作用、证据路径和失败原因。精确的错误信息、标识符和数值若丢掉，会导致下一轮重复调查或误操作。持久记忆应携带时间、来源、适用范围与删除机制；跨用户记忆不能混用。</p>
+<h3 id="66-agent-服务一次用户请求会展开成多次模型调用不再彼此独立">6.6 Agent 服务：一次用户请求会展开成多次模型调用，不再彼此独立</h3>
+<p>一个用户目标会产生多次模型调用、工具等待和不断增长的历史。模型 tokens/s 很高，端到端任务仍可能慢在搜索、浏览器、测试或串行依赖上。应同时记录<strong>任务成功率、每成功任务成本、总墙钟时间、工具等待比例、重复调用率、人工接管率与安全违规数</strong>。</p>
+<p>缓存要区分三层：任务记忆保存语义状态；prefix/KV cache 保存可复用的模型计算；工具缓存保存外部结果。摘要压缩可能改变前缀并降低 KV 复用，外部工具缓存可能过期，语义记忆又不能替代真实环境状态。保留稳定系统提示、明确会话边界、在独立无副作用任务上并行，是可以评估的工程方案，不应直接假定一定更快。</p>
+<p><strong>跨方向联系。</strong> 长上下文影响历史处理；分布式系统影响会话与缓存放置；多模态让 Agent 操作截图和视频，第 5 节后半的 VLA 则把同样的闭环思想带到物理世界，只是动作不再可回滚；端侧决定私有数据能否本地处理。六个方向并非六份互不相干的论文清单。</p>
+<h2 id="7-综合选择从故障单出发的阅读路径">7 综合选择：从故障单出发的阅读路径</h2>
+<p>下表把常见生产症状映射到本调研的相关小节与第一组对照实验。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>你现在遇到的问题</th>
+<th>优先阅读</th>
+<th>第一组对照实验</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JSON/文本循环、不结束</td>
+<td>1.2 与 6.3</td>
+<td>解码配置、结构约束、重复检测、固定预算</td>
+</tr>
+<tr>
+<td>MoE 账面省 FLOPs 却服务更贵</td>
+<td>1.3 与 4.1</td>
+<td>批大小、路由偏斜、专家 GEMM、通信、KV 容量</td>
+</tr>
+<tr>
+<td>长文能输入却答错或很慢</td>
+<td>2 与 4.6</td>
+<td>证据位置/干扰项、TTFT、并发、RAG 基线</td>
+</tr>
+<tr>
+<td>手机可加载但发热卡顿</td>
+<td>3</td>
+<td>冷/热启动、持续性能、量化 kernel、小模型</td>
+</tr>
+<tr>
+<td>视频/截图请求成本不稳定</td>
+<td>5.4</td>
+<td>像素/帧/token 预算、预处理与编码分项耗时</td>
+</tr>
+<tr>
+<td>机器人离线分数高但执行失败</td>
+<td>5.5–5.8</td>
+<td>延迟、动作语义、分布变化与安全干预</td>
+</tr>
+<tr>
+<td>万卡训练跑不满、故障频发</td>
+<td>4.2 与 4.4</td>
+<td>有效训练吞吐、中断次数与恢复耗时、慢节点比例</td>
+</tr>
+<tr>
+<td>Agent demo 能跑，生产任务不稳</td>
+<td>6</td>
+<td>真实最终状态、重试预算、权限与端到端成本</td>
+</tr>
+</tbody>
+</table></div>
+<p>这是一份有边界的代表性调研，而非穷尽目录或生产认证报告。下一步最有价值的工作通常不是再添一百篇论文，而是选一个自己的真实任务，固定输入、质量标准、硬件和预算，按上述路径建立可重复的基线，再决定值得全文精读和复现哪篇工作。</p>
+  </article>
+
+  <footer class="colophon">
+    <p>本页由本地构建流水线生成，内容哈希 <code>acd31f369e90</code>。</p>
+    <p>论文标题、作者、方法名与引用数据保持原文；每篇论文的摘要译文见其详情页。</p>
+  </footer>
+</main>
+
+<script src="assets/scripts/reader.js"></script>
+</body>
+</html>

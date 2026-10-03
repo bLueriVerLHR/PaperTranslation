@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Redis 源码面试指南：从数据结构到性能与一致性</title>
+<meta name="description" content="基于本地 unstable 源码 · b540ca49cba8 · 以面试问题为入口，沿执行路径理解设计与权衡">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../index.html">← 文库</a>
+  <header class="title-block">
+    <h1>Redis 源码面试指南：从数据结构到性能与一致性</h1>
+    <p class="subtitle">基于本地 unstable 源码 · b540ca49cba8 · 以面试问题为入口，沿执行路径理解设计与权衡</p>
+    <p class="meta">原作 <span class="latin">源码研读与分析</span> · 简体中文译本 · 生成于 2026-10-02</p>
+  </header>
+
+  <details class="toc" id="toc">
+    <summary>目录</summary>
+    <nav aria-label="目录">
+<ol>
+<li><a href="#阅读边界与面试路线">阅读边界与面试路线</a><ol>
+<li><a href="#怎样使用这份指南">怎样使用这份指南</a></li>
+<li><a href="#本提交与经典面试答案的差异">本提交与经典面试答案的差异</a></li>
+<li><a href="#证据与限制">证据与限制</a></li>
+</ol></li>
+<li><a href="#1-redis-为什么快从一条-get-的路径讲起">1. Redis 为什么快：从一条 GET 的路径讲起</a><ol>
+<li><a href="#面试先答内存结构执行模型共同决定性能">面试先答：内存、结构、执行模型共同决定性能</a></li>
+<li><a href="#从-socket-到-value">从 socket 到 value</a></li>
+<li><a href="#单线程到底指什么">单线程到底指什么</a></li>
+<li><a href="#为什么-pipeline-有用但不是事务">为什么 pipeline 有用，但不是事务</a></li>
+<li><a href="#当前源码的进一步优化预取不等于并行执行">当前源码的进一步优化：预取不等于并行执行</a></li>
+<li><a href="#追问一个大命令会影响其他连接吗">追问：一个大命令会影响其他连接吗</a></li>
+</ol></li>
+<li><a href="#2-对象sds-与内存布局为什么同一种类型有不同编码">2. 对象、SDS 与内存布局：为什么同一种类型有不同编码</a><ol>
+<li><a href="#类型是语义编码是实现">类型是语义，编码是实现</a></li>
+<li><a href="#sds-为什么比-c-字符串更适合数据库">SDS 为什么比 C 字符串更适合数据库</a></li>
+<li><a href="#intembstrraw-的设计取舍">INT、EMBSTR、RAW 的设计取舍</a></li>
+<li><a href="#当前-kvobj把内存布局优化做到-keyvalue-层">当前 kvobj：把内存布局优化做到 key/value 层</a></li>
+<li><a href="#向外拓展小对象经常是元数据主导">向外拓展：小对象经常是元数据主导</a></li>
+</ol></li>
+<li><a href="#3-哈希表渐进式-rehash-与-scan">3. 哈希表、渐进式 rehash 与 SCAN</a><ol>
+<li><a href="#面试先答平均-o1-不代表每次访问都有恒定延迟">面试先答：平均 O(1) 不代表每次访问都有恒定延迟</a></li>
+<li><a href="#为什么不能一次搬完整张表">为什么不能一次搬完整张表</a></li>
+<li><a href="#渐进式并不等于严格无停顿">“渐进式”并不等于“严格无停顿”</a></li>
+<li><a href="#kvstore-为什么包了一层-dict">kvstore 为什么包了一层 dict</a></li>
+<li><a href="#scan-的游标为什么不是-offset">SCAN 的游标为什么不是 offset</a></li>
+<li><a href="#可用于面试的设计推导">可用于面试的设计推导</a></li>
+</ol></li>
+<li><a href="#4-listpackquicklistintset为何线性扫描有时更划算">4. listpack、quicklist、intset：为何线性扫描有时更划算</a><ol>
+<li><a href="#先理解少量元素的成本模型">先理解“少量元素”的成本模型</a></li>
+<li><a href="#listpack-为什么不是换名字的-ziplist">listpack 为什么不是“换名字的 ziplist”</a></li>
+<li><a href="#list小-listpack-到分段-quicklist">List：小 listpack 到分段 quicklist</a></li>
+<li><a href="#set有序整数数组也不是哈希表">Set：有序整数数组也不是哈希表</a></li>
+<li><a href="#hash字段和值的紧凑表示">Hash：字段和值的紧凑表示</a></li>
+<li><a href="#当前样例配置中的阈值">当前样例配置中的阈值</a></li>
+</ol></li>
+<li><a href="#5-zset-为什么同时需要-dict-和跳表">5. ZSet 为什么同时需要 dict 和跳表</a><ol>
+<li><a href="#先从查询需求推导结构">先从查询需求推导结构</a></li>
+<li><a href="#跳表的层与-span">跳表的层与 span</a></li>
+<li><a href="#本提交不再适合画成字典另存一份-score">本提交不再适合画成“字典另存一份 score”</a></li>
+<li><a href="#另一项小优化复用已经完成的查找">另一项小优化：复用已经完成的查找</a></li>
+<li><a href="#为什么不是红黑树">为什么不是红黑树</a></li>
+<li><a href="#业务拓展分页和热榜">业务拓展：分页和热榜</a></li>
+</ol></li>
+<li><a href="#6-过期淘汰与释放三个时间点三种机制">6. 过期、淘汰与释放：三个时间点、三种机制</a><ol>
+<li><a href="#ttl-到点为什么内存不一定立即下降">TTL 到点，为什么内存不一定立即下降</a></li>
+<li><a href="#被动检查与主动过期怎样配合">被动检查与主动过期怎样配合</a></li>
+<li><a href="#淘汰与过期有什么不同">淘汰与过期有什么不同</a></li>
+<li><a href="#为什么-redis-不是严格-lru-链表">为什么 Redis 不是严格 LRU 链表</a></li>
+<li><a href="#为什么只读访问也可能触发-cow">为什么只读访问也可能触发 COW</a></li>
+<li><a href="#del-和-unlink-的关键差别">DEL 和 UNLINK 的关键差别</a></li>
+<li><a href="#向外拓展内存上限不等于进程-rss-上限">向外拓展：内存上限不等于进程 RSS 上限</a></li>
+</ol></li>
+<li><a href="#7-rdb-与-aof写入成功到哪里才算持久">7. RDB 与 AOF：写入成功到哪里才算持久</a><ol>
+<li><a href="#先把状态链讲清楚">先把状态链讲清楚</a></li>
+<li><a href="#rdb快照及其非免费后台成本">RDB：快照及其非免费后台成本</a></li>
+<li><a href="#aof不同-fsync-策略是不同的风险预算">AOF：不同 fsync 策略是不同的风险预算</a></li>
+<li><a href="#重写不等于压缩历史命令文本">重写不等于压缩历史命令文本</a></li>
+<li><a href="#性能与可靠性一起问">性能与可靠性一起问</a></li>
+</ol></li>
+<li><a href="#8-复制psync-与-cluster内存中的成功不等于集群承诺">8. 复制、PSYNC 与 Cluster：内存中的成功不等于集群承诺</a><ol>
+<li><a href="#复制默认是异步的故障转移可能丢写">复制默认是异步的，故障转移可能丢写</a></li>
+<li><a href="#psync-为什么要同时检查-replid-和-offset">PSYNC 为什么要同时检查 replid 和 offset</a></li>
+<li><a href="#本提交的-backlog-不应画成孤立的固定环形数组">本提交的 backlog 不应画成孤立的固定环形数组</a></li>
+<li><a href="#cluster-的-slot-是路由单元不是-key-内部分片">Cluster 的 slot 是路由单元，不是 key 内部分片</a></li>
+<li><a href="#moved-与-ask-的语义为什么不同">MOVED 与 ASK 的语义为什么不同</a></li>
+<li><a href="#sentinel-与-cluster-不要混为一谈">Sentinel 与 Cluster 不要混为一谈</a></li>
+</ol></li>
+<li><a href="#9-事务lua锁与缓存一致性由原子性向业务边界扩展">9. 事务、Lua、锁与缓存一致性：由原子性向业务边界扩展</a><ol>
+<li><a href="#multiexec-的原子性不等于数据库回滚">MULTI/EXEC 的原子性不等于数据库回滚</a></li>
+<li><a href="#watch-是乐观条件检查不是持有-key-锁">WATCH 是乐观条件检查，不是持有 key 锁</a></li>
+<li><a href="#lua-能减少-rtt也会占据执行通道">Lua 能减少 RTT，也会占据执行通道</a></li>
+<li><a href="#用-redis-锁时先明确三条不变量">用 Redis 锁时，先明确三条不变量</a></li>
+<li><a href="#缓存问题如何从机制推到架构">缓存问题如何从机制推到架构</a></li>
+</ol></li>
+<li><a href="#10-向外拓展stream基数估计及当前新增结构">10. 向外拓展：Stream、基数估计及当前新增结构</a><ol>
+<li><a href="#stream-为什么组合-radix-tree-和-listpack">Stream 为什么组合 radix tree 和 listpack</a></li>
+<li><a href="#radix-tree-的空间优化">radix tree 的空间优化</a></li>
+<li><a href="#bitmap-与-hyperloglog-分别解决什么">Bitmap 与 HyperLogLog 分别解决什么</a></li>
+<li><a href="#hash-字段过期两个层次的最早时间">Hash 字段过期：两个层次的最早时间</a></li>
+<li><a href="#hash-templates共享字段名代价是-schema-变化">Hash Templates：共享字段名，代价是 schema 变化</a></li>
+<li><a href="#array稀疏与稠密表示的切换">Array：稀疏与稠密表示的切换</a></li>
+</ol></li>
+<li><a href="#11-从redis-慢到可验证的性能假设">11. 从“Redis 慢”到可验证的性能假设</a><ol>
+<li><a href="#先分层而不是先调参数">先分层，而不是先调参数</a></li>
+<li><a href="#四个性能设计问题">四个性能设计问题</a></li>
+<li><a href="#学习实验仅在独立可丢弃的实例中执行">学习实验：仅在独立、可丢弃的实例中执行</a><ol>
+<li><a href="#a-看编码切换不先测极限-qps">A. 看编码切换，不先测极限 QPS</a></li>
+<li><a href="#b-把-pipelineio-线程与预取分开比较">B. 把 pipeline、I/O 线程与预取分开比较</a></li>
+<li><a href="#c-del-与-unlink">C. DEL 与 UNLINK</a></li>
+<li><a href="#d-ttl持久化与恢复">D. TTL、持久化与恢复</a></li>
+<li><a href="#e-scan-与副本恢复">E. SCAN 与副本恢复</a></li>
+</ol></li>
+<li><a href="#报告最少包含什么">报告最少包含什么</a></li>
+</ol></li>
+<li><a href="#12-面试速查把一句话答案接到下一层追问">12. 面试速查：把一句话答案接到下一层追问</a><ol>
+<li><a href="#30-个高频问题">30 个高频问题</a></li>
+<li><a href="#三条源码阅读路线">三条源码阅读路线</a></li>
+<li><a href="#回答时避免的七个绝对化说法">回答时避免的七个绝对化说法</a></li>
+<li><a href="#交付与重建">交付与重建</a></li>
+</ol></li>
+</ol>
+    </nav>
+  </details>
+
+  <article class="body">
+<section id="sec-00-reading-guide">
+<h2 id="阅读边界与面试路线">阅读边界与面试路线</h2>
+<p>这份分析从本地 <code>$LOCAL_REPOS/redis</code> 的真实源码出发，不是将某个旧版本的面试题模板换个标题。研读时工作树干净；分支为 <strong>unstable</strong>，提交为 <strong><code>b540ca49cba815f3fbe634363c3df68d4f4f127a</code></strong>（2026-09-30），检查日期为 2026-10-02。</p>
+<p><code>src/version.h</code> 的 <code>255.255.255</code> 是当前检出源码中的开发版标记，不能当作正式发行版版本号。因此，本文把“稳定的设计思想”和“这个提交的实现细节”分开说；面试官指定 Redis 6、7 或某个 8.x 版本时，应先切换相应源码再讨论。</p>
+<h3 id="怎样使用这份指南">怎样使用这份指南</h3>
+<p>推荐按“<strong>问题 → 调用路径 → 数据布局 → 复杂度与常数 → 失败边界 → 如何验证</strong>”回答。面试中最有价值的不是背函数名，而是能说明一项优化节约了什么，又引入了什么代价。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>阅读层次</th>
+<th>先掌握什么</th>
+<th>应该能回答的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第一遍：核心路径</td>
+<td>命令执行、对象与编码、dict、listpack、ZSet</td>
+<td>Redis 为什么快？哪些命令仍可能慢？</td>
+</tr>
+<tr>
+<td>第二遍：系统机制</td>
+<td>过期与淘汰、持久化、复制、Cluster、事务</td>
+<td>为什么会阻塞、丢数据或出现读写不一致？</td>
+</tr>
+<tr>
+<td>第三遍：向外拓展</td>
+<td>Stream、概率结构、新编码、缓存架构、实验设计</td>
+<td>为什么选这种结构？怎样定位瓶颈，而不是盲调参数？</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="本提交与经典面试答案的差异">本提交与经典面试答案的差异</h3>
+<ul>
+<li>主数据库的 <code>keys</code>、<code>expires</code> 使用 <strong>kvstore</strong>，不是简单地把旧版 <code>redisDb.dict</code> 结构图照搬过来。</li>
+<li><code>kvobj</code> 可以把 key、短 value 和元数据集中布局；“key 与 value 永远是若干独立分配”不准确。</li>
+<li>小 List 可以直接使用 <strong>listpack</strong>；增长后才转 quicklist，并存在带滞回的缩小转换。</li>
+<li>Set 除 intset 和哈希表之外，也有小集合的 <strong>listpack</strong> 编码。</li>
+<li>ZSet 的 dict 可以直接引用跳表节点；节点内嵌成员 SDS，更新 score 时保持节点地址不变。</li>
+<li>I/O 线程参与读、写及协议解析；跨命令和命令内部的批量预取是另一项不同层次的优化。</li>
+<li>Hash 字段过期、共享模板编码与新的 Array 类型出现在当前源码中；共享模板自动转换默认关闭，不可说成所有部署都有的默认行为。</li>
+</ul>
+<h3 id="证据与限制">证据与限制</h3>
+<p>每章列出本地源码路径、函数和行号范围，并提供按该提交构造的 GitHub 链接。<strong>结论依据本地源码检查，不依据这些链接的在线可达性</strong>；本文没有验证远端链接是否可打开。离线阅读不需要联网，源码链接只是可选的进一步查证入口。</p>
+<p>本文没有编译 Redis、运行 Redis 测试、启动实例、测量 QPS 或验证故障恢复。因此：复杂度属于算法分析；缓存、分配与 I/O 收益属于机制解释；任何硬件上的实际收益都需要实验。文中的命令是待执行的学习方案，不是已经获得的实验结果。</p>
+<p>不把原始 Redis 源码复制进本项目，也不把它的许可证换成本流水线的 MIT 许可证。原始许可证参见 Redis 检出目录的 <code>LICENSE.txt</code>；本文与元数据、重建脚本保留在本项目的本地 <code>work/</code> 中。</p>
+<p><strong>源码入口：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/version.h"><code>src/version.h</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/object.h#L1-L112"><code>src/object.h:1–112</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/server.h#L1250-L1255"><code>src/server.h:1250–1255</code></a>。</p>
+</section>
+
+<section id="sec-01-command-and-threads">
+<h2 id="1-redis-为什么快从一条-get-的路径讲起">1. Redis 为什么快：从一条 GET 的路径讲起</h2>
+<h3 id="面试先答内存结构执行模型共同决定性能">面试先答：内存、结构、执行模型共同决定性能</h3>
+<p>Redis 通常避免每条读请求都访问磁盘；它按数据规模选编码，减少分配和指针追踪；网络使用事件循环与批处理，而普通核心命令对共享键空间的执行主要集中在主线程。<strong>“因为单线程所以快”不是完整解释</strong>：单线程减少协调成本，但大命令同样会占据这条串行执行通道。</p>
+<h3 id="从-socket-到-value">从 socket 到 value</h3>
+<p>下面是对主要逻辑关系的概括，不是说每个配置下每次调用都严格经过同一条栈：</p>
+<pre><code class="language-text">连接产生可读事件
+  → networking.c: readQueryFromClient
+  → 输入缓冲区、RESP 解析、待执行命令
+  → processCommandAndResetClient
+  → server.c: processCommand（命令/权限/状态等检查）
+  → server.c: call（调用、计时、统计、传播等执行管理）
+  → t_string.c: getCommand → getGenericCommand
+  → db.c: lookupKeyReadOrReply → lookupKey
+  → 键查找、过期判定、必要的访问统计
+  → 类型检查、回复缓冲区 → socket 写出
+</code></pre>
+<p><code>GET</code> 不只是哈希查找。它还可能检查过期、更新访问统计、构造回复；返回一个很大的字符串时，即使定位 value 的算法复杂度很低，传输和复制成本仍与返回字节数有关。应用端等待时间还包含网络、连接池排队、Redis 排队和客户端处理，不能全部归因于命令执行。</p>
+<h3 id="单线程到底指什么">单线程到底指什么</h3>
+<p>事件驱动不是给每个连接创建一个执行线程。<code>ae.c</code> 调度文件事件与时间事件；Linux 后端在 <code>ae_epoll.c</code> 中使用 epoll 等待就绪事件。epoll 降低了大量连接的等待管理成本，并没有把一条复杂命令自动拆成并行计算。</p>
+<p>当前 <code>iothread.c</code> 的 I/O 线程有自己的事件循环，并与主线程交换待处理客户端。源码明确说明：I/O 线程读取后排入的完整命令，由主线程执行。当前配置说明中，线程可以处理<strong>读、写和协议解析</strong>。因此更准确的回答是：</p>
+<blockquote>
+<p>普通核心命令对键空间的执行主要串行化；网络处理、异步释放、部分后台 I/O 等可以并发。开启 I/O 线程不是让多个线程随意并发修改同一个字典。</p>
+</blockquote>
+<p>模块及其线程安全 API 是另一套扩展边界，不能据普通命令模型推断所有模块都相同。</p>
+<h3 id="为什么-pipeline-有用但不是事务">为什么 pipeline 有用，但不是事务</h3>
+<p>若逐条发送命令并等待，每条命令都支付一次往返等待。pipeline 将多条命令提前送出，摊薄 RTT、读写调用和协议处理的固定成本。收益随 RTT、并发与命令成本变化，不应承诺某个固定倍数。</p>
+<p>但 pipeline <strong>不保证一组操作不可被其他客户端穿插</strong>，也不提供回滚。它还会增加在途请求和输出缓冲占用。超大批次或慢消费者可能把吞吐优化变成内存与尾延迟问题，应按命令数、字节数和时限设置批次边界。</p>
+<h3 id="当前源码的进一步优化预取不等于并行执行">当前源码的进一步优化：预取不等于并行执行</h3>
+<p><code>memory_prefetch.c</code> 使用状态机依次预取 bucket、entry、key payload、value payload；多个查找轮流前进，使一个查找等待内存时可以与另一个查找的工作重叠。<code>networking.c</code> 先解析一定数量的待执行命令，满足条件时在主线程做预取；<code>memory_prefetch.h</code> 还提供单命令内部的 <code>dictPrefetchKeys</code>。</p>
+<p>它利用的是<strong>内存级并行</strong>，不是把命令提前提交或改变命令语义。预取是提示，不能代替正式查找；跨越可能修改数据的命令后，还必须按真实当前状态执行。批次太小、数据已在缓存或预取过多时，也可能没有收益。</p>
+<h3 id="追问一个大命令会影响其他连接吗">追问：一个大命令会影响其他连接吗</h3>
+<p>会。大范围查询、大集合遍历、长脚本、编码转换和同步释放都可能占据主线程。I/O 线程能缓解网络侧瓶颈，却不能消除串行执行中的长工作。排查时应区别：CPU 热点、内存访问等待、网络吞吐、持久化 I/O 与队列等待。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/ae.c#L365-L505"><code>ae.c:365、497</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/ae_epoll.c#L89-L115"><code>ae_epoll.c:89</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/networking.c#L3652-L4000"><code>networking.c:3652、3796–3920、3990</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/server.c#L4151-L4680"><code>server.c:4151、4660</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/iothread.c#L663-L720"><code>iothread.c:663–720、975</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_string.c#L456-L471"><code>t_string.c:456–471</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/memory_prefetch.c#L25-L105"><code>memory_prefetch.c:25–105</code></a>。</p>
+</section>
+
+<section id="sec-02-objects-and-sds">
+<h2 id="2-对象sds-与内存布局为什么同一种类型有不同编码">2. 对象、SDS 与内存布局：为什么同一种类型有不同编码</h2>
+<h3 id="类型是语义编码是实现">类型是语义，编码是实现</h3>
+<p>String、List、Hash、Set、ZSet、Stream 是对用户暴露的逻辑类型；INT、RAW、EMBSTR、LISTPACK、HT、QUICKLIST、SKIPLIST 等是内部编码。相同命令语义可以由不同布局实现。<code>TYPE</code> 与 <code>OBJECT ENCODING</code> 回答的是两层不同问题。</p>
+<p><code>redisObject</code> 中的 <code>type</code> 与 <code>encoding</code> 都是位域，此外有引用计数、指针，以及对 <code>kvobj</code> 有意义的元数据位与 LRU/LFU 信息。不要把“对象头固定只有这几个字段”当跨版本事实：当前对象设计包含把键和值组织在同一对象附近的扩展。</p>
+<h3 id="sds-为什么比-c-字符串更适合数据库">SDS 为什么比 C 字符串更适合数据库</h3>
+<p>SDS 的外部指针指向数据，而长度、分配容量与类型标记保存在前面的头部。不同长度范围使用不同宽度的头部，较小字符串不必支付 64 位长度字段的全部开销。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>设计</th>
+<th>直接收益</th>
+<th>不应忽略的边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>显式长度</td>
+<td><code>sdslen</code> 不需要扫描到 NUL；可容纳二进制数据</td>
+<td>按 C 字符串处理二进制内容仍会截断，调用者必须传长度</td>
+</tr>
+<tr>
+<td><code>alloc</code> 与可用空间</td>
+<td>append 可先判断是否需要扩容</td>
+<td>分配器实际可用容量与请求容量不完全相同</td>
+</tr>
+<tr>
+<td>尾部保留 NUL</td>
+<td>兼容部分 C 字符串接口</td>
+<td>NUL 不替代逻辑长度</td>
+</tr>
+<tr>
+<td>多种头部宽度</td>
+<td>小对象减少元数据字节</td>
+<td>TYPE_5 特殊：长度嵌在 flags 中，没有一般形式的 spare capacity</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>_sdsMakeRoomFor</code> 的 greedy 路径，在所需容量小于 <code>SDS_MAX_PREALLOC</code> 时按所需容量加倍，否则增加固定预留；non-greedy 路径不做这类主动预留。不能泛化成“任何 Redis 字符串增长都永远翻倍”。空闲空间减少频繁 realloc 的机会，但会增加保留内存；重分配后原指针可能失效。</p>
+<h3 id="intembstrraw-的设计取舍">INT、EMBSTR、RAW 的设计取舍</h3>
+<ul>
+<li><strong>INT</strong>：可被严格解释为整数的字符串可避免保存独立字符缓冲区。不是见到数字字符就一定编码；范围、字符串格式、引用状态等都影响路径。<code>"001"</code> 与 <code>"1"</code> 的字节语义不能被随意合并。</li>
+<li><strong>EMBSTR</strong>：对象头与短 SDS 在一次分配中布局，减少分配次数、元数据开销和缓存缺失。当前 <code>createStringObject</code> 的界限是 <strong>44 字节</strong>，源码解释其与 jemalloc 64 字节分配级别的关系。它不是 Redis 协议规定，也不能套到所有新型键值对象布局。</li>
+<li><strong>RAW</strong>：对象与 SDS 分开，便于 value 缓冲区独立扩容；少了 EMBSTR 的合并布局收益。</li>
+</ul>
+<p>“EMBSTR 不可修改”应解释为实现通常会先转换到可修改的 RAW 表示，而不是说这个 key 在命令语义上不可写。</p>
+<h3 id="当前-kvobj把内存布局优化做到-keyvalue-层">当前 kvobj：把内存布局优化做到 key/value 层</h3>
+<p><code>object.h</code> 描述 <code>kvobj</code> 的 <code>iskvobj</code> 标记：可以在对象附近嵌入 key，短 String value 也可内嵌；过期等元数据按 bitmap 对应的类别布局在对象前方。</p>
+<pre><code class="language-text">可选元数据 | redisObject | kvbits | key 的 SDS | 可选短 value 的 SDS
+</code></pre>
+<p>这是减少散碎分配和指针间接访问的优化，不表示所有对象都内联、所有 value 都短，也不表示原始 <code>robj</code> 与 <code>kvobj</code> 可以在任何场景中不加区分地操作。布局变动还可能带来重分配，源码中的调用者必须处理返回的新地址。</p>
+<h3 id="向外拓展小对象经常是元数据主导">向外拓展：小对象经常是元数据主导</h3>
+<p>数百万个很小的 key/value，内存可能主要花在对象头、索引桶、分配器级别、指针和 TTL 元数据上，而不是业务 payload。优化思路有两种：一是减少分配与冗余元数据，二是用紧凑结构把多个业务字段聚合。但聚合成一个巨大 Hash 会把读取、删除、迁移和热点集中到同一 key，不能只看节省的字节。</p>
+<p>不要只用字符串长度估算内存，也不要把 <code>used_memory</code>、分配器占用与进程 RSS 当同一个数。实际布局、碎片、fork/COW、客户端缓冲和持久化缓冲都可能影响观测。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/object.h#L1-L112"><code>object.h:1–112</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/sds.h#L32-L135"><code>sds.h:32–135</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/sds.c#L278-L347"><code>sds.c:278–347</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/object.c#L948-L1009"><code>object.c:226、340–367、948–1009</code></a>。44 字节界限查 <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/object.c#L340-L351"><code>object.c:340–351</code></a>。</p>
+</section>
+
+<section id="sec-03-dict-rehash-scan">
+<h2 id="3-哈希表渐进式-rehash-与-scan">3. 哈希表、渐进式 rehash 与 SCAN</h2>
+<h3 id="面试先答平均-o1-不代表每次访问都有恒定延迟">面试先答：平均 O(1) 不代表每次访问都有恒定延迟</h3>
+<p>dict 使用哈希定位 bucket，并处理冲突链。平均查找效率依赖哈希分布、负载和 key 比较成本；哈希本身要处理 key 的字节，长冲突链和长字符串比较也会增加成本。这里的 O(1) 通常针对集合元素数的平均情况，不是忽略一切字节成本的绝对承诺。</p>
+<p>当前 <code>dict</code> 有两组 <code>ht_table</code>、<code>ht_used</code>、<code>ht_size_exp</code>，以及 <code>rehashidx</code>。容量是 2 的幂，定位使用 hash 与 mask 的按位与。<code>rehashidx == -1</code> 表示没有进行迁移。</p>
+<h3 id="为什么不能一次搬完整张表">为什么不能一次搬完整张表</h3>
+<p>若同步将上百万个元素一次迁完，主线程会出现长停顿。渐进式 rehash 保留旧、新两张表，将迁移拆到多个正常操作和周期性维护中，避免把全部工作压在一次扩容请求上。</p>
+<p>迁移期间必须维持的关键不变量是：未搬的项仍在旧表，已搬的项在新表；查找和更新不能只假设单表；新增项按迁移状态使用新表。迁完后替换并释放旧表。源码中的查找还可以跳过已经迁移的旧 bucket。</p>
+<h3 id="渐进式并不等于严格无停顿">“渐进式”并不等于“严格无停顿”</h3>
+<p><code>dictRehash(d, n)</code> 限制迁移的 bucket 数，并对空 bucket 探测设置 <code>n * 10</code> 的访问上限，避免稀疏表无限扫描。<strong>一个非空 bucket 内的整条冲突链仍要处理</strong>，所以 bucket 预算不是严格的元素预算。新 bucket 数组的分配与初始化也有成本。</p>
+<p>当前 <code>_dictRehashStepIfNeeded</code> 会优先迁移本次访问命中的旧 bucket，以利用缓存局部性；否则沿 <code>rehashidx</code> 继续。这说明优化不只有“大 O”，还有让已经载入 CPU cache 的数据发挥作用。</p>
+<p>扩容条件也不是一句“负载因子大于 1”能涵盖：后台子进程存在时有避免 resize 的模式，但达到强制阈值仍可能调整。目的是平衡查找退化、内存占用与 COW。</p>
+<h3 id="kvstore-为什么包了一层-dict">kvstore 为什么包了一层 dict</h3>
+<p>当前 <code>redisDb.keys</code> 和 <code>expires</code> 为 <code>kvstore</code>。其头文件说明，这是按 index 组织的 dict 数组；Cluster 模式中，可将属于同一 slot 的 key 放在对应 dict，便于访问和维护槽内数据。</p>
+<p><strong>数据库外层索引</strong>与 <strong>Hash 类型 value 内部的哈希表</strong>不是一回事。一个 Redis Hash key 先在数据库索引中被找到，其字段再由 Hash 自己的编码处理。</p>
+<h3 id="scan-的游标为什么不是-offset">SCAN 的游标为什么不是 offset</h3>
+<p><code>dictScan</code> 使用位反转游标，使扫描可以应对 2 的幂表容量变化；rehash 时先扫描小表，再扫描大表中对应的扩展 bucket。它不保存全量扫描快照，也不把游标解释成第几个 key。</p>
+<p>完整迭代的经典保证应附上条件：<strong>在整个迭代期间持续存在的元素会被返回；重复可能发生；迭代中新增、删除或短暂存在的元素没有快照式的确定结果。</strong> <code>COUNT</code> 是工作量提示，不是每批精确结果数量，冲突链与编码等都可能影响结果规模。</p>
+<p>与 <code>KEYS</code> 一次遍历相比，SCAN 能分批让出执行机会，但一次过大的 COUNT、很重的回调或紧接着对结果执行昂贵操作仍会带来延迟。不要把“使用 SCAN”当生产安全性的充分条件。</p>
+<h3 id="可用于面试的设计推导">可用于面试的设计推导</h3>
+<p>如果为每个扫描维护强一致快照，需要额外内存或版本维护；如果扫描时冻结 rehash/写入，又会影响前台操作。Redis 选择轻量、无跨调用迭代状态的游标，并把去重和业务一致性要求交给调用者。需要精确盘点时，业务可能应使用专门索引、快照或离线统计，而不是要求在线 SCAN 自动提供事务快照。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/dict.h#L159-L182"><code>dict.h:159–182</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/dict.c#L406-L459"><code>dict.c:406–459</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/dict.c#L1435-L1534"><code>dict.c:1435–1534</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/dict.c#L1655-L1733"><code>dict.c:1655–1733</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/kvstore.h#L14-L22"><code>kvstore.h:14–22</code></a>。</p>
+</section>
+
+<section id="sec-04-compact-collections">
+<h2 id="4-listpackquicklistintset为何线性扫描有时更划算">4. listpack、quicklist、intset：为何线性扫描有时更划算</h2>
+<h3 id="先理解少量元素的成本模型">先理解“少量元素”的成本模型</h3>
+<p>小集合中，指针、独立分配和 cache miss 的成本，可能超过在一段连续内存里扫描几十个元素的成本。Redis 因此为小 Hash、Set、ZSet 和 List 提供紧凑表示，再在规模或元素长度超过限制时转换。</p>
+<p>这不是 O(N) 击败 O(1) 的普遍定律，而是在<strong>受控的小 N</strong>下用更低常数和更小内存换取线性操作。阈值提升后，原本有界的小扫描与 memmove 可能变成延迟问题。</p>
+<h3 id="listpack-为什么不是换名字的-ziplist">listpack 为什么不是“换名字的 ziplist”</h3>
+<p>listpack 将编码后的整数或字符串条目连续保存，并给条目附上表示<strong>自身编码长度</strong>的 backlen，以支持反向遍历。经典 ziplist 的前一条目长度字段存在级联更新问题；listpack 不靠记录前一条目的长度来反向定位，避免该类连锁长度修正。</p>
+<p>但是 listpack 仍是连续内存。中间插入、删除、增长可能触发 realloc 与 memmove，已有元素指针可能失效。<code>lpInsert</code> 返回新的 listpack 地址；批量插入路径可以合并 realloc/memmove，而不是反复逐个搬移。</p>
+<h3 id="list小-listpack-到分段-quicklist">List：小 listpack 到分段 quicklist</h3>
+<p>当前 <code>t_list.c</code> 会在增长预计超过限制时，把 listpack 转成 quicklist。quicklist 是双向节点组织，每个 packed node 里放一个 listpack，另有适合大元素的节点表示。它在“一个巨大连续块”与“每个元素一个链表节点”之间折中。</p>
+<ul>
+<li>两端操作可利用两端节点，但节点内搬移、节点创建与压缩状态仍有成本。</li>
+<li>随机索引要定位节点并在节点内部定位元素；<strong>不是普通数组式的 O(1) 随机访问</strong>。</li>
+<li>节点填充更大，通常减少指针与分配开销，但节点内修改的最大搬移量可能更大。</li>
+<li>压缩中间节点可以节省内存，代价是压缩/解压 CPU；两端保留未压缩区域便于常用操作。</li>
+</ul>
+<p>源码还支持 quicklist 缩回 listpack：要求只剩一个 packed node；因缩小触发时使用更严格、约半阈值的边界，防止反复插删导致编码来回抖动。<strong>滞回</strong>也是缓存淘汰、自动扩缩容和稀疏/稠密表示切换中常用的设计技巧。</p>
+<h3 id="set有序整数数组也不是哈希表">Set：有序整数数组也不是哈希表</h3>
+<p>intset 在连续存储中保存有序、不重复的整数。查找可二分；插入通常需要移动后面的元素。因此查找的对数复杂度，不能直接当成插入的复杂度。</p>
+<p>增加无法用当前宽度表示的整数时，需要将整组元素升级到更宽的整数编码。升级是 O(N) 工作，不能把 <code>SADD</code> 的所有 intset 路径视为平均常量操作。加入非整数时，当前 Set 路径可以按条件转为 listpack 或哈希表；不能背成“非整数必定立刻转 HT”。</p>
+<h3 id="hash字段和值的紧凑表示">Hash：字段和值的紧凑表示</h3>
+<p>普通小 Hash 可以用 listpack 保存字段和值；查找字段时扫描，而不是得到 Hash 这个名字就认定内部是哈希表。大 Hash 转 HT 后，仍有字段字符串、value、entry 等分配开销。字段级 TTL 还需要扩展元数据及过期索引，不等于只给外层 key 设置 EXPIRE。</p>
+<h3 id="当前样例配置中的阈值">当前样例配置中的阈值</h3>
+<p>下表是该提交 <code>redis.conf</code> 的示例设置，<strong>不是所有线上实例的运行时配置</strong>：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>条目</th>
+<th style="text-align: right;">配置值</th>
+<th>解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hash listpack</td>
+<td style="text-align: right;">512 个条目、value 限制 64</td>
+<td>同时受条目数量、字段/value 长度等转换条件约束</td>
+</tr>
+<tr>
+<td>Set intset</td>
+<td style="text-align: right;">512 个条目</td>
+<td>还要求整数可表示</td>
+</tr>
+<tr>
+<td>Set listpack</td>
+<td style="text-align: right;">128 个条目、value 限制 64</td>
+<td>小非整数集合也可紧凑存储</td>
+</tr>
+<tr>
+<td>ZSet listpack</td>
+<td style="text-align: right;">128 个条目、value 限制 64</td>
+<td>大集合转 skiplist + dict</td>
+</tr>
+<tr>
+<td>List 节点填充</td>
+<td style="text-align: right;"><code>-2</code></td>
+<td>对应约 8 KiB 节点大小限制，不是“负两个元素”</td>
+</tr>
+</tbody>
+</table></div>
+<p>面试被问“改大阈值会更快吗”，答法应是：可能降低内存与间接访问成本，但会加重线性搜索和数据搬移；看元素分布、读写比例、编码切换频度与 P99，而不是只看平均 QPS。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/listpack.c#L1032-L1085"><code>listpack.c:339、568、1032–1085</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/listpack.c#L1247-L1253"><code>listpack.c:1247–1253</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_list.c#L17-L122"><code>t_list.c:17–122</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/quicklist.h#L47-L118"><code>quicklist.h:47–118</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/intset.c#L165-L236"><code>intset.c:165–236</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_set.c#L158-L215"><code>t_set.c:46–64、158–215</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/redis.conf#L2240-L2359"><code>redis.conf:2240–2359</code></a>。</p>
+</section>
+
+<section id="sec-05-zset-and-skiplist">
+<h2 id="5-zset-为什么同时需要-dict-和跳表">5. ZSet 为什么同时需要 dict 和跳表</h2>
+<h3 id="先从查询需求推导结构">先从查询需求推导结构</h3>
+<p>排行榜至少有两种不同的访问：按 member 查它的 score，以及按 score/排名找一段有序 member。只用哈希表，第二类查询要额外排序；只用有序结构，按 member 定位通常没有哈希查找的平均效率。</p>
+<p>大 ZSet 的 <code>zset</code> 同时持有 dict 与 zskiplist：两种索引服务两种查询，插入、更新和删除必须保持一致。小 ZSet 可能仍是 listpack，不能把所有 ZSet 都画成这张双索引图。</p>
+<h3 id="跳表的层与-span">跳表的层与 span</h3>
+<p>跳表底层维护顺序，上层用稀疏的前向链接跳过一段元素。随机层高避免维护复杂平衡旋转，平均查找和插入为 O(log N)；最坏退化不能完全排除。排序依 score，score 相同还要按 member 字节比较决定顺序，重复分数合法，重复 member 不合法。</p>
+<p>span 记录跨越元素数，支持边走边累加名次，因此排名查询不是先线性数一遍。当前 <code>server.h</code> 还有重要实现细节：普通节点的 level[0].span 被复用存放节点信息，不能照搬“每一层 span 都以完全相同方式解释”的旧结构说明。尾指针与 backward 指针方便反向访问。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>操作需求</th>
+<th>大集合中的主要机制</th>
+<th>成本边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>按 member 查 score</td>
+<td>dict 定位相应节点</td>
+<td>平均哈希成本，仍有哈希和字符串比较</td>
+</tr>
+<tr>
+<td>按 score 定位范围起点</td>
+<td>跳表导航</td>
+<td>平均 O(log N)</td>
+</tr>
+<tr>
+<td>返回范围内 M 个结果</td>
+<td>定位后遍历/输出</td>
+<td>通常 O(log N + M)，还要计返回字节数</td>
+</tr>
+<tr>
+<td>查名次</td>
+<td>上层导航并累加跨度</td>
+<td>平均 O(log N)</td>
+</tr>
+<tr>
+<td>更新 score</td>
+<td>原位置更新或拆下重插</td>
+<td>保持顺序和跨度不变量</td>
+</tr>
+</tbody>
+</table></div>
+<p>这里的复杂度描述针对典型跳表路径，具体命令的额外选项与协议输出会增加工作；listpack 路径另算。</p>
+<h3 id="本提交不再适合画成字典另存一份-score">本提交不再适合画成“字典另存一份 score”</h3>
+<p><code>zslCreateNode</code> 将节点、level 数组和成员 SDS 放在一次分配里。<code>zsetAdd</code> 的 dict 查找得到的是跳表节点，score 从节点读取；更新 score 时，<code>zslUpdateScore</code> 的源码说明保持节点地址不变，无需随 score 改变再更新 dict 中的节点引用。</p>
+<p>这同时节省了重复元数据、分配和维护工作。它也提醒我们：<strong>双索引不等于双份完整 payload</strong>，可以共享同一实体的内存表示。</p>
+<h3 id="另一项小优化复用已经完成的查找">另一项小优化：复用已经完成的查找</h3>
+<p>新增成员时，<code>dictFindLink</code> 同时取得已有项或候选 bucket；后续通过 <code>dictSetKeyAtLink</code> 插入，避免调用另一条路径重新计算/寻找同一个位置。这个思想在数据库查找后更新、容器插入 API 中很常见：将“找到位置”与“在该位置操作”的结果复用。</p>
+<h3 id="为什么不是红黑树">为什么不是红黑树</h3>
+<p>可以用平衡树实现有序查询，Redis 选择跳表并不证明跳表在所有条件下优于树。比较点应包括：范围遍历、rank 支持、实现与维护复杂度、节点大小、随机层高、缓存局部性、更新 workload，以及是否还需要 member 的独立索引。两者都存在多次指针访问；紧凑数组在小 N 下可能更经济。</p>
+<h3 id="业务拓展分页和热榜">业务拓展：分页和热榜</h3>
+<p>高 offset 分页可能付出跳过前面大量结果的成本；score 游标更容易避免深分页，但要设计同 score 的 tie-break 与并发变化下的边界。单个超热排行榜仍属于一个 key，Cluster 不能把其内部 member 自动拆给多个节点。若应用分区排行榜后合并，排名与一致性语义也随之变化，不能只承诺“拆分以后一样准确且更快”。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/server.h#L1823-L1852"><code>server.h:1823–1852</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_zset.c#L165-L179"><code>t_zset.c:165–179、254–258、326–338</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_zset.c#L394-L416"><code>t_zset.c:394–416</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_zset.c#L645-L670"><code>t_zset.c:645–670</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_zset.c#L1672-L1735"><code>t_zset.c:1672–1735</code></a>。</p>
+</section>
+
+<section id="sec-06-expiration-eviction-memory">
+<h2 id="6-过期淘汰与释放三个时间点三种机制">6. 过期、淘汰与释放：三个时间点、三种机制</h2>
+<h3 id="ttl-到点为什么内存不一定立即下降">TTL 到点，为什么内存不一定立即下降</h3>
+<p>要区分：<strong>逻辑上已过期</strong>、<strong>从索引中删除</strong>、<strong>底层内存真正释放</strong>。过期 key 可能尚未被后台周期处理；读取路径会检查并按实例角色/标志处理过期；异步释放又可能把实际回收推迟。RSS 还受分配器影响，不能要求删除后立即按 payload 大小下降。</p>
+<p>当前 <code>lookupKey</code> 在找到对象之后调用 <code>expireIfNeeded</code>，并有副本、读写和特殊访问标志等分支。因此“每次读都立刻把过期 key 物理删除”不精确；readonly replica 要避免自行强制删除造成与主库不一致。</p>
+<h3 id="被动检查与主动过期怎样配合">被动检查与主动过期怎样配合</h3>
+<p>被动检查处理被访问的 key，但无人访问的过期对象不能永远占内存；主动周期有预算地扫描过期索引。<code>activeExpireCycle</code> 保存跨调用的进度，依据 <code>active-expire-effort</code>、<code>hz</code>、过期比例和时间限制调整工作，提供 fast/slow 周期。</p>
+<p>它不是给每个 key 配置一个独立系统定时器。提高 effort 可更积极清理，但会与前台命令争用 CPU。大量 key 同时到期容易集中形成清理和缓存回源压力：应用 TTL 加抖动可以平滑业务负载，却不能代替容量与峰值规划。</p>
+<h3 id="淘汰与过期有什么不同">淘汰与过期有什么不同</h3>
+<p>过期依据 TTL 判断数据是否继续有效；淘汰在内存压力下按策略选牺牲品，未到 TTL 的 key 也可能被淘汰。常见策略族包括 allkeys/volatile 下的 LRU、LFU、random，volatile-ttl，以及 noeviction。volatile 类只从有 TTL 的候选中选；候选不足时，配置了淘汰策略也可能无法腾出足够内存。noeviction 下，受限写入可能被拒绝，但不应解释为任何命令一律禁止。</p>
+<p>这份 unstable 源码还包含额外策略及保护机制；本文讨论面试中常见的策略族，而不是宣称这是一张当前提交的穷尽清单。</p>
+<h3 id="为什么-redis-不是严格-lru-链表">为什么 Redis 不是严格 LRU 链表</h3>
+<p><code>evictionPoolPopulate</code> 采样若干候选，并把较适合淘汰的项留在池中；LRU 通过对象访问时钟估计空闲时间。这样不必每次访问都维护全局精确 LRU 双向链表，减少指针写入和元数据成本，代价是选出的并非数学意义上全局最久未访问的 key。</p>
+<p>LFU 也不是无界精确计数。源码将访问时间与频度复用在 LRU 位域中，频度为 8 位；<code>LFULogIncr</code> 随计数增加降低继续递增的概率，并在选候选时考虑时间衰减。历史热点如果不衰减，会长期挤占新热点；概率增量避免计数很快饱和。</p>
+<h3 id="为什么只读访问也可能触发-cow">为什么只读访问也可能触发 COW</h3>
+<p><code>lookupKey</code> 命中后可能更新 LRU/LFU 元数据，读业务因此也可能写内存页。当前源码在有持久化子进程时避开这些访问元数据更新，注释明确针对 copy-on-write 成本。这里不是缓存正确性变化，而是对替换统计精度的暂时取舍。</p>
+<h3 id="del-和-unlink-的关键差别">DEL 和 UNLINK 的关键差别</h3>
+<p>删除必须先让 key 不再从数据库索引可见；释放一个带大量独立分配的 value 则可能耗时。UNLINK 让高释放成本对象的内存回收移到后台线程，减轻前台延迟。</p>
+<p>但 <strong>UNLINK 不保证每个对象都由后台线程释放，也不代表立刻释放全部内存</strong>。<code>freeObjAsync</code> 先估算 effort，只有超过当前阈值 <strong>64</strong> 且引用计数满足条件时才安排后台任务，否则同步释放。这里的 64 是释放工作量判定，不是 value 大于 64 字节；一个大 RAW 字符串的分配数量与巨大 HT 的许多 entry 完全不同。</p>
+<h3 id="向外拓展内存上限不等于进程-rss-上限">向外拓展：内存上限不等于进程 RSS 上限</h3>
+<p>淘汰内存统计不能简单纳入所有缓冲。<code>evict.c</code> 解释：删除传播本身会增加 AOF/复制缓冲，若全部计入需要淘汰的内存，可能形成“越删缓冲越大、越要继续删”的反馈循环。因此统计中的排除项是为了机制稳定，不代表这些内存从机器上消失了。</p>
+<p>容量规划仍需为客户端输出、复制、AOF、分配器碎片和 fork/COW 留余量；maxmemory 应低于机器所有可用内存，而不是把剩余每个字节都分配给数据集。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/db.c#L296-L350"><code>db.c:296–350</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/expire.c#L295-L380"><code>expire.c:295–380</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/evict.c#L139-L178"><code>evict.c:139–178</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/evict.c#L292-L329"><code>evict.c:292–329</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/lazyfree.c#L140-L211"><code>lazyfree.c:140–211</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/db.c#L877-L950"><code>db.c:877–950</code></a>。</p>
+</section>
+
+<section id="sec-07-persistence">
+<h2 id="7-rdb-与-aof写入成功到哪里才算持久">7. RDB 与 AOF：写入成功到哪里才算持久</h2>
+<h3 id="先把状态链讲清楚">先把状态链讲清楚</h3>
+<pre><code class="language-text">命令完成、内存状态已修改
+  → 日志进入 Redis 的 AOF 缓冲
+  → write 把日志交给内核/文件系统
+  → fsync 请求将数据持久化
+  → 重启时根据持久化文件恢复
+</code></pre>
+<p>这些阶段不是同一个时刻。客户端收到成功、AOF 缓冲已有内容、系统调用 write 返回、持久化介质保证数据可恢复，都不是天然等价。真实保证还受配置、文件系统、硬件和失败类型影响。</p>
+<h3 id="rdb快照及其非免费后台成本">RDB：快照及其非免费后台成本</h3>
+<p><code>rdbSaveBackground</code> 通过 <code>redisFork(CHILD_TYPE_RDB)</code> 创建子进程，子进程序列化某一快照视图。fork 后父子共享页面，父进程继续修改时依靠 COW 保留子进程的视图。</p>
+<p>收益是让大量序列化工作不全在主执行路径完成；代价有 fork 本身的停顿、页表复制、后台 CPU/I/O 与写入引发的页面复制。<strong>不是 fork 一开始立刻复制整份数据库，也不是后台执行就没有主线程影响。</strong> 大数据集配合高写入率，COW 可能显著增加内存；这是内存余量与 fork 延迟监控的重要理由。</p>
+<p>只依靠周期快照时，最后一次有效快照之后的写入可能丢失。快照方便恢复/备份，不提供任意两次快照之间的零丢失保证。</p>
+<h3 id="aof不同-fsync-策略是不同的风险预算">AOF：不同 fsync 策略是不同的风险预算</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>策略</th>
+<th>主要取舍</th>
+<th>面试时必须加的边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>always</td>
+<td>更紧密地同步日志与持久化确认</td>
+<td>存储延迟进入关键路径；不承诺所有硬件故障下绝对无损</td>
+</tr>
+<tr>
+<td>everysec</td>
+<td>通常后台按秒级安排 fsync，平衡延迟和丢失窗口</td>
+<td>“约一秒”是常见目标，不是绝对最大丢失时间</td>
+</tr>
+<tr>
+<td>no</td>
+<td>同步时机更多交给系统</td>
+<td>性能与风险受系统刷写行为影响</td>
+</tr>
+</tbody>
+</table></div>
+<p>当前 <code>flushAppendOnlyFile</code> 在 everysec 模式会检查后台 fsync 是否还在进行，某些情况下推迟 write；源码中有约两秒的推迟处理及 delayed fsync 统计。这直接说明慢存储能影响前台延迟，“AOF 全部后台所以前台无感”不成立。</p>
+<p>空 AOF 缓冲也可能仍需 fsync：之前 write 的内容尚未持久化。不能仅依据缓冲为空判断“磁盘已同步”。</p>
+<h3 id="重写不等于压缩历史命令文本">重写不等于压缩历史命令文本</h3>
+<p>AOF rewrite 从当前有效状态生成更紧凑的恢复基础，不必保留所有历史 SET/更新。当前源码明确区分 <strong>BASE、INCR、HISTORY</strong> 文件，manifest 描述其顺序与状态；新的写入可继续进入增量文件，成功后更新清单并回收历史文件。</p>
+<p>因此当前实现不是只认一个永远追加的 <code>appendonly.aof</code>，也不应套用每个旧版“双写重写缓冲”的具体结构。理解目标比背旧字段更重要：重写期间不能漏掉父进程新增写入，切换必须保持可恢复的一组文件，而不是只换一个看起来最新的文件名。</p>
+<p>AOF BASE 还可能采用 RDB 形式。排查恢复问题时，要看 manifest、文件内容类型和实际配置，而不是看后缀猜恢复顺序。备份同样应保留一组一致文件，不能随意独立复制其中一个分片。</p>
+<h3 id="性能与可靠性一起问">性能与可靠性一起问</h3>
+<p>若启用 always 后 P99 上升，先验证 fsync/存储延迟，再讨论配置改变；改成 everysec 是改变数据风险，不只是性能参数调优。若 BGSAVE 期间内存猛涨，关注 COW、写入分布、分配器与数据规模；单纯多开 I/O 线程并不针对 fork 的核心问题。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/rdb.c#L2226-L2245"><code>rdb.c:2226–2245</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/aof.c#L52-L65"><code>aof.c:52–65</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/aof.c#L1234-L1243"><code>aof.c:1234–1243</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/aof.c#L1408-L1498"><code>aof.c:1408–1498</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/aof.c#L3219-L3260"><code>aof.c:3219</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/server.c#L2066-L2069"><code>server.c:2066–2069</code></a>。</p>
+</section>
+
+<section id="sec-08-replication-and-cluster">
+<h2 id="8-复制psync-与-cluster内存中的成功不等于集群承诺">8. 复制、PSYNC 与 Cluster：内存中的成功不等于集群承诺</h2>
+<h3 id="复制默认是异步的故障转移可能丢写">复制默认是异步的，故障转移可能丢写</h3>
+<p>主库执行写入，并把复制流传播给副本。客户端得到主库成功，不自动意味着某个副本已经处理、更不意味着其日志已经持久化。如果主库此时失效并提升尚未收到该写入的副本，可能丢失已确认的业务写入。</p>
+<p><code>WAIT</code> 等待指定数量副本对该连接之前写入的复制 offset 进行处理确认；<code>WAITAOF</code> 则涉及本地及副本的 AOF 同步确认。二者回答的不是同一个问题。等待命令超时不表示前面的写入被撤回；满足等待条件也不能直接把整个系统称为强一致共识系统，故障转移和恢复仍有各自边界。</p>
+<h3 id="psync-为什么要同时检查-replid-和-offset">PSYNC 为什么要同时检查 replid 和 offset</h3>
+<p>offset 代表复制历史中的位置，不是独立可解释的数据库版本。两个不同历史的主库即使 offset 相同，也不能凭它继续复制。</p>
+<p><code>masterTryPartialResynchronization</code> 检查当前/历史有效 replid 及其适用 offset，再检查 backlog 是否还保留请求位置。历史匹配且窗口覆盖，才能 CONTINUE；否则全量同步。若 backlog 太小，短暂断线后的写流也可能把所需数据挤出窗口，反复导致昂贵全量同步。</p>
+<p>一个容量规划近似式是：</p>
+<p><math display="block"><mrow><mi>B</mi><mo>≳</mo><mi>R</mi><mo>×</mo><mi>T</mi><mo>×</mo><mi>F</mi></mrow></math></p>
+<p>其中 B 是计划的 backlog 字节，R 是复制流写入速率，T 是希望覆盖的断线/恢复时间，F 是峰值和估算余量。它是工程估算，不是实现保证；业务 payload 字节与实际复制流字节也不必相等。</p>
+<h3 id="本提交的-backlog-不应画成孤立的固定环形数组">本提交的 backlog 不应画成孤立的固定环形数组</h3>
+<p>当前 backlog 包含对复制 buffer block 的引用，并用 radix tree 索引部分 block offset；副本也引用共享复制 buffer 的起始位置。对旧版“一个固定环形字节数组”的背诵，要区别抽象历史窗口和当前物理布局。</p>
+<p>共享 buffer 减少同一复制流对多个副本的重复保存，但慢副本可能让块较久不能释放。源码通过引用和分批 trim 处理回收，避免大量块一次释放冻结主线程。backlog 配置大小不应被简单理解成任何时刻所有复制相关实际分配的严格上限。</p>
+<h3 id="cluster-的-slot-是路由单元不是-key-内部分片">Cluster 的 slot 是路由单元，不是 key 内部分片</h3>
+<p>当前 <code>cluster.h</code> 定义 16384 个 slot。<code>keyHashSlot</code> 计算 CRC16 的低 14 位；符合规则的非空 <code>{...}</code> hash tag 可使多个 key 落到同一 slot，便于局部多 key 操作。</p>
+<p>同 slot 是必要的路由条件，不代表迁移过程或所有命令都无需检查。一个超大 Hash、超热 String 或榜单仍是单个 key，不会自动按字段/member 拆到其他节点；客户端连接更多节点也不能拆掉它的热点。</p>
+<h3 id="moved-与-ask-的语义为什么不同">MOVED 与 ASK 的语义为什么不同</h3>
+<ul>
+<li><strong>MOVED</strong>：请求应按当前 slot 所有者去处理，客户端通常更新或刷新路由。</li>
+<li><strong>ASK</strong>：迁移中的临时重定向；向目标发送 ASKING 再执行本次请求，不把它当作永久所有权变更。</li>
+</ul>
+<p><code>getNodeByQuery</code> 还处理迁移/导入、多 key、缺失 key 等条件，某些组合可返回 TRYAGAIN。故障、迁移与路由都是状态机，不是单纯用一个 hash 函数定位机器。</p>
+<h3 id="sentinel-与-cluster-不要混为一谈">Sentinel 与 Cluster 不要混为一谈</h3>
+<p>Sentinel 常用于监控非 Cluster 主从拓扑并协调故障转移，本身不按 slot 分片用户数据；Cluster 负责分片和相应集群机制。这是部署模式层面的区分，本文没有展开 Sentinel 全部选举路径，也不声称验证了脑裂与 failover 的所有场景。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/replication.c#L315-L410"><code>replication.c:264–280、315–410</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/replication.c#L606-L610"><code>replication.c:606–610</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/replication.c#L1006-L1084"><code>replication.c:1006–1084</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/replication.c#L4892-L4955"><code>replication.c:4892–4955</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/cluster.h#L54-L82"><code>cluster.h:22–24、54–82</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/cluster.c#L1230-L1535"><code>cluster.c:1230–1535</code></a>。</p>
+</section>
+
+<section id="sec-09-transactions-locks-cache">
+<h2 id="9-事务lua锁与缓存一致性由原子性向业务边界扩展">9. 事务、Lua、锁与缓存一致性：由原子性向业务边界扩展</h2>
+<h3 id="multiexec-的原子性不等于数据库回滚">MULTI/EXEC 的原子性不等于数据库回滚</h3>
+<p>MULTI 收集命令，EXEC 检查是否应拒绝整批，并逐项执行。入队时的错误可以把事务标记为无效；WATCH 检测到改动会导致条件执行失败。<strong>执行过程中的某条命令出错，并不会把此前已执行的写入自动撤回</strong>，其他队列命令也有各自的结果。</p>
+<p><code>execCommand</code> 的核心是一段循环：逐个恢复命令参数，做权限检查，再 <code>call</code>。它不是带 undo log 的通用事务系统。不可穿插的执行组织与全体成功/失败回滚，是两个不同维度。</p>
+<h3 id="watch-是乐观条件检查不是持有-key-锁">WATCH 是乐观条件检查，不是持有 key 锁</h3>
+<p>WATCH 注册观察关系，被观察 key 的相关变化会把客户端标记为 DIRTY_CAS；EXEC 检查标记，当前源码还显式检查被观察 key 已过期的情况。业务读、计算、等待期间没有获得 Redis 内部锁，必须处理失败并重试。</p>
+<p>高争用下，重试可能放大负载。可以用更短的原子命令或脚本减少客户端读改写窗口，但脚本自身也有执行与数据规模成本。</p>
+<h3 id="lua-能减少-rtt也会占据执行通道">Lua 能减少 RTT，也会占据执行通道</h3>
+<p>适合把检查与少量更新组成一次服务端操作，例如计数与条件扣减。原子执行指执行期间对相应普通命令的隔离，不代表脚本错误能回滚之前写入，也不代表脚本跨节点天然形成事务。</p>
+<p>不要在脚本中扫描巨大数据集或进行无限循环。<code>script.c</code> 的 kill 路径检查是否已经发生写入：写过数据的脚本并不能总被安全中止，因为不能靠简单终止恢复之前状态。超时监控也不等于达到时限便自动安全回滚。</p>
+<h3 id="用-redis-锁时先明确三条不变量">用 Redis 锁时，先明确三条不变量</h3>
+<pre><code class="language-text">获取：不存在时写入唯一 owner token，并同时设置租期
+释放：仅当当前 owner token 等于自己的 token 时删除
+使用：业务执行必须考虑租期到期、暂停、重试及主从切换
+</code></pre>
+<p>常见获取形式是 <code>SET lock token NX PX ttl</code>。NX 判断和租期要在一个操作中完成，避免 SETNX 后进程在设置过期前崩溃。释放必须“比较 owner 后删除”原子执行；直接 DEL 可能删掉新持有者的锁。</p>
+<p>下面是思路示意，<strong>不是已经运行或证明完整可靠的锁库</strong>：</p>
+<pre><code class="language-lua">if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+end
+return 0
+</code></pre>
+<p>不过唯一 token 只保证不要误删别人的锁，不保证旧持有者在暂停、租期过后不会继续写外部资源。需要更强保护时可设计 <strong>fencing token</strong>：下游拒绝旧顺序号的写入，并且顺序号来源自身要满足所需的一致性与故障恢复条件。不能简单宣称在可能丢写的复制拓扑里加个 INCR 就获得可靠 fencing。</p>
+<p>主库锁刚确认但尚未复制便故障转移，也是潜在双持有者来源。锁正确性必须纳入部署和失败模型，而不是仅证明一台 Redis 上的 SET 是原子的。</p>
+<h3 id="缓存问题如何从机制推到架构">缓存问题如何从机制推到架构</h3>
+<p>下列为工程设计推导，不是 Redis 内部自动提供的功能：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>可考虑的设计</th>
+<th>权衡与边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>穿透：不存在的数据反复回源</td>
+<td>短 TTL 的空值、布隆过滤器、访问约束</td>
+<td>空值也占空间；布隆有误报，不能当精确集合</td>
+</tr>
+<tr>
+<td>击穿：热点刚过期集中回源</td>
+<td>singleflight/互斥回源、软过期</td>
+<td>锁失败、旧值窗口和等待超时要有处理</td>
+</tr>
+<tr>
+<td>雪崩：大批同时过期或缓存不可用</td>
+<td>TTL 抖动、限流、降级、容量保护</td>
+<td>抖动解决不了整个 Redis 节点失效</td>
+</tr>
+<tr>
+<td>热 key</td>
+<td>客户端近端缓存、读复制、业务分散</td>
+<td>副本延迟及失效传播引入一致性边界</td>
+</tr>
+<tr>
+<td>大 key</td>
+<td>有边界的拆分、分批读删、UNLINK</td>
+<td>多 key 操作复杂，分片/一致性设计会改变</td>
+</tr>
+</tbody>
+</table></div>
+<p>Cache-aside 的“先更新数据库再删除缓存”仍有并发回填旧值的窗口：旧读请求可能晚于删除，把旧值写回。需要按业务要求引入版本、事件、失效顺序或容忍窗口；“延迟双删保证绝对一致”是过度承诺。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/multi.c#L127-L232"><code>multi.c:127–232</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/multi.c#L389-L410"><code>multi.c:389、488</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/script.c#L371-L389"><code>script.c:192–219、371–389</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_string.c#L78-L118"><code>t_string.c:78–118</code></a>。</p>
+</section>
+
+<section id="sec-10-extended-data-structures">
+<h2 id="10-向外拓展stream基数估计及当前新增结构">10. 向外拓展：Stream、基数估计及当前新增结构</h2>
+<h3 id="stream-为什么组合-radix-tree-和-listpack">Stream 为什么组合 radix tree 和 listpack</h3>
+<p><code>stream</code> 持有 rax，迭代器同时维护 radix-tree 游标与当前 listpack。宏观索引按消息 ID 定位一段数据，块内紧凑保存多个 entry，比每条消息都独立建立完整索引更节省元数据；代价是块内解析与维护复杂度。</p>
+<p>消息 ID 的时间部分不是业务执行成功时间，也不是跨系统事务序号。消费者组保存 last delivered ID、消费者与 PEL。PEL 追踪已交付但尚未确认的消息；消费后不 ACK，消息并不自动变成“永远完成”。失败恢复、claim、幂等处理与 ACK 的先后都应由业务设计。</p>
+<p>当前 <code>streamCG</code> 的 PEL 除 radix tree 外，还维护按 delivery time 组织的双向链表，注释指出用于高效访问较旧 pending entry。<strong>同时维护多个索引</strong>不只用于 ZSet：同一消息要按 ID 查，又要按时间找待认领项，就可能需要不同索引视角。</p>
+<p>不要把有 PEL 等同于业务 exactly-once。处理完业务后、ACK 前崩溃可能重投；先 ACK 后业务写入失败可能丢处理。下游事务和幂等键决定最终效果。当前 Stream 还出现生产者去重相关结构，但这同样不自动使外部副作用具备 exactly-once。</p>
+<h3 id="radix-tree-的空间优化">radix tree 的空间优化</h3>
+<p><code>rax.h</code> 解释路径压缩：一串只有单个孩子的节点可以合并保存公共路径，减少分配与指针。当前还支持已知固定 key 长度的模式，直接在父节点槽保存值指针，省掉叶节点分配。</p>
+<p>收益依赖 key 的前缀分布和固定长度条件，不能简单说“字典树永远更省内存”。插入分歧前缀要拆节点，删除后可能重压缩；结构节省也要支付维护复杂度。</p>
+<h3 id="bitmap-与-hyperloglog-分别解决什么">Bitmap 与 HyperLogLog 分别解决什么</h3>
+<p>Bitmap 适合有界、较稠密 ID 的布尔状态。定位 bit 可直接利用 byte/bit offset，但整个 BITCOUNT 与大型位运算仍要扫描相应字节。超大离散 ID 可能为中间空洞分配大量空间；“一个状态只占一 bit”不能忽略 ID 空间跨度和扩容成本。Bitmap 是精确状态表示，不是概率去重器。</p>
+<p>HyperLogLog 只估计基数，不保留所有成员，因而不能拿它查某个用户是否存在，也不能替代精确 Set 的删成员能力。本提交定义 P=14，即 16384 个 register，每个 6 bit；dense register payload 为：</p>
+<p><math display="block"><mrow><mfrac><mrow><mn>16384</mn><mo>×</mo><mn>6</mn></mrow><mn>8</mn></mfrac><mo>=</mo><mn>12288</mn><mtext> 字节</mtext></mrow></math></p>
+<p>这只是 register payload，还要加头部、对象及分配器开销；小基数可以用稀疏表示。常见约 0.81% 的标准误差量级来自概率分析，不是“每一次估计最多误差 0.81%”的硬上界，更不是本文测量结果。</p>
+<h3 id="hash-字段过期两个层次的最早时间">Hash 字段过期：两个层次的最早时间</h3>
+<p>当前 <code>t_hash.c</code> 的说明中，每个 Hash 维护字段 TTL 的私有 ebuckets；含字段过期的 Hash 又注册到数据库级索引中，时间代表该 Hash 的下一次最早过期。这样可以先定位该处理哪个 Hash，再处理其过期字段，不必每轮扫全部字段。</p>
+<p>同一个 Hash 连续修改多个字段过期时间时，还会尽量合并对全局索引的更新。这是“批处理维护索引”而不是简单减少命令次数。新增字段 TTL 后，不同编码的兼容性与迁移成本也应纳入评估。</p>
+<h3 id="hash-templates共享字段名代价是-schema-变化">Hash Templates：共享字段名，代价是 schema 变化</h3>
+<p>当前源码描述不可变模板保存排序后的字段名，同 schema 的多个 Hash 共享它，各 Hash 只保存自己的 values。模板字段可二分定位；TMPL_LP 的 value 还需要 listpack 定位，TMPL_ARRAY 则有按 index 访问 values 数组的路径，不能把两种编码的查找成本合并为一个 O(log N)。</p>
+<p>此设计适合大量稳定同构对象，减少重复字段名。频繁增加/删除字段意味着切换或创建模板，schema 不稳定会削弱收益；模板被少量 key 使用时还可能付出额外成本。</p>
+<p><strong>该提交配置中 <code>hash-min-template-entries 0</code> 表示关闭写路径的自动模板转换</strong>。这是版本明确的拓展知识，不应替换成所有线上 Redis 的默认 Hash 行为。</p>
+<h3 id="array稀疏与稠密表示的切换">Array：稀疏与稠密表示的切换</h3>
+<p>当前 <code>t_array.c</code> 与 <code>sparsearray.h</code> 引入按非负 64 位 index 访问的 Array。它用 directory/slice，必要时加入 superdir；稀疏 slice 保存排序的 offset/value 对，稠密 slice 用直接数组和滑动窗口。Tagged word 内联部分整数、短字符串和浮点表示，减少小 value 分配。</p>
+<p>配置中的默认 slice size 为 4096、稀疏转稠密阈值为 10、回退阈值为 5，且回退还受节省内存的条件约束：又一次用滞回来防止表示抖动。</p>
+<p>分析复杂度时，不能机械照抄头文件的 O(1) 宣传句：稀疏 slice 的有序查找、插入搬移、目录增长以及转换都可能增加工作；有界 slice 与阈值限制了局部成本。浮点 immediate 表示还涉及低位清理，持久化保存逻辑类型而不是架构相关 tagged word。这属于该 unstable 提交的具体设计，不是经典五种类型的跨版本知识。</p>
+<p><strong>源码证据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/stream.h#L35-L152"><code>stream.h:35–152</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/rax.h#L40-L109"><code>rax.h:40–109</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/hyperloglog.c#L194-L204"><code>hyperloglog.c:194–204</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_hash.c#L270-L306"><code>t_hash.c:115–121、270–306</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/redis.conf#L2245-L2308"><code>redis.conf:2245–2308</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/sparsearray.h#L23-L98"><code>sparsearray.h:23–98</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/t_array.c#L20-L39"><code>t_array.c:20–39</code></a>。Bitmap 可查 <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/bitops.c#L854-L896"><code>bitops.c:854–896</code></a> 的 byte/bit 定位，以及 <code>redisPopcount</code>（67 行）、<code>bitcountCommand</code>（1622 行）；本文未逐一分析所有位操作或执行相关实验。</p>
+</section>
+
+<section id="sec-11-performance-and-experiments">
+<h2 id="11-从redis-慢到可验证的性能假设">11. 从“Redis 慢”到可验证的性能假设</h2>
+<h3 id="先分层而不是先调参数">先分层，而不是先调参数</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>观测</th>
+<th>首先考虑</th>
+<th>下一步验证</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主线程 CPU 高且某类命令占主导</td>
+<td>大范围遍历、长脚本、编码转换</td>
+<td>命令统计、慢日志、采样 profile、数据分布</td>
+</tr>
+<tr>
+<td>CPU 不满但客户端延迟高</td>
+<td>网络/连接池排队、存储阻塞、调度</td>
+<td>服务端与客户端时间拆分、网络/磁盘指标</td>
+</tr>
+<tr>
+<td>大量小对象内存高</td>
+<td>索引和分配器级别主导</td>
+<td>编码、MEMORY USAGE、对象数量、字段长度</td>
+</tr>
+<tr>
+<td>持久化期间 RSS 上升</td>
+<td>fork/COW 与后台资源争用</td>
+<td>fork 延迟、COW 指标、写入率、子进程状态</td>
+</tr>
+<tr>
+<td>删除后内存晚下降</td>
+<td>lazyfree、分配器保留、引用</td>
+<td>后台待释放工作、分配器与 RSS 分别观察</td>
+</tr>
+<tr>
+<td>副本反复全量同步</td>
+<td>backlog 覆盖不够、历史不匹配</td>
+<td>replid/offset、断线时长、复制流峰值</td>
+</tr>
+<tr>
+<td>平均 QPS 很高但 P99 差</td>
+<td>批次过大、短时长命令、排队</td>
+<td>限制批次、分位数与时间序列、负载波动</td>
+</tr>
+</tbody>
+</table></div>
+<p>SLOWLOG 聚焦服务端执行相关耗时，不能直接代表整个应用请求的 RTT；网络传输和客户端等待需分别观察。采集生产数据时也要考虑命令本身的成本，尤其不要为了排查大 key 再对它做无界全量读取。</p>
+<h3 id="四个性能设计问题">四个性能设计问题</h3>
+<ol>
+<li><strong>工作是不是本来就很多？</strong> 输出一百万个元素至少要处理和传输这些结果。换线程模型不能消除结果大小。</li>
+<li><strong>工作能否分批？</strong> 渐进 rehash、主动过期预算、复制 buffer 分批 trim 都在限制单次占用。</li>
+<li><strong>能否减少数据搬运和分配？</strong> EMBSTR、kvobj、紧凑集合、跳表节点内嵌成员、共享模板都在这里发力。</li>
+<li><strong>能否隐藏等待？</strong> pipeline 降低 RTT 等待，I/O 线程分担网络侧工作，预取利用内存级并行；它们针对不同等待，不能互相替代。</li>
+</ol>
+<p>平均复杂度、摊还复杂度、最坏情况、编码切换成本与 P99 应分别讨论。一个“平均 O(1)”查找系统，仍可能在扩容、转换、释放和磁盘争用时产生尾延迟。</p>
+<h3 id="学习实验仅在独立可丢弃的实例中执行">学习实验：仅在独立、可丢弃的实例中执行</h3>
+<p><strong>下列是设计好的验证方案，尚未在此机器上运行。</strong> 不连接生产实例，不修改源码检出目录的工作树；构建和运行产生的试验文件、日志、配置及持久化数据均放到系统 TEMP 的独立目录。任何测试实例只监听受控本地地址，不暴露到网络。</p>
+<h4 id="a-看编码切换不先测极限-qps">A. 看编码切换，不先测极限 QPS</h4>
+<ul>
+<li>使用不同长度和格式的 String，记录 <code>OBJECT ENCODING</code> 与 <code>MEMORY USAGE</code>；比较短字符串、较长字符串、严格整数与带前导零的值。</li>
+<li>按实际运行配置构造阈值内/外的 Hash、Set、ZSet、List，分别观察增长、删除后的编码和延迟；不要把配置文件示例当成实例当前值。</li>
+<li>加入宽整数触发 intset 升级；加入非整数观察是否转 listpack/HT。</li>
+<li>List 围绕转换边界反复增删，验证滞回与节点条件，而不是假设每次都往返转换。</li>
+</ul>
+<h4 id="b-把-pipelineio-线程与预取分开比较">B. 把 pipeline、I/O 线程与预取分开比较</h4>
+<p>先固定数据集、读写比例、key/value 长度、连接数和持久化策略。分别改变 pipeline 深度、客户端线程数、I/O 线程数；若测试预取，确认当前源码相关配置与可用统计。</p>
+<p>客户端发生瓶颈时，服务端参数收益会被掩盖。当前 <code>redis.conf</code> 也提示 benchmark 客户端要有足够线程；不能从一个单线程饱和的压测程序推断 Redis 多线程无效。记录吞吐、P50/P95/P99、CPU、内存和输出缓冲，而不是只摘一个最佳 QPS。</p>
+<h4 id="c-del-与-unlink">C. DEL 与 UNLINK</h4>
+<p>对比相似总字节但不同分配结构的对象，例如一个较大 RAW String 与很多字段的 HT Hash。关注前台删除耗时、其他请求延迟、后台释放队列和实际内存变化。预期差异来自释放 effort，不是仅来自 key 大小；这个预期需实验确认。</p>
+<h4 id="d-ttl持久化与恢复">D. TTL、持久化与恢复</h4>
+<p>在不同 TTL 集中程度下观察过期工作与前台延迟；对比抖动后的时序。再分别测试快照期间高写入与低写入的 COW 和 RSS，比较 fsync 策略的性能/风险，不同时修改全部参数。</p>
+<p>恢复测试必须使用隔离实例和可丢弃数据。记录故障时刻、日志策略、已确认写、恢复后的数据、副本状态；不把“进程正常关闭再启动成功”当作断电安全性的证明。</p>
+<h4 id="e-scan-与副本恢复">E. SCAN 与副本恢复</h4>
+<p>SCAN 期间进行受控修改并去重结果，验证无快照语义；不能要求并发修改时返回一个精确瞬间集合。对复制测试，控制断线时间和写入速率，检查 offset 是否仍在 backlog 窗口，区分 partial 与 full resync。</p>
+<h3 id="报告最少包含什么">报告最少包含什么</h3>
+<p>源码 commit、构建选项、OS/CPU/内存、分配器、运行配置、实例是否持久化、数据分布、请求模型、预热方法、重复次数、分位数、资源指标和失败条件。没有这些条件，“提升了 3 倍”通常不能迁移到另一个 workload。</p>
+<p><strong>机制依据：</strong> <a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/memory_prefetch.h#L24-L39"><code>memory_prefetch.h:24–39</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/redis.conf#L1410-L1441"><code>redis.conf:1410–1441</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/dict.c#L406-L459"><code>dict.c:406–459</code></a>、<a href="https://github.com/redis/redis/blob/b540ca49cba815f3fbe634363c3df68d4f4f127a/src/replication.c#L399-L410"><code>replication.c:399–410</code></a>。其他证据参见相关结构章节；本章不包含已测得的性能数字。</p>
+</section>
+
+<section id="sec-12-interview-checklist">
+<h2 id="12-面试速查把一句话答案接到下一层追问">12. 面试速查：把一句话答案接到下一层追问</h2>
+<h3 id="30-个高频问题">30 个高频问题</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>第一层回答</th>
+<th>继续展开的关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. Redis 为什么快？</td>
+<td>内存访问、适配编码、事件驱动和低协调成本</td>
+<td>网络 RTT、分配、cache miss 与慢命令仍存在</td>
+</tr>
+<tr>
+<td>2. Redis 是单线程吗？</td>
+<td>普通键空间命令主要主线程执行，系统并非只有一个线程</td>
+<td>I/O 线程读写/解析、异步释放、后台子进程</td>
+</tr>
+<tr>
+<td>3. 多开 I/O 线程能治长 Lua 吗？</td>
+<td>不能自动分摊脚本执行</td>
+<td>先区分网络与串行执行瓶颈</td>
+</tr>
+<tr>
+<td>4. pipeline 是事务吗？</td>
+<td>不是，主要摊薄 RTT 和调用成本</td>
+<td>批次、输出缓冲、命令穿插与原子性</td>
+</tr>
+<tr>
+<td>5. SDS 为什么二进制安全？</td>
+<td>显式长度，不靠 NUL 判断内容边界</td>
+<td>调用者仍必须使用带长度的 API</td>
+</tr>
+<tr>
+<td>6. EMBSTR 为什么省空间？</td>
+<td>合并对象/SDS 分配，减少间接访问</td>
+<td>当前 44 字节是实现阈值，不是协议规则</td>
+</tr>
+<tr>
+<td>7. 对象类型和编码有何区别？</td>
+<td>类型定义语义，编码定义表示</td>
+<td>同类型随规模/内容改变编码</td>
+</tr>
+<tr>
+<td>8. 当前 key/value 如何减少分配？</td>
+<td>kvobj 可以嵌入 key、短值和元数据</td>
+<td>不代表每种 value 都内联</td>
+</tr>
+<tr>
+<td>9. dict 的 O(1) 是绝对的吗？</td>
+<td>平均意义下成立</td>
+<td>长 key、冲突链、迁移及分配成本</td>
+</tr>
+<tr>
+<td>10. 渐进 rehash 怎样避免长停顿？</td>
+<td>双表共存、分批迁移</td>
+<td>一个 bucket 的长链仍可能昂贵</td>
+</tr>
+<tr>
+<td>11. SCAN 会重复吗？</td>
+<td>会；它不是快照</td>
+<td>去重、并发变化、COUNT 只是提示</td>
+</tr>
+<tr>
+<td>12. Hash 一定用哈希表吗？</td>
+<td>小对象可以使用 listpack</td>
+<td>大对象、字段 TTL、当前可选模板编码</td>
+</tr>
+<tr>
+<td>13. listpack 消除了所有搬移吗？</td>
+<td>没有，它避免特定级联长度更新</td>
+<td>连续内存仍可能 realloc/memmove</td>
+</tr>
+<tr>
+<td>14. quicklist 随机访问是 O(1) 吗？</td>
+<td>不是普通数组</td>
+<td>节点定位、局部 listpack 与压缩成本</td>
+</tr>
+<tr>
+<td>15. intset 插入为何不是 O(log N)？</td>
+<td>二分找位置之后还要搬移</td>
+<td>整数宽度升级也是批量工作</td>
+</tr>
+<tr>
+<td>16. Set 非整数必转 HT 吗？</td>
+<td>当前小集合可转 listpack</td>
+<td>依数量、长度和配置条件</td>
+</tr>
+<tr>
+<td>17. ZSet 为什么两种索引？</td>
+<td>按 member 与按 score/rank 的需求不同</td>
+<td>共享跳表节点，并保持索引一致</td>
+</tr>
+<tr>
+<td>18. span 有什么用？</td>
+<td>支持跨层累加名次</td>
+<td>当前底层字段复用需看版本</td>
+</tr>
+<tr>
+<td>19. TTL 到点必然释放内存吗？</td>
+<td>逻辑过期、索引删除、回收不同步</td>
+<td>主动预算、访问检查、副本与 lazyfree</td>
+</tr>
+<tr>
+<td>20. LRU 为什么是近似的？</td>
+<td>采样与候选池降低全局维护成本</td>
+<td>精度、采样成本、LFU 的概率计数/衰减</td>
+</tr>
+<tr>
+<td>21. UNLINK 一定异步释放吗？</td>
+<td>高 effort 且条件满足才排后台</td>
+<td>64 是 effort 阈值，不是字节数</td>
+</tr>
+<tr>
+<td>22. RDB 后台为何还会抖动？</td>
+<td>fork、COW 和资源争用仍有成本</td>
+<td>高写入率、内存余量、页表和磁盘</td>
+</tr>
+<tr>
+<td>23. AOF everysec 最多丢一秒吗？</td>
+<td>通常目标是秒级，不是硬上界</td>
+<td>慢 fsync、刷写与故障类型</td>
+</tr>
+<tr>
+<td>24. AOF 重写怎样不停写？</td>
+<td>当前状态生成 BASE，新增写进入 INCR</td>
+<td>manifest 切换与一组文件的可恢复性</td>
+</tr>
+<tr>
+<td>25. PSYNC 为什么要 replid？</td>
+<td>offset 只有放在同一历史中才有意义</td>
+<td>当前/次历史与 backlog 窗口</td>
+</tr>
+<tr>
+<td>26. WAIT 后就强一致了吗？</td>
+<td>不是，它等待处理确认</td>
+<td>不同于落盘；失败转移仍有边界</td>
+</tr>
+<tr>
+<td>27. MOVED 与 ASK 有何区别？</td>
+<td>所有权路由与迁移中临时路由</td>
+<td>ASKING、多 key 与 TRYAGAIN</td>
+</tr>
+<tr>
+<td>28. MULTI/EXEC 会回滚吗？</td>
+<td>不提供通用执行错误回滚</td>
+<td>入队失败、WATCH 失败和运行错误区别</td>
+</tr>
+<tr>
+<td>29. 有 TTL 的 Redis 锁就安全吗？</td>
+<td>还要 owner 校验、租期与故障模型</td>
+<td>旧持有者继续工作、fencing、复制丢写</td>
+</tr>
+<tr>
+<td>30. Stream 直接保证 exactly-once 吗？</td>
+<td>不自动保证外部业务副作用</td>
+<td>PEL、ACK、重投及下游幂等/事务</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="三条源码阅读路线">三条源码阅读路线</h3>
+<p><strong>路线 A：命令执行与访问成本</strong></p>
+<p><code>networking.c</code> → <code>server.c:processCommand/call</code> → <code>t_string.c:getGenericCommand</code> → <code>db.c:lookupKey</code> → <code>kvstore.c/dict.c</code> → 输出缓冲处理。</p>
+<p>每一步问：是否分配？是否遍历？是否写元数据？是否需要同步或 I/O？有没有批次/时间边界？</p>
+<p><strong>路线 B：一种类型的编码生命周期</strong></p>
+<p><code>object.h</code> 的编码定义 → 对应 <code>t_*.c</code> 的创建/转换 → 底层容器 → 修改/删除路径 → 对象释放 → RDB/AOF 的保存恢复。</p>
+<p>例如研究 Set 时同时读 <code>t_set.c</code> 和 <code>intset.c/listpack.c/dict.c</code>；否则只能看到命令表面而看不到成本变化。</p>
+<p><strong>路线 C：跨越进程/节点的确认边界</strong></p>
+<p>写命令 → <code>call</code> 的传播管理 → <code>aof.c</code> 的 write/fsync → <code>replication.c</code> 的流、offset 与等待 → 断线恢复 → Cluster 的路由状态。</p>
+<p>每一步问：成功确认代表数据到了哪里？出现超时是否撤回？换主后历史是否仍相同？业务到底能接受多大的丢失或读旧窗口？</p>
+<h3 id="回答时避免的七个绝对化说法">回答时避免的七个绝对化说法</h3>
+<ol>
+<li>“所有操作都是 O(1)。”</li>
+<li>“开多线程以后命令都并行。”</li>
+<li>“到了过期时间立刻删除并还内存。”</li>
+<li>“UNLINK 永远后台、永远瞬间完成。”</li>
+<li>“AOF everysec 硬保证最多丢一秒。”</li>
+<li>“事务、Lua、WAIT 或 SET NX 中任一个就足以保证业务强一致。”</li>
+<li>“源码里有的特性，所有稳定版本就都默认启用。”</li>
+</ol>
+<p>更好的句式是：<strong>在这个版本、这种编码、这些配置和失败假设下，机制提供什么；它省了什么，剩下的风险在哪里。</strong></p>
+<h3 id="交付与重建">交付与重建</h3>
+<p>阅读页为本目录的 <code>index.html</code>，真实样式与脚本在 <code>assets/</code>。本文源稿、源码版本元数据和重建脚本在 <code>work/</code>；没有复制 Redis 源码，没有修改 Redis 检出目录。</p>
+<p>在论文项目根目录初始化外置环境后，重建命令为：</p>
+<pre><code class="language-powershell">. .\tools\dev-env.ps1
+&amp; $Python dist\redis-source-interview\work\rebuild.py
+</code></pre>
+<p>需要试验布局时，给重建脚本传 <code>--dist &lt;系统临时目录中的绝对路径&gt;</code>；不要把试验页面、临时配置或压测日志散放在工作区。</p>
+</section>
+  </article>
+
+  <footer class="colophon">
+    <p>本页由本地构建流水线生成，内容哈希 <code>6501e60c5365</code>。</p>
+    <p>参考文献、作者名单及致谢按项目约定保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="assets/scripts/reader.js"></script>
+</body>
+</html>

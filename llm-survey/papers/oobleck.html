@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Oobleck: Resilient Distributed Training of Large Models Using Pipeline Templates — 大语言模型调研</title>
+<meta name="description" content="Oobleck: Resilient Distributed Training of Large Models Using Pipeline Templates">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/styles/survey.css">
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>回到顶部</button>
+</div>
+
+<main class="page" id="content"><a class="site-home" href="../../index.html">← 文库</a>
+  <p class="back-link"><a href="../index.html">← 返回综述主页</a></p>
+
+  <header class="title-block paper-detail-head">
+    <p class="paper-en-title">Oobleck: Resilient Distributed Training of Large Models Using Pipeline Templates</p>
+    <h1>Oobleck：用流水线模板实现大模型的弹性分布式训练</h1>
+<dl class="paper-facts">
+    <dt>中文标题</dt>
+    <dd>Oobleck：用流水线模板实现大模型的弹性分布式训练</dd>
+    <dt>作者</dt>
+    <dd>Insu Jang, Zhenning Yang, Zhen Zhang, Xin Jin, Mosharaf Chowdhury</dd>
+    <dt>发表</dt>
+    <dd>SOSP · 2023</dd>
+    <dt>阶段</dt>
+    <dd>预训练</dd>
+    <dt>引用</dt>
+    <dd>引用 122（截至 2026-09-22）</dd>
+    <dt>引用来源</dt>
+    <dd>Semantic Scholar Graph API（arXiv 记录，2026-09-22 批量查询）</dd>
+    <dt>原文</dt>
+    <dd><a href="https://arxiv.org/abs/2309.08125">arXiv:2309.08125</a> · <a href="https://doi.org/10.1145/3600006.3613152">DOI</a> · <a href="https://arxiv.org/abs/2309.08125v2">摘要来源（固定版本）</a> · <a href="https://doi.org/10.1145/3600006.3613152">发表来源</a></dd>
+</dl>
+  </header>
+
+  <article class="body abstract-body">
+    <h2>摘要译文</h2>
+<p>Oobleck 使大 DNN 模型能够进行具有<strong>有保证的容错能力</strong>的弹性分布式训练。它采用规划与执行协同设计的方法：首先生成一组<strong>异构流水线模板</strong>，并实例化<strong>至少 f+1 个逻辑等价的流水线副本</strong>，以容忍任意 f 个同时发生的故障。在执行期间，它依靠这些副本之间已经复制的模型状态来提供快速恢复。Oobleck 可证明地保证：在发生 f 个或更少同时故障之后，初始创建的流水线模板中的某种组合总能被用来覆盖所有可用资源，从而在任何时刻都避免资源闲置。在数十亿参数的大 DNN 模型上的评估表明，Oobleck 能持续提供高吞吐，并相对 Bamboo、Varuna 等最先进的容错方案<strong>最高提升 29.6 倍</strong>。</p>
+  </article>
+
+<aside class="paper-notes"><h2>阅读说明与边界</h2><p>有保证的容错以 f+1 个逻辑等价的流水线副本为代价：容错能力在故障发生之前就已付出冗余资源，适用于故障频繁的场景。29.6 倍提升来自论文在十亿参数级模型上的对比设置，包含故障注入假设，不等于所有环境下的同等收益。</p></aside>
+
+<nav class="paper-nav"><a class="nav-prev" href="bytecheckpoint.html">← ByteCheckpoint: A Unified Checkpointing System for Large Foundation Model Development</a>
+<a class="nav-next" href="bamboo.html">Bamboo: Making Preemptible Instances Resilient for Affordable Training of Large DNNs →</a></nav>
+
+  <footer class="colophon">
+    <p>内容哈希 <code>acd31f369e90</code> · 论文 <code>oobleck</code></p>
+    <p>本页仅翻译原文摘要；作者名单与参考文献保持原文，未作翻译。</p>
+  </footer>
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>
