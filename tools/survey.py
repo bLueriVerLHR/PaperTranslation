@@ -3,7 +3,7 @@
 This is a separate product from ``tools/build.py``: that one renders *one translated paper*,
 this one renders *a survey of many papers*. The survey is written by hand under ``survey/`` -
 narrative prose per direction, plus one folder per surveyed paper - and this tool turns it into
-``dist/survey/``: a hub page that is itself the readable survey, and one detail page per paper
+``dist/llm-survey/``: a hub page that is itself the readable survey, and one detail page per paper
 carrying that paper's translated abstract.
 
 Layout of the inputs::
@@ -21,7 +21,7 @@ surveyed paper means adding one folder, never editing this tool.
 Usage
 -----
 ``python tools/survey.py``
-    Build ``dist/survey/index.html`` and ``dist/survey/papers/<slug>.html``.
+    Build ``dist/llm-survey/index.html`` and ``dist/llm-survey/papers/<slug>.html``.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ PAPER_TEMPLATE = ROOT / "src" / "templates" / "survey-paper.html"
 SURVEY_STYLES = ROOT / "src" / "survey" / "survey.css"
 PAPER_ASSET_DIR = "papers"
 
-DEFAULT_DIST = ROOT / "dist" / "survey"
+DEFAULT_DIST = ROOT / "dist" / "llm-survey"
 
 #: ``{{paper:some-slug}}`` on a line of its own expands into that paper's card.
 CARD_RE = re.compile(r"^[ \t]*\{\{paper:([a-z0-9]+(?:-[a-z0-9]+)*)\}\}[ \t]*$", re.MULTILINE)

@@ -1,11 +1,12 @@
 """Build one paper's reader page from its per-section Markdown content.
 
-The build is a pure function of committed inputs: it reads ``papers/<slug>/content/*.md``, the
+The build reads local-only ``dist/<slug>/work/content/*.md``, the
 shared page template, styles, scripts and that paper's figure crops, then writes the deliverable
 folder ``dist/<slug>/`` - ``index.html`` beside a real ``assets/`` tree, all referenced by
 relative path so the page opens straight from ``file://``. No network access and no runtime math
 renderer are involved; equations are MathML authored directly in the content files, and fonts
-are left to the browser.
+are left to the browser. The retained ``work/`` tree is the rebuild source of truth and
+must never be removed by output cleanup.
 
 Usage
 -----
@@ -26,6 +27,8 @@ from datetime import date
 from pathlib import Path
 
 import markdown
+from markdown.extensions import Extension
+from markdown.preprocessors import Preprocessor
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python tools/build.py` to import the package
@@ -61,9 +64,156 @@ def slugify(value: str, separator: str = "-") -> str:
     return value.strip(separator) or "section"
 
 
+# A heading that introduces a list of headings. That shape has exactly one meaning in a
+# translated section: a table of contents the source kept in its own body rather than in a
+# sidebar. The page already has a table of contents - the folded one - and leaving the second
+# copy in place makes every one of its items a sidebar entry of its own, burying the real
+# section headings under a duplicate of themselves and aiming each entry back into the copy
+# instead of at a section. The heading and its list are therefore dropped.
+HEADING_LINE = re.compile(r"^ {0,3}#{1,6}\s+\S")
+LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
+LIST_HEADING_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+#{1,6}\s+\S")
+
+
+class _DropBodyToc(Preprocessor):
+    """Remove a table of contents written into the body of a section."""
+
+    def run(self, lines: list[str]) -> list[str]:
+        """Return ``lines`` with every heading that introduces a list of headings removed."""
+        kept: list[str] = []
+        index = 0
+        while index < len(lines):
+            if HEADING_LINE.match(lines[index]):
+                end = self._contents_end(lines, index)
+                if end is not None:
+                    index = end
+                    continue
+            kept.append(lines[index])
+            index += 1
+        return kept
+
+    @staticmethod
+    def _contents_end(lines: list[str], start: int) -> int | None:
+        """Return the first line after the contents block at ``start``, or ``None`` for none.
+
+        The block is a heading, then - after any blank lines - a list whose first item is
+        itself a heading. Everything from the heading to the last list item goes; a blank line
+        inside the list keeps it going, since a list may be written with one item per
+        paragraph. The separating blank line after the block is left behind, so the drop never
+        joins two paragraphs that were apart.
+        """
+        index = start + 1
+        while index < len(lines) and not lines[index].strip():
+            index += 1
+        if index >= len(lines) or not LIST_HEADING_ITEM.match(lines[index]):
+            return None
+        while index < len(lines):
+            if LIST_ITEM.match(lines[index]):
+                index += 1
+                continue
+            if lines[index].strip():
+                return index
+            probe = index
+            while probe < len(lines) and not lines[probe].strip():
+                probe += 1
+            if probe < len(lines) and LIST_ITEM.match(lines[probe]):
+                index = probe
+                continue
+            return index
+        return index
+
+
+class _DropBodyTocExtension(Extension):
+    """Register :class:`_DropBodyToc` ahead of every other preprocessor."""
+
+    def extendMarkdown(self, md: markdown.Markdown) -> None:  # noqa: N802 - Python-Markdown's name
+        """Install the preprocessor above the math pass."""
+        md.preprocessors.register(_DropBodyToc(md), "body_toc_drop", 45)
+
+
+MATH_ELEMENT = re.compile(r"<math\b.*?</math>", re.DOTALL | re.IGNORECASE)
+
+# A source line holding nothing but a display equation. Such an equation belongs on a line of its
+# own, and ``mtable`` is what marks it as display: content files write an inline equation inside a
+# sentence and a multi-row one on its own line. Reconciling the tag with Markdown's block rules is
+# this filter's job, so a content file never has to think about blank lines.
+DISPLAY_MATH_LINE = re.compile(r"^\s*<math\b(?=[^>]*>).*?</math>\s*$", re.DOTALL | re.IGNORECASE)
+DISPLAY_MARKERS = ("<mtable", 'display="block"')
+
+# Characters Markdown would read as markup rather than as themselves. Because an inline
+# ``<math>`` sits in a paragraph's text, ``md_in_html`` leaves its contents to the inline
+# patterns, which are then free to pair two ``*`` into emphasis or turn ``[a](b)`` into a link.
+# Each is written as a numeric reference: that is the same character to MathML, but no longer a
+# pattern for the parser. Only the characters a rule can actually pair are listed, so the
+# rendered page keeps readable source for everything else.
+MARKDOWN_ACTIVE = {
+    "*": "&#42;",
+    "_": "&#95;",
+    "`": "&#96;",
+    "[": "&#91;",
+    "]": "&#93;",
+    "|": "&#124;",
+    "\\": "&#92;",
+}
+
+
+class _MathProtection(Preprocessor):
+    """Keep Markdown's inline patterns out of the MathML a content file authored."""
+
+    def run(self, lines: list[str]) -> list[str]:
+        """Isolate display equations, then escape the Markdown-active characters inside math."""
+        text = "\n".join(self._isolate_display_equations(lines))
+
+        def protect(match: re.Match[str]) -> str:
+            return "".join(MARKDOWN_ACTIVE.get(char, char) for char in match.group(0))
+
+        return MATH_ELEMENT.sub(protect, text).split("\n")
+
+    @staticmethod
+    def _isolate_display_equations(lines: list[str]) -> list[str]:
+        """Surround each line that holds only a display equation with blank lines.
+
+        ``math`` is span-level here, so without a blank line Markdown folds the equation into the
+        paragraph above. That paragraph is then no longer one line long, and the short label
+        introducing the equation (``*表示该行有改动。``) is justified against the full measure and
+        reads letter-by-letter.
+        """
+        spaced: list[str] = []
+        for line in lines:
+            match = DISPLAY_MATH_LINE.match(line)
+            if match and any(marker in line for marker in DISPLAY_MARKERS):
+                if spaced and spaced[-1].strip():
+                    spaced.append("")
+                spaced.extend((line, ""))
+            else:
+                spaced.append(line)
+        return spaced
+
+
+class _MathProtectionExtension(Extension):
+    """Register :class:`_MathProtection` ahead of every other preprocessor."""
+
+    def extendMarkdown(self, md: markdown.Markdown) -> None:  # noqa: N802 - Python-Markdown's name
+        """Install the preprocessor above the built-in whitespace pass."""
+        md.preprocessors.register(_MathProtection(md), "math_protection", 40)
+
+
 def make_markdown() -> markdown.Markdown:
-    """Create a configured Markdown instance with a CJK-safe TOC."""
-    return markdown.Markdown(
+    """Create a configured Markdown instance with a CJK-safe TOC.
+
+    ``math`` is dropped from the parser's block-level element set. A content file authors an
+    inline equation as ``<math>...</math>`` directly in the prose, and ``md_in_html`` treats a
+    block-level tag at the start of a line as the end of the running paragraph: the equation
+    would be lifted out of its sentence and emitted as a sibling block. MathML has no
+    block-versus-inline distinction of its own - the ``display`` attribute carries that - so
+    treating the element as span-level is both correct and what keeps a sentence whole. Its
+    contents are then protected, since exposing them to the inline patterns would let Markdown
+    rewrite a glyph into markup.
+
+    The body's own table of contents goes first: it duplicates the page's folded one, and its
+    items would otherwise each claim a sidebar entry.
+    """
+    md = markdown.Markdown(
         extensions=[
             "tables",
             "attr_list",
@@ -72,9 +222,16 @@ def make_markdown() -> markdown.Markdown:
             "def_list",
             "footnotes",
             "toc",
+            # Content files carry code as ``` fences; without this extension they would render
+            # as inline <code> runs and the source listings would lose their line structure.
+            "fenced_code",
+            _DropBodyTocExtension(),
+            _MathProtectionExtension(),
         ],
         extension_configs={"toc": {"toc_depth": "2-4", "slugify": slugify, "anchorlink": False}},
     )
+    md.block_level_elements = [tag for tag in md.block_level_elements if tag != "math"]
+    return md
 
 
 def read_sections(content_dir: Path) -> list[Section]:
@@ -136,6 +293,47 @@ def wrap_tables(html: str) -> str:
         html,
         flags=re.DOTALL | re.IGNORECASE,
     )
+
+
+SOURCE_LINK = re.compile(r'(<a\b[^>]*?\bhref=")([^"]+)(")', re.IGNORECASE)
+
+
+def source_link_targets(current: paper.Paper) -> dict[str, str]:
+    """Map every page of a web source to the anchor of the section that now holds it.
+
+    A PDF-sourced paper has no web identity to name, so the map is empty and the rewrite is a
+    no-op for it.
+    """
+    if current.source_web is None:
+        return {}
+    return {
+        current.source_web.absolute(section.url): f"#sec-{section.name}"
+        for section in current.sections
+        if section.url
+    }
+
+
+def rewrite_source_links(html: str, targets: dict[str, str]) -> str:
+    """Aim references to the source site at this page's own sections.
+
+    A translation keeps the cross-references the original wrote between its pages - "continue
+    with Part 3", "see the glossary" - and in the deliverable those links would leave a page
+    built to open from ``file://`` without a server. Each one is pointed at the ``<section>``
+    that now holds that part instead. The original's own anchors (``Part-3#kernel-1``) have no
+    counterpart here, because the built page never recorded them, so a deep link lands at the
+    top of its section rather than at a subsection. A link to anything else - the paper's
+    repository, a citation - is left exactly as written.
+    """
+    if not targets:
+        return html
+
+    def replace(match: re.Match[str]) -> str:
+        target = targets.get(match.group(2).split("#", 1)[0])
+        if target is None:
+            return match.group(0)
+        return f"{match.group(1)}{target}{match.group(3)}"
+
+    return SOURCE_LINK.sub(replace, html)
 
 
 def content_hash(sections: list[Section]) -> str:
@@ -203,20 +401,29 @@ def build(
     metadata: dict[str, str] | None = None,
     paper_slug: str | None = None,
     build_date: str | None = None,
+    source_targets: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    """Build one reader page and return a manifest of what was produced."""
+    """Build one reader page and return a manifest of what was produced.
+
+    ``source_targets`` says where a cross-reference to the source site should land instead; it
+    is derived from the manifest when ``paper_slug`` names one, and given explicitly by a caller
+    that builds a folder with no registered paper behind it.
+    """
     sections = read_sections(content_dir)
     if metadata is None:
         metadata = metadata_for(paper_slug)
+    if source_targets is None and paper_slug is not None:
+        source_targets = source_link_targets(paper.load(paper_slug))
     template = template_path.read_text(encoding="utf-8")
     digest = content_hash(sections)
+    content = rewrite_source_links(wrap_tables(wrap_sections(sections)), source_targets or {})
 
     replacements = {
         "{{TITLE}}": metadata.get("title", ""),
         "{{SUBTITLE}}": metadata.get("subtitle", ""),
         "{{AUTHOR}}": metadata.get("author", ""),
         "{{TOC}}": combine_toc(sections),
-        "{{CONTENT}}": wrap_tables(wrap_sections(sections)),
+        "{{CONTENT}}": content,
         "{{BUILD_DATE}}": build_date or date.today().isoformat(),
         "{{CONTENT_HASH}}": digest,
     }
@@ -262,6 +469,7 @@ def main(argv: list[str] | None = None) -> int:
         metadata=metadata_for(current.slug),
         paper_slug=current.slug,
         build_date=args.build_date,
+        source_targets=source_link_targets(current),
     )
     print(f"paper        : {current.slug} ({current.title})")
     print(f"built        : {dist / 'index.html'}")

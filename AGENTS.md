@@ -1,131 +1,140 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 Operating manual for coding agents in this repository.
 
-## Project
+## Project and publication boundary
 
-A reproducible pipeline that translates research papers (PDF or web) into an A4-sized,
-offline-readable HTML page. Each paper gets its own folder, `dist/<slug>/`, holding
-`index.html` beside a real `assets/` tree (stylesheet, reader script, figure crops), all
-referenced by relative path so the page opens straight from `file://` with no server and no
-base64 payloads. Only the pipeline is published: `papers/` is git-ignored, so no translation,
-figure crop, manifest or extracted source text enters the repository or its history. Four
-papers were translated with it locally: *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache
-Compression* (DeepSeek-AI), *A comprehensive survey and taxonomy of mamba: Applications,
-Challenges, and Future Directions* (Miao et al., Information Fusion 130, 2026), *Neural Text
-Degeneration with Unlikelihood Training* (Welleck et al., NeurIPS 2019) and *On-device large
-language models: a survey of model compression and system optimization* (Chen et al.,
-Artificial Intelligence Review 59:191, 2026).
+A reproducible pipeline translates research papers (PDF or web) into A4-sized,
+offline-readable HTML. The `main` branch publishes only the pipeline. An explicitly
+approved reader-only export is published separately on `pages-content` and GitHub Pages;
+translations and figure crops retain the original authors' rights, not the MIT license.
+All canonical project material lives under ignored `dist/`; never force-add it to main.
+`work/`, source PDFs, extracted reference data and `/survey/` sources remain local-only.
+Use `tools/pages.py` to stage approved rendered pages/assets in system TEMP and validate
+before pushing the content branch. Never publish that branch's files under the MIT license.
 
 ## Layout
 
 ```
-papers/<slug>/paper.json   Manifest: title, author, source PDF, section map, expectations (local only)
-papers/<slug>/content/     Translated sections, one Markdown per section, source of truth (local only)
-papers/<slug>/glossary.md  Terminology table shared across that paper's sections (local only)
-papers/<slug>/assets/      Figure crops extracted from the PDF (local only)
-src/templates/             HTML page template (shared by every paper)
-src/styles/                CSS (theme + print/A4)
-src/scripts/               Progressive-enhancement JS for the reader page
-tools/                     Python pipeline (extract, build, pack, coverage, paper, survey)
-tests/                     pytest suite
-docs/                      Architecture and design notes (committed)
-dist/<slug>/               Deliverable folder per paper (generated, ignored): index.html plus its assets/ tree
-dist/survey/               Survey deliverable (generated, ignored): index.html, papers/*.html, assets/
-survey/survey.json         Survey identity: title, subtitle, author, the six directions (local only)
-survey/hub/NN-*.md         Survey narrative in reading order; `{{paper:<slug>}}` expands to a card (local only)
-survey/papers/<slug>/      One folded paper per surveyed work: meta.json, abstract.md (local only)
-src/survey/survey.css      Survey styling, additive on top of src/styles/reader.css (committed)
-src/templates/survey-*.html  Hub and detail-page templates (committed)
-.local/                    Isolated venv and source PDFs (ignored)
-.tasks/                    Local task documents (ignored, never committed)
-.reports/                  Test/scan reports (ignored)
+dist/<slug>/index.html                Offline reader page
+dist/<slug>/assets/                   Published styles, script and figures
+dist/<slug>/manifest.json             Generated page/asset inventory
+dist/<slug>/work/paper.json           Project identity, source kind, sections, expectations
+dist/<slug>/work/content/*.md         Translation source of truth, one file per section
+dist/<slug>/work/glossary.md          Binding terminology
+dist/<slug>/work/assets/figures/      Figure crops used to rebuild the page
+dist/<slug>/work/reference/           Useful extracted source text, page rasters and inventory
+dist/<slug>/notes/                    Supplementary analysis and reading notes
+src/templates/                       Shared page and survey templates
+src/styles/                          Shared reader theme and print/A4 styles
+src/scripts/                         Progressive-enhancement reader script
+src/survey/                          Tracked survey stylesheet
+tools/                               Python pipeline and development environment helper
+tests/                               pytest suite and committed synthetic test fixtures
+docs/                                Architecture and design notes
+survey/survey.json                   Local-only survey identity and directions
+survey/hub/NN-*.md                    Local-only survey narrative
+survey/papers/<slug>/                 Local-only survey metadata and abstract translations
+dist/llm-survey/                     Generated LLM survey hub, detail pages and assets
+System TEMP/<project>/               Disposable environment, caches, tasks, reports, experiments
 ```
 
-## Environment
+`work` is the directory name, not an underscore-prefixed variant. Keep one canonical copy of
+translation source and metadata there, not a second parallel project-source tree. The reader
+needs only `index.html` and `assets/`; `work/` is retained for maintenance and rebuilding.
+Never delete the whole `dist/` tree as a cleanup step: it now contains source-of-truth material.
 
-Python 3.12 or newer is required (3.14 is what the pins in `requirements.txt` were verified
-against). Everything else lives in an isolated virtual environment:
+## Environment and commands
+
+Python 3.12+ is required; dependency pins were verified with Python 3.14. In each new
+PowerShell session, initialize the external environment:
 
 ```powershell
-py -3.14 -m venv .local/venv          # or: C:\Users\Lozz\anaconda3\python.exe -m venv .local/venv
-.\.local\venv\Scripts\python.exe -m pip install -r requirements.txt
+. .\tools\dev-env.ps1                 # sets $Python and $ProjectTemp
+# First setup, or after system TEMP has been cleared:
+. .\tools\dev-env.ps1 -CreateVenv
+& $Python -m pip install -r requirements.txt
 ```
 
-Run all pipeline commands with that interpreter, for example:
-
-```powershell
-.\.local\venv\Scripts\python.exe tools\build.py --paper mamba-survey
-```
-
-## Commands
-
-`$P` is a registered paper slug: `deepseek-v41-flash`, `mamba-survey`,
-`unlikelihood-training` or `on-device-llm-survey`. When only one paper is
-registered, `--paper` may be omitted; with several it is required. The slug is also the
-deliverable folder name, so it is a lowercase English identifier (`^[a-z0-9]+(?:-[a-z0-9]+)*$`),
-never the Chinese title.
+Always run commands with `$Python`. `$P` is a registered project slug, discovered from
+`dist/*/work/paper.json`. If several projects exist, `--paper` is required.
 
 | Task | Command |
 |---|---|
-| Install deps | `.\.local\venv\Scripts\python.exe -m pip install -r requirements.txt` |
-| Extract source | `.\.local\venv\Scripts\python.exe tools\extract.py --paper $P` |
-| Build page | `.\.local\venv\Scripts\python.exe tools\build.py --paper $P` |
-| Pack single file (export) | `.\.local\venv\Scripts\python.exe tools\pack.py --paper $P --out dist\$P.html` |
-| Tests | `.\.local\venv\Scripts\python.exe -m pytest` |
-| Lint | `.\.local\venv\Scripts\python.exe -m ruff check .` |
-| Format | `.\.local\venv\Scripts\python.exe -m ruff format .` |
-| Coverage check | `.\.local\venv\Scripts\python.exe tools\coverage.py --paper $P` |
-| Build the survey | `.\.local\venv\Scripts\python.exe tools\survey.py` |
+| Extract external PDF | `& $Python tools\extract.py --paper $P --pdf C:\path\to\original.pdf` |
+| Build reader | `& $Python tools\build.py --paper $P` |
+| Optional single-file export | `& $Python tools\pack.py --paper $P --out dist\$P.html` |
+| Tests | `& $Python -m pytest` |
+| Lint | `& $Python -m ruff check .` |
+| Format | `& $Python -m ruff format .` |
+| Coverage | `& $Python tools\coverage.py --paper $P` |
+| Build survey | `& $Python tools\survey.py` |
 
-## Conventions
+## Source and intermediate-data policy
 
-- Google style; for Python this means PEP 8 plus PEP 257 docstrings.
-- Additive changes keep `dist/` buildable at all times; never commit generated output.
-- The deliverable is a folder, `dist/<slug>/`, not an embedded blob. Figures, the stylesheet
-  and the reader script stay real files reached by relative path; `tools/pack.py` is an
-  opt-in export, never the default. Do not put `data:` image URIs back into the built page.
-- Content is written one section per file and translated section by section. Do not
-  translate ahead of the source order.
-- Math is authored as MathML directly in the content files. Do not introduce LaTeX or
-  runtime math renderers into the delivered page.
-- No font is embedded, downloaded or vendored. The stylesheet only names font families in
-  priority order and the browser resolves every glyph from the reader's own fonts, so do not
-  add `@font-face`, `data:font/` URIs or a bundled face back into the page.
-- Keep the raw English source and the source PDFs out of git (they live under `.local/`).
-- Keep the whole of `papers/` out of git too: translations are derivative works and figure crops
-  are verbatim extracts, so they are local-only and `.gitignore` must list them. `git ls-files
-  papers` stays empty, in the working tree and in every commit.
+- Do not copy source PDFs into the workspace or into a project's `work/` folder. Read the
+  user's existing external original in place with `--pdf`. A manifest may record an external
+  path, or use `"source": {"pdf": null}` when no path is retained. Building the reader requires
+  no original PDF. Re-extraction requires the original to be supplied again.
+- Keep only useful reference intermediates in `work/reference/`: extracted sections, page
+  text, page rasters and extraction inventory. Keep translated sections, glossary, metadata
+  and figure crops in their designated `work/` paths.
+- Rebuilds update the reader and published assets in place and preserve `work/`. Do not
+  hand-edit figure crops; regenerate from the external original using the extraction tool.
+- Per-project source and reference data stay out of git. `git ls-files dist` must be empty.
+  Legacy denylist entries in `.gitignore` are safeguards, not instructions to create folders.
+
+## Temporary-state policy
+
+- Every disposable task plan/preset, development dataset, log, screenshot, scan report,
+  experiment, trial build and backup uses an **absolute path under system TEMP**.
+  Use `$ProjectTemp/tasks`, `$ProjectTemp/reports` and `$ProjectTemp/scratch` respectively.
+  Python scratch files use `tempfile`, never repository-relative scratch paths.
+- The environment helper routes Python/pytest/ruff caches outside the workspace and keeps
+  the virtual environment there too. Do not create workspace environments or cache folders.
+- The background harness's `.pi/tasks` path is a lightweight junction to system TEMP;
+  actual task records and logs live outside the workspace. If another tool cannot redirect
+  logs, relocate them only after its writer has finished.
+- TEMP is disposable: recreate the environment and reinstall requirements if it is cleared.
+  Never make it the only copy of canonical translation material or useful reference data.
+  PDF copies removed during migration are only a temporary recovery archive, not a permanent
+  source location or an input path to record in project metadata.
+
+## Content and rendering conventions
+
+- Google-style Python: PEP 8 and PEP 257. Run `ruff format` and `ruff check` before committing.
+- Additive changes keep existing reader deliverables buildable. Do not commit generated output
+  to main; only approved, validated reader-only exports belong on `pages-content`.
+- Translate one section at a time in source order. Do not translate ahead of the source.
+- Author math directly as MathML. Do not add LaTeX or runtime math renderers to delivered pages.
+- Keep figures, CSS and scripts as real files referenced by relative paths. Do not introduce
+  `data:` image URIs into the default reader. `tools/pack.py` is an opt-in export only.
+- Offline builds use installed fonts and do not embed or download them. The authorized
+  Pages export is the exception: `tools/pages_fonts.py` downloads hash-pinned OFL fonts to
+  system TEMP and publishes renamed WOFF2 subsets plus licenses on `pages-content` only.
+  Do not vendor font binaries into main or redistribute Microsoft Times New Roman.
 - References and the author list are intentionally not translated.
-- A new paper is added by writing `papers/<slug>/paper.json`; do not add per-paper constants to
-  the tools.
-- `tools/survey.py` is a separate product from `tools/build.py` and is deliberately
-  direction-agnostic: surveying another paper means adding `survey/papers/<slug>/{meta.json,
-  abstract.md}` and one `{{paper:<slug>}}` marker in the hub prose, never editing the tool. The
-  card on the hub and the detail page are rendered from the same `meta.json`, so they cannot
-  drift apart. The build fails loudly in both directions - a marker with no folder, and a
-  surveyed folder the hub never references.
-- A paper may be referenced from more than one section: `reading_order` deduplicates it, and
-  only the HTML `id` is suffixed (`paper-<slug>`, then `paper-<slug>--2`). This is what lets the
-  survey be problem-first, since a problem like repetition is addressed at several stages.
-- Citation counts are nullable. A count that was not verified must stay `null` and render as
-  unverified - never store `0`, which is a claim that nobody cited the paper. Verified counts
-  carry `cites_asof` and `cites_source`; `cites_matched_title` records the title the API matched.
-- `survey/curation/` holds the local-only provenance scripts (source archiving, metadata
-  materialization, citation application, built-site audit). They are ignored along with the rest
-  of `survey/`, and they must never invent a count or overwrite a verified field.
-- Survey prose and abstract translations are mixed in the same files, so the whole of `survey/`
-  is local-only for the same reason as `papers/`. Keep the ignore rule **anchored** (`/survey/`):
-  a bare `survey/` also matches the tracked `src/survey/` and would silently drop the survey
-  stylesheet from the repository.
-- Run `ruff format` and `ruff check` before every commit.
+- Register a project by writing `dist/<slug>/work/paper.json`, never per-project tool constants.
+  Slugs match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, not Chinese titles.
+- Original source-code analyses are not PDF/web translations. They may retain `work/meta.json`
+  with the inspected local repository and exact commit, section Markdown, and a local
+  `work/rebuild.py` that uses the shared builder. Do not invent a PDF/web manifest merely to
+  register an analysis. Copy no external repository wholesale; keep experiments in TEMP.
+- Keep authored local-only material intact when changing the pipeline. Migration authorization
+  permits relocation and path metadata updates, not rewriting translations or figure images.
 
-## Do not touch
+## Survey conventions
 
-- `papers/` at all: it is local state, ignored by git and never published. Never `git add -f` it,
-  and never rewrite the ignore rule to let it back in.
-- `survey/` at all: same reasoning as `papers/`, since its Markdown files interleave our prose
-  with translations of other people's abstracts. Build it, never commit it.
-- `papers/*/assets/figures/` images: they are extracted verbatim from the source PDFs; regenerate
-  them with `tools/extract.py` instead of editing by hand.
-- `.tasks/`, `.local/`, `.logs/`, `.reports/`, `.tmp/`: local-only state.
+- `tools/survey.py` is separate from the paper builder and direction-agnostic. Add surveyed
+  works through `survey/papers/<slug>/{meta.json,abstract.md}` and hub `{{paper:<slug>}}`
+  markers, never tool constants. Do not modify or publish existing `survey/` source material
+  as part of pipeline cleanup.
+- Hub cards and detail pages come from the same metadata. Fail on markers without folders
+  and folders without markers. Repeated references deduplicate reading order; only HTML IDs
+  gain suffixes (`paper-<slug>`, then `paper-<slug>--2`).
+- Citation counts are nullable: unverified means `null`, not zero. Verified counts carry
+  `cites_asof` and `cites_source`; `cites_matched_title` records the API-matched title.
+  Local provenance scripts must not invent counts or overwrite verified fields.
+- Keep the survey ignore rule anchored (`/survey/`), so tracked `src/survey/` is not swallowed.
+  `git ls-files survey` stays empty. Keep translations and extracted material out of all
+  future commits; never relax ignore rules or use `git add -f` to publish them.

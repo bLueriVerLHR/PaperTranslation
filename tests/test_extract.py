@@ -5,8 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import fitz
+import pytest
 
-from tools import extract
+from tools import extract, paper
 
 
 def _synthetic_pdf() -> fitz.Document:
@@ -20,6 +21,55 @@ def _synthetic_pdf() -> fitz.Document:
     page.insert_text((72, 360), "Figure 1 | A synthetic caption.", fontsize=10)
     page.insert_text((72, 400), "trailing body text with an equation (7)", fontsize=11)
     return doc
+
+
+def _work_paper(tmp_path: Path) -> paper.Paper:
+    return paper.Paper(
+        slug="demo",
+        directory=tmp_path / "dist" / "demo" / "work",
+        title="Example",
+        subtitle="Example",
+        author="Author",
+        source_pdf=None,
+        sections=[paper.SectionRange("00-front", 1, 1)],
+        expectations=paper.Expectations(),
+    )
+
+
+def test_extract_requires_external_pdf_when_not_retained(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    current = _work_paper(tmp_path)
+    monkeypatch.setattr(extract.paper, "resolve", lambda slug: current)
+    with pytest.raises(SystemExit) as error:
+        extract.main(["--paper", "demo"])
+    assert error.value.code == 2
+    assert "external original PDF" in capsys.readouterr().err
+    assert not current.directory.exists()
+
+
+def test_extract_reads_original_without_copying_pdf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = tmp_path / "external" / "original.pdf"
+    original.parent.mkdir()
+    doc = _synthetic_pdf()
+    doc.save(original)
+    doc.close()
+    before = original.read_bytes()
+    current = _work_paper(tmp_path)
+    monkeypatch.setattr(extract.paper, "resolve", lambda slug: current)
+    assert (
+        extract.main(
+            ["--paper", "demo", "--pdf", str(original), "--page-dpi", "72", "--figure-dpi", "72"]
+        )
+        == 0
+    )
+    assert current.report_path.is_file()
+    assert (current.sections_dir / "00-front.txt").is_file()
+    assert list(current.figures_dir.glob("figure-*.png"))
+    assert not list(current.directory.rglob("*.pdf"))
+    assert original.read_bytes() == before
 
 
 def test_expand_grows_all_sides() -> None:
@@ -97,6 +147,22 @@ def test_figure_extraction_rejects_a_plain_space_separator(tmp_path: Path) -> No
     page.draw_rect(fitz.Rect(100, 120, 500, 300), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
     page.insert_text((72, 360), "Fig. 1 An overview of the topic.", fontsize=10)
     assert extract.extract_figures(doc, dpi=72, out_dir=tmp_path) == []
+    doc.close()
+
+
+def test_figure_extraction_joins_a_label_split_from_its_number(tmp_path: Path) -> None:
+    """A caption block that starts with a bare ``Fig.`` label keeps its number on line two."""
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.draw_rect(fitz.Rect(100, 120, 500, 300), color=(0, 0, 0), fill=(0.9, 0.9, 0.9))
+    page.insert_textbox(
+        fitz.Rect(72, 340, 300, 420),
+        "Fig.\n9. Financial Areas that Applied Graph Neural Networks.",
+        fontsize=10,
+    )
+    records = extract.extract_figures(doc, dpi=72, out_dir=tmp_path)
+    assert [r.number for r in records] == [9]
+    assert records[0].bbox[1] <= 120
     doc.close()
 
 

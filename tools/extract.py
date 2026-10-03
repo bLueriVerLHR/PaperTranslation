@@ -3,18 +3,19 @@
 The tool is idempotent: re-running it on an unchanged PDF reports the assets as
 unchanged instead of rewriting them.
 
-The paper to extract is a registered manifest under ``papers/`` (see ``tools/paper.py``); it
-supplies the source PDF path, the printed section map, and every output location.
+The paper to extract is registered under ``dist/<slug>/work/`` (see ``tools/paper.py``).
+It supplies the printed section map and every output location. Supply the external original
+with ``--pdf`` when the manifest has no PDF path; the extractor never copies that PDF.
 
 Outputs
 -------
-``.local/source/<slug>/pages/page-NN.txt``
+``dist/<slug>/work/reference/pages/page-NN.txt``
     Per-page plain text in reading order (PyMuPDF ``sort=True``).
-``.local/source/<slug>/pages-png/page-NN.png``
+``dist/<slug>/work/reference/pages-png/page-NN.png``
     Per-page raster at ``--page-dpi`` for visual inspection of formulas.
-``papers/<slug>/assets/figures/figure-NN.png``
-    Cropped figure regions, committed because the deliverable needs them.
-``.local/source/<slug>/report.json``
+``dist/<slug>/work/assets/figures/figure-NN.png``
+    Local-only cropped figure regions needed to rebuild the deliverable.
+``dist/<slug>/work/reference/report.json``
     Machine-readable inventory: page count, sections, figures, equations.
 """
 
@@ -115,6 +116,28 @@ def _write_if_changed(path: Path, data: bytes) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
     return True
+
+
+# A caption whose label was typeset on a line of its own: "Fig." then "9. Financial Areas that ...".
+# The number then sits on the next line of the same text block, so the two are read together.
+SPLIT_LABEL_RE = re.compile(r"^(?:Figure|Fig\.?)$")
+
+
+def _caption_candidates(text: str) -> list[str]:
+    """Return the leading texts of a block that could carry a figure caption.
+
+    A caption is normally one text block starting with its own label, so the first line is
+    enough. A block that begins with a bare ``Fig.`` label is the exception: the number and the
+    caption text were moved to the next line, which would otherwise hide the caption from
+    :data:`CAPTION_RE` entirely.
+    """
+    lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+    if not lines:
+        return []
+    candidates = [lines[0]]
+    if len(lines) > 1 and SPLIT_LABEL_RE.match(lines[0]):
+        candidates.append(f"{lines[0]} {lines[1]}")
+    return candidates
 
 
 def _block_texts(page: fitz.Page) -> list[tuple[fitz.Rect, str]]:
@@ -254,10 +277,17 @@ def extract_figures(doc: fitz.Document, dpi: int, out_dir: Path) -> list[FigureR
     for pno in range(doc.page_count):
         page = doc[pno]
         for rect, text in _block_texts(page):
-            first = text.strip().splitlines()[0].strip()
-            match = CAPTION_RE.match(first)
-            if not match:
+            caption = next(
+                (
+                    (candidate, found)
+                    for candidate in _caption_candidates(text)
+                    if (found := CAPTION_RE.match(candidate))
+                ),
+                None,
+            )
+            if caption is None:
                 continue
+            first, match = caption
             number = int(match.group(1))
             if number in seen:
                 continue
@@ -390,7 +420,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     current = paper.resolve(args.paper)
+    if current.is_web:
+        parser.error("web papers must be extracted with tools/web.py")
     pdf_path = args.pdf or current.source_pdf
+    if pdf_path is None:
+        parser.error("supply the external original PDF with --pdf; rebuilding needs no PDF")
     if not pdf_path.exists():
         parser.error(f"source PDF not found: {pdf_path}")
 

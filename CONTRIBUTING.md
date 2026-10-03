@@ -5,87 +5,87 @@
 ```powershell
 git clone <repo-url>
 cd PaperTranslation
-py -3.14 -m venv .local/venv          # Python 3.12+ works; 3.14 is what the pins are verified on
-.\.local\venv\Scripts\python.exe -m pip install -r requirements.txt
+. .\tools\dev-env.ps1 -CreateVenv
+& $Python -m pip install -r requirements.txt
 ```
 
-Source PDFs are not committed. Each paper's manifest records where it expects its PDF; place
-them under `.local/source/<slug>/` before running `tools/extract.py`:
+Python 3.12+ works; the pins were verified on 3.14. Dot-source `. .\tools\dev-env.ps1` in each
+new session. The virtual environment, Python/pytest/ruff caches and disposable development
+state live in system TEMP, not the workspace. Recreate them if TEMP is cleared.
 
-```
-.local/source/deepseek-v41-flash/DeepSeek_V41_Tech_Report.pdf
-.local/source/mamba-survey/paper.pdf
-.local/source/unlikelihood-training/paper.pdf
-.local/source/on-device-llm-survey/paper.pdf
-```
+Use `$ProjectTemp/tasks` for plans, presets and development inputs, `$ProjectTemp/reports`
+for screenshots/audit evidence, and `$ProjectTemp/scratch` for experiments and trial builds.
+Temporary paths must be absolute. The harness's `.pi/tasks` junction stores actual logs in
+system TEMP. Legacy ignore entries are defensive denylist rules, not active folder locations.
+
+## Local project materials
+
+Each paper keeps its canonical rebuild inputs in `dist/<slug>/work/`:
+
+- `paper.json`: identity, source kind, sections and coverage expectations;
+- `content/*.md`: translated sections in source order;
+- `glossary.md`: shared terminology;
+- `assets/figures/`: extracted figure crops;
+- `reference/`: useful extracted text, page rasters and extraction inventory.
+
+Use `work`, without a leading underscore. Do not delete `dist/` as a cleanup step, and do not
+maintain a parallel copy of the same project inputs elsewhere in the workspace. Rebuilds
+preserve `work/` and update `index.html`, `manifest.json` and published `assets/` in place.
+Source PDFs are external originals, not files to copy into a project folder. Re-extract with
+`& $Python tools\extract.py --paper <slug> --pdf C:\path\to\original.pdf`. A manifest can use
+`"source": {"pdf": null}` when no original path is retained; building does not require a PDF.
 
 ## What must never be committed
 
-The published repository is the pipeline only. A translation is a derivative work of someone
-else's paper and a figure crop is a verbatim extract from it, so `papers/` is `git`-ignored:
-no manifest, no `content/*.md`, no `glossary.md`, no `assets/figures/`, and no extracted page
-text or rasters. Work in `papers/<slug>/` freely — it stays on your machine — and check that
-`git ls-files papers` is empty before you push. `.local/` holds the source PDFs and is ignored for
-the same reason. If you publish a translation of your own, get the rights holder's permission
-first; see `NOTICE.md`.
+The main branch is the pipeline only. A translation is a derivative work, and figure
+crops and extracted source are someone else's material. Keep the entire `dist/` tree ignored,
+including `work/`, and ensure `git ls-files dist` is empty. Never force-add project materials
+or relax ignore rules to publish them. Get rights-holder permission before redistributing a
+translation or figure; see `NOTICE.md`.
 
-The survey is under the same rule. `survey/` holds original narrative prose, but each surveyed
-paper's detail page carries a translated abstract and the two are interleaved in the same
-Markdown files, so the whole tree is ignored rather than a fragile subset of it. Keep `git
-ls-files survey` empty too. Note `src/survey/survey.css` is **tracked** — the ignore rule is
-anchored (`/survey/`) precisely so it cannot swallow that stylesheet.
+The local survey source remains under `survey/`. Narrative and translated abstracts are
+interleaved, so the whole tree is ignored. Keep `git ls-files survey` empty too.
+`src/survey/survey.css` is tracked; the ignore rule must stay anchored (`/survey/`).
 
 ## Workflow
 
-1. Pick or open a task in `.tasks/` (local only, not committed).
+1. Initialize the external environment and open a task under `$ProjectTemp/tasks`.
 2. Create a branch: `feature/<short-description>` (Conventional Branch 1.1.0).
-3. Translate/edit one section file under `papers/<slug>/content/` at a time, updating
-   `papers/<slug>/glossary.md` when new terminology is introduced.
-4. Build and inspect: `.\.local\venv\Scripts\python.exe tools\build.py --paper <slug>`, then
-   open `dist/<slug>/index.html`. The built folder is the deliverable: `index.html` beside a
-   real `assets/` tree, with no base64 payloads. `tools/pack.py --out <file>` is an opt-in
-   single-file export for mailing one attachment, not the shipped format.
-5. Run tests: `.\.local\venv\Scripts\python.exe -m pytest`.
-6. Commit with Conventional Commits, e.g. `fix(print): stop clipping wide equations`.
+3. Translate/edit one `dist/<slug>/work/content/` section in source order; keep the glossary
+   consistent. Use MathML directly, without a runtime math renderer.
+4. Build with `& $Python tools\build.py --paper <slug>` and inspect `dist/<slug>/index.html`.
+   Figures, CSS and scripts are ordinary relative-path files. Packing is an opt-in export.
+5. Run `& $Python -m pytest`, `& $Python -m ruff format .`, and
+   `& $Python -m ruff check .` before committing. Check coverage for the affected paper.
+6. Commit only pipeline changes with Conventional Commits, e.g. `fix(print): avoid clipping`.
 
-Only pipeline changes are committable. A commit that adds translated content, a figure crop or a
-manifest is a mistake: `papers/` is ignored, and the tests that read it skip when it is absent,
-so the suite stays green in the published clone.
+Do not vendor fonts into main, put base64 images into the default page, edit extracted
+figure crops by hand, or translate references and author lists. The authorized Pages export
+uses separately licensed, hash-pinned font subsets on `pages-content`; see `docs/pages.md`. Tests using local work skip
+when it is absent, so a published clone still tests the pipeline and synthetic fixtures.
 
-## Adding a paper
+## Publishing readers
 
-Create `papers/<slug>/paper.json` with the title, subtitle, author, the source PDF path, the
-printed section map for extraction, and the coverage expectations. The tools take the slug as an
-argument, so no tool code changes; see `docs/architecture.md` for the manifest schema.
+Reader-only exports to `pages-content` are an explicit, reviewed exception to the main-branch
+boundary, not permission to commit any canonical source material. Follow `docs/pages.md`;
+check the inventory, local links and absence of source files before pushing. The Pages
+workflow validates again before uploading its artifact. Rights-holder permissions and
+third-party font licenses remain necessary.
 
-## Adding a surveyed paper
+## Adding projects
 
-For the survey, add `survey/papers/<slug>/meta.json` and `abstract.md`, then reference the paper
-from the narrative with a `{{paper:<slug>}}` line. The hub card and the detail page both render
-from that one `meta.json`, so adding a surveyed paper never means editing `tools/survey.py`, and
-the build refuses to run with a marker that has no folder or a folder the narrative never
-references. Verify metadata against Semantic Scholar (`paper/search/match`, which resolves by
-title and merges preprint/published counts) and take the abstract from the arXiv API; record the
-date the citation count was read in `cites_asof`.
+Create `dist/<slug>/work/paper.json` and section Markdown files. Slugs are lowercase English
+identifiers matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`. See `docs/architecture.md` for the schema.
+No per-project tool constants are needed.
 
-## Translation rules
+For the survey, add `survey/papers/<slug>/{meta.json,abstract.md}` and a hub
+`{{paper:<slug>}}` marker. Cards and detail pages share metadata; missing and orphaned works
+fail loudly. Unverified citation counts remain `null`; verified counts carry `cites_asof`
+and `cites_source`. Preserve original translations and verified metadata during tool cleanup.
 
-- Simplified Chinese, written technical register; avoid translationese.
-- Keep English in parentheses at first mention of a term of art; never translate acronyms.
-- Do not translate references, the author list, URLs, model names, or benchmark names.
-- Preserve numbers exactly as printed.
-- Do not spoil later sections.
+## Pull requests and bugs
 
-## Pull requests
-
-- One section or one pipeline change per pull request.
-- Only pipeline changes are accepted upstream. Do not open a pull request that adds translated
-  content, a figure crop or a paper manifest; `papers/` is ignored and `.gitignore` will not be
-  relaxed to accept it.
-- State what changed, how it was verified, and any terminology decisions.
-- CI-equivalent local checks must pass: build, tests, and a clean secret scan.
-
-## Reporting bugs
-
-Open an issue with the paper slug, section/page, the observed rendering or wording, and the
-expected result. Attach a screenshot for layout problems.
+Only pipeline changes are committable. State what changed, how it was verified, and relevant
+terminology or rendering decisions. Local checks must pass: tests, lint, format, affected
+builds and a clean secret scan. Report bugs with a slug, section/page, observed behavior and
+expected behavior; capture layout screenshots under `$ProjectTemp/reports`.

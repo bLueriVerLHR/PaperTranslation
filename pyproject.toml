@@ -28,6 +28,7 @@ known-first-party = ["tools"]
 "tests/*" = ["S101", "RUF001", "RUF002", "RUF003"]
 # tools/survey.py emits Simplified-Chinese UI strings, so fullwidth punctuation is intentional.
 "tools/survey.py" = ["RUF001", "RUF002", "RUF003"]
+"tools/pages.py" = ["RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.format]
 quote-style = "double"

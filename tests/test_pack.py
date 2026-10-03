@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -32,7 +33,7 @@ def _manifest(**overrides: object) -> dict[str, object]:
         "title": "示例论文",
         "subtitle": "副标题",
         "author": "某人",
-        "source": {"pdf": ".local/source/demo/paper.pdf"},
+        "source": {"pdf": None},
         "sections": [{"name": "00-front", "first": 1, "last": 2}],
         "expectations": {"headings": ["## 摘要"]},
     }
@@ -41,7 +42,7 @@ def _manifest(**overrides: object) -> dict[str, object]:
 
 
 def _register(root: Path, slug: str, **overrides: object) -> None:
-    directory = root / slug
+    directory = root / slug / "work"
     directory.mkdir(parents=True, exist_ok=True)
     (directory / paper.MANIFEST_NAME).write_text(
         json.dumps(_manifest(**overrides), ensure_ascii=False), encoding="utf-8"
@@ -52,10 +53,9 @@ def test_deliverable_is_a_folder_named_after_the_slug(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """dist/<slug>/ holds the reader page; the English slug names the folder, not the title."""
-    root = tmp_path / "papers"
+    root = tmp_path / "dist"
     root.mkdir()
-    monkeypatch.setattr(paper, "PAPERS_DIR", root)
-    monkeypatch.setattr(paper, "DIST_DIR", tmp_path / "dist")
+    monkeypatch.setattr(paper, "DIST_DIR", root)
     _register(root, "on-device-llm-survey")
 
     current = paper.load("on-device-llm-survey")
@@ -66,9 +66,9 @@ def test_deliverable_is_a_folder_named_after_the_slug(
 def test_slug_must_be_an_english_folder_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    root = tmp_path / "papers"
+    root = tmp_path / "dist"
     root.mkdir()
-    monkeypatch.setattr(paper, "PAPERS_DIR", root)
+    monkeypatch.setattr(paper, "DIST_DIR", root)
     for bad in ("Demo_Paper", "样例论文", "demo paper", "-demo", "demo-"):
         _register(root, bad)
         with pytest.raises(paper.PaperError, match="invalid paper slug"):
@@ -88,6 +88,34 @@ def test_build_writes_page_and_real_assets(tmp_path: Path) -> None:
     assert 'src="assets/figures/figure-03.png"' in page
     assert "base64" not in page
     assert "data:image" not in page
+
+
+def test_build_preserves_work_and_rebuilds_without_pdf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rebuild reads work/ and never removes retained metadata or references."""
+    monkeypatch.setattr(paper, "DIST_DIR", tmp_path / "dist")
+    _register(paper.DIST_DIR, "demo")
+    current = paper.load("demo")
+    shutil.copytree(FIXTURE_CONTENT, current.content_dir)
+    shutil.copytree(FIXTURE_FIGURES, current.figures_dir)
+    current.sections_dir.mkdir(parents=True)
+    (current.sections_dir / "00-front.txt").write_text("reference", encoding="utf-8")
+    before = {
+        p.relative_to(current.directory): p.read_bytes()
+        for p in current.directory.rglob("*")
+        if p.is_file()
+    }
+    assert current.source_pdf is None
+    assert build.main(["--paper", "demo"]) == 0
+    assert build.main(["--paper", "demo"]) == 0
+    after = {
+        p.relative_to(current.directory): p.read_bytes()
+        for p in current.directory.rglob("*")
+        if p.is_file()
+    }
+    assert after == before
+    assert current.output_path.is_file()
 
 
 def test_build_removes_stale_figure_crops(tmp_path: Path) -> None:

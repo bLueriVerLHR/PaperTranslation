@@ -95,4 +95,4 @@ def test_registered_papers_pass_coverage() -> None:
         assert result.ok, (slug, result)
         checked += 1
     if not checked:
-        pytest.skip("no translated paper is present: papers/ is local-only and git-ignored")
+        pytest.skip("no translated paper is present: dist/*/work/ is local-only and git-ignored")

@@ -1,196 +1,185 @@
 # Paper Translation Project
 
-This project is initially built for translate papers from websites or pure PDF.
+A reproducible pipeline that turns research papers (PDF or web) into A4-sized,
+offline-readable Simplified Chinese HTML pages. Translation is authored section by section;
+extraction, MathML rendering, layout, coverage checks and packaging are automated.
 
-## What this is
+## What is published
 
-A reproducible pipeline that turns a research paper into a single self-contained A4-sized,
-offline-readable HTML page in Simplified Chinese, plus the translated papers themselves.
+**On `main`: the pipeline only.** The separately approved `pages-content` branch and
+GitHub Pages site contain rendered readers, not rebuild sources. Translations are derivative
+works, figure crops are verbatim extracts, and source documents retain their authors' rights. All project content and output under
+`dist/` is git-ignored, as is the local survey source under `/survey/`. A fresh clone has tools
+and synthetic test fixtures, but no registered paper. Read `NOTICE.md` before redistributing
+any output: the repository's MIT license does not cover other people's paper material.
 
-The problem it solves: translating a long technical paper well needs many sessions, consistent
-terminology, faithful math, and a layout that survives both a phone and a printed page. Doing
-that by hand in one document is error-prone, so each paper's source is split into one Markdown
-file per section, the mechanical parts (extraction, MathML, layout, packaging) are
-automated, and a coverage checker proves nothing was dropped.
+## Project layout
 
-## What this repository publishes
+Each project has one folder and one canonical set of rebuilding materials:
 
-**The pipeline, and nothing that came out of a paper.** Everything under `papers/` derives from
-somebody else's work, so none of it is committed:
+```
+dist/<slug>/
+    index.html                  Offline reading page
+    manifest.json               Generated page/asset inventory
+    assets/                     Styles, reader script and published figures
+    notes/                      Supplementary analysis and reading notes, when present
+    work/
+        paper.json              Identity, source kind, section map, expectations
+        content/                Translated Markdown sections, in reading order
+        glossary.md             Shared terminology
+        assets/figures/         Figure crops used by the builder
+        reference/
+            sections/           Useful extracted source sections
+            pages/              Extracted page text or web snapshots
+            pages-png/          Page rasters for formula/table review
+            report.json         Extraction inventory
+```
 
-- no translated text — a translation is a derivative work of the original, and the rights stay
-  with its authors;
-- no figure crops — they are cut verbatim out of the source PDF;
-- no source PDF, no extracted page text and no per-page rasters.
+The folder is named `work`, without a leading underscore. It is retained for repairs,
+additional information and rebuilding; it is not a disposable build cache. **Do not delete
+`dist/` to clean the project.** Rebuilds update the reader and its published assets while
+preserving `work/`. For a reader-only copy, distribute `index.html` and `assets/` together;
+`work/` is not required for reading and may contain material unsuitable for redistribution.
 
-`papers/` is in `.gitignore` and must stay empty in the published repository, so a fresh clone
-has the tools and no paper to run them on. Four papers were translated with this pipeline so
-far — *DeepSeek-V4.1-Flash: Pushing the Limits of KV Cache Compression* (DeepSeek-AI), *A
-comprehensive survey and taxonomy of mamba: Applications, Challenges, and Future Directions*
-(Miao et al., *Information Fusion* 130, 2026, 104094), *Neural Text Degeneration with
-Unlikelihood Training* (Welleck et al., ICLR 2020; preprint 2019) and *On-device large language
-models: a survey of model compression and system optimization* (Chen et al., *Artificial
-Intelligence Review* 59:191, 2026) — and their content, glossaries, manifests and figures exist
-only on the machine that produced them. Read `NOTICE.md` before publishing any
-of it.
+Source PDFs are not copied into the workspace. Extraction reads the user's external original
+in place; rebuilding needs only the retained translation, metadata and figure crops. A PDF
+manifest may use `"source": {"pdf": null}` and require `--pdf` for future re-extraction, or
+record the external original's path. The manifest schema is described in `docs/architecture.md`.
 
-To translate a paper locally you create `papers/<slug>/paper.json` yourself; the manifest is the
-only thing that differs between papers, and `docs/architecture.md` documents its schema.
+## Setup
 
-## Quickstart
+Python 3.12+ is required; the dependency pins were verified with Python 3.14.
 
 ```powershell
-py -3.14 -m venv .local/venv          # Python 3.12+ works; 3.14 is what the pins are verified on
-.\.local\venv\Scripts\python.exe -m pip install -r requirements.txt
+. .\tools\dev-env.ps1 -CreateVenv
+& $Python -m pip install -r requirements.txt
 ```
 
-Neither the papers nor the source PDFs are committed. Each paper's manifest names where it
-expects its PDF, under `.local/source/<slug>/`:
-
-```
-.local/source/deepseek-v41-flash/DeepSeek_V41_Tech_Report.pdf
-.local/source/mamba-survey/paper.pdf
-.local/source/unlikelihood-training/paper.pdf
-.local/source/on-device-llm-survey/paper.pdf
-```
-
-Then, per paper:
+In each subsequent PowerShell session:
 
 ```powershell
-$P = "deepseek-v41-flash"   # or: mamba-survey, unlikelihood-training, on-device-llm-survey
-
-.\.local\venv\Scripts\python.exe tools\extract.py --paper $P   # PDF -> page text, rasters, figure crops
-.\.local\venv\Scripts\python.exe tools\build.py   --paper $P   # content -> dist/<slug>/index.html
+. .\tools\dev-env.ps1
 ```
 
-The deliverable is one folder per paper: `dist/<slug>/index.html` beside a real
-`assets/` tree (`assets/styles/reader.css`, `assets/scripts/reader.js`, `assets/figures/*.png`).
-Everything is reached by relative path, so the folder can be copied to a USB stick or another
-machine and opened by double-clicking `index.html`, with no server. Print the page to get an A4
-PDF. The folder keeps figures as ordinary image files rather than base64 payloads, which saves
-roughly a third of the bytes and keeps every asset inspectable and cacheable.
+The helper sets `$Python`, `$ProjectTemp` and external Python/pytest/ruff cache paths.
+The virtual environment and all disposable development state live in system TEMP, in a
+project-specific directory. Use `$ProjectTemp/tasks` for task plans/presets and development
+inputs, `$ProjectTemp/reports` for audit evidence, and `$ProjectTemp/scratch` for experiments,
+trial outputs and throwaway backups. Do not create temporary folders in the workspace.
+The harness's `.pi/tasks` is only a lightweight junction: its actual task logs live in TEMP too.
+If the OS clears TEMP, recreate the environment and reinstall requirements using the setup
+commands. Never store the only copy of canonical project materials there.
 
-If you really need a single file - to mail one attachment, or to open the page on a device that
-cannot follow relative paths - fold the folder on demand. This is an export, not the shipped
-format:
+## Translate and build
+
+Register a paper by creating `dist/<slug>/work/paper.json`. A slug is a lowercase English
+identifier matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`; the Chinese title belongs in the metadata.
+No per-paper tool constants are needed. Then extract from an external original:
 
 ```powershell
-.\.local\venv\Scripts\python.exe tools\pack.py --paper $P --out dist\$P.html
-# add --figures-as-files to inline only the CSS and JS and leave figures beside the page
+$P = "my-paper"
+& $Python tools\extract.py --paper $P --pdf C:\path\to\original.pdf
 ```
 
-Fonts are **not** embedded, in the folder or in an exported file. The stylesheet only names font
-families in priority order, so the browser resolves every glyph from the fonts installed on the
-reading machine; nothing is fetched and nothing is redistributed. That keeps each deliverable
-roughly a megabyte smaller than bundling a CJK subset would, at the cost of exact glyph
-fidelity. See `NOTICE.md` for the font policy.
+For a web paper, the manifest instead names `source.web` and section URLs; `tools/web.py`
+handles extraction. Both source kinds keep useful reference intermediates in `work/reference/`
+and figure crops in `work/assets/figures/`.
+
+Author translations one section at a time in `work/content/`, maintaining `work/glossary.md`.
+Equations are MathML directly in the content, not LaTeX or runtime-rendered images. References
+and author lists are intentionally not translated. Build from the retained work materials:
+
+```powershell
+& $Python tools\build.py --paper $P
+```
+
+Open `dist/<slug>/index.html` directly from `file://`, or copy the folder to another machine.
+The reader has light/dark mode and A4 print styles. Figures, CSS and scripts remain real files
+reached by relative paths: no server, base64 payloads or runtime math renderer is needed.
+Offline builds use installed fonts: Times New Roman (with compatible Latin fallbacks),
+Source Han Serif SC for Chinese, and Maple Mono for code. Pages additionally self-hosts
+licensed WOFF2 subsets; see `docs/pages.md`. Pseudocode highlighting uses stylesheet classes
+rather than runtime tooling.
+
+If a folder is inconvenient, export one file explicitly:
+
+```powershell
+& $Python tools\pack.py --paper $P --out dist\$P.html
+# --figures-as-files inlines CSS/JS but leaves figures beside the export.
+```
+
+This is an opt-in export, not the default deliverable. No font is embedded in either format.
+
+## GitHub Pages and mobile reading
+
+The public reading library groups all exported pages by project, with title search and
+relative links that work under `/PaperTranslation/`. Mobile readers have comfortable serif
+text, persistent font-size controls, a theme toggle and TOC access. Wide formulas, tables
+and code scroll locally instead of widening the entire page.
+
+`main` contains `.github/workflows/pages.yml`; `pages-content` contains only validated public
+HTML/assets and font licenses. Actions deploys the latter whenever either branch changes.
+Neither `dist/` nor `/survey/` is force-added to main. Full setup and update instructions:
+[docs/pages.md](docs/pages.md).
 
 ## Quality gates
 
 ```powershell
-.\.local\venv\Scripts\python.exe -m pytest                      # unit tests
-.\.local\venv\Scripts\python.exe -m ruff check .                # lint
-.\.local\venv\Scripts\python.exe tools\coverage.py --paper $P   # every section/figure/table/equation present, no English prose left
+& $Python -m pytest
+& $Python -m ruff check .
+& $Python -m ruff format --check .
+& $Python tools\coverage.py --paper $P
 ```
 
-## Repository layout
+Coverage checks required headings, figures, tables and equations, and untranslated English
+prose outside math/code. Source PDFs are not required to build or validate retained work.
+
+## Shared pipeline and survey
 
 | Path | Purpose |
 |---|---|
-| `papers/<slug>/paper.json` | The manifest: title, author, source PDF, printed section map, coverage expectations (local only) |
-| `papers/<slug>/content/*.md` | The translation, one Markdown file per section, source of truth (local only) |
-| `papers/<slug>/glossary.md` | Binding terminology table shared across that paper's sections (local only) |
-| `papers/<slug>/assets/figures/` | Figure crops extracted verbatim from that paper's PDF (local only) |
-| `src/templates/`, `src/styles/`, `src/scripts/` | Page template, theme/print CSS, reader enhancements (shared) |
-| `src/templates/survey-*.html`, `src/survey/survey.css` | Survey hub/detail templates and survey styling (shared) |
-| `tools/paper.py` | Manifest loading and every path derived from a paper slug |
-| `tools/` | `extract.py`, `build.py`, `coverage.py`, plus `pack.py` for the optional single-file export and `survey.py` for the survey |
-| `survey/` | Survey source: narrative, one folded paper per surveyed work, and the `curation/` provenance and audit scripts (local only) |
-| `dist/survey/` | Survey deliverable folder (generated, ignored) |
-| `tests/` | pytest suite, including a sample fixture that exercises every rendering path |
+| `src/templates/`, `src/styles/`, `src/scripts/` | Shared reader template, styling and enhancements |
+| `tools/paper.py` | Discover `dist/*/work/paper.json` and derive all per-paper paths |
+| `tools/` | Extract, build, coverage, optional pack, web extraction and survey tools |
+| `tests/` | pytest suite with committed synthetic fixtures |
 | `docs/` | Architecture and design notes |
-| `dist/<slug>/` | Per-paper deliverable folder (generated, ignored) |
-| `.local/` | Isolated venv and source PDFs (ignored) |
+| `src/survey/`, `src/templates/survey-*.html` | Tracked survey styling and templates |
+| `survey/` | Local-only survey source, metadata, abstract translations and provenance |
+| `dist/llm-survey/` | Generated offline LLM survey hub, detail pages and assets |
 
-Every `papers/` row above is `git`-ignored on purpose and never published; see `NOTICE.md`. The
-`survey/` rows are ignored for the same reason.
+The survey is a separate product: one problem-first narrative places many papers in context,
+with a detail page for every surveyed work. Its source remains under `survey/`, not the
+per-paper `work/` layout:
 
-Adding a paper means creating `papers/<slug>/paper.json` with its title, source PDF, section
-map and expectations; no tool code changes. The slug is also the deliverable folder name
-`dist/<slug>/`, so it must be a lowercase English identifier — the Chinese title lives in the
-manifest's `title` field, which is only used for display.
-
-## The survey
-
-`tools/survey.py` is a second product with the same reader styling. Where `build.py` renders one
-translated paper, the survey renders one **narrative** that puts many papers in context, with a
-detail page for each surveyed work. The local survey covers six directions: machine-learning
-systems, long-context architectures (including linear attention), on-device, distributed,
-multimodal (with VLA as one of its applications) and Agent applications. Each direction starts
-with production problems, explains mechanisms and trade-offs, and links representative papers
-with translated abstracts.
+- `survey/survey.json`: identity and declared directions;
+- `survey/hub/NN-*.md`: narrative in reading order, with `{{paper:<slug>}}` markers;
+- `survey/papers/<slug>/{meta.json,abstract.md}`: paper identity and translated abstract.
 
 ```powershell
-.\\.local\\venv\\Scripts\\python.exe tools\\survey.py     # survey/ -> dist/survey/
+& $Python tools\survey.py
 ```
 
-The deliverable is `dist/survey/index.html` plus `dist/survey/papers/<slug>.html` and an asset
-tree, using the same offline relative-path rule as a paper folder. Directions are declared in
-`survey/survey.json`; adding a direction requires prose and paper folders, not tool changes.
+The result is `dist/llm-survey/index.html`, `papers/*.html` and a real asset tree. Cards and detail
+pages derive from the same metadata. Missing folders and unreferenced folders fail loudly;
+repeated cards have unique HTML IDs, while reading order deduplicates each paper. Content
+hashes include metadata and prose, and stale generated detail pages are removed on rebuild.
 
-Source layout:
+Citation counts are nullable: an unverified count is `null`, never zero. Verified counts carry
+an as-of date and source, and notes distinguish editorial caveats from translated abstracts.
+Directions and works are data, not tool constants. The anchored `/survey/` ignore rule must
+remain so the tracked `src/survey/` stylesheet is not accidentally ignored.
 
-| Path | Purpose |
-|---|---|
-| `survey/survey.json` | Title, subtitle, author and the direction list |
-| `survey/hub/NN-*.md` | The narrative, in reading order; a line `{{paper:<slug>}}` expands to that paper's card |
-| `survey/papers/<slug>/meta.json` | Metadata: titles, authors, venue, year, stage, citations with an "as of" date, links, motivation, approach, notes |
-| `survey/papers/<slug>/abstract.md` | Translated original abstract |
+## Source-code analyses
 
-The card on the hub and the detail page are both rendered from `meta.json`, so the short and
-long forms of one paper cannot drift apart. The build fails loudly if the narrative references a
-paper that has no folder, or if a surveyed folder is never referenced — nothing can be silently
-orphaned. Surveying another paper means adding one folder and one marker; the tool is
-direction-agnostic by design. Repeated cards have unique anchors across sections, but share a
-single detail page and navigation entry. Detail-page notes distinguish editorial caveats from
-the translated abstract. The content hash covers identity, metadata, narrative and abstracts;
-stale generated detail pages are removed on rebuild.
+Original code analyses can use the same offline reader without pretending to be translated
+PDFs. `dist/redis-source-interview/work/` retains the authored sections, `meta.json` with the
+inspected Redis commit, and `rebuild.py`. It reads no Redis checkout during rebuilding:
 
-Verified citation counts carry a date (`cites_asof`) and source (`cites_source`). Missing counts
-are stored as `null` and shown as unverified, never silently converted to zero. A verified zero
-is displayed explicitly. Abstracts are checked against primary sources; version-specific links
-and editorial notes can record differences between preprints and proceedings. New preprints
-are distinguished from established work rather than ranked by invented citation counts.
+```powershell
+& $Python dist\redis-source-interview\work\rebuild.py
+```
 
-Like `papers/`, the whole of `survey/` is local-only and never committed: the prose is ours, but
-the translated abstracts are derivative works, and the two are interleaved in the same files.
+No external source tree is copied into the pipeline, and no runtime benchmark claims are
+made without measurements. Per-paper supplementary notes live in `dist/<slug>/notes/`.
 
-## Destination Format
-
-- A HTML page with A4 paper size.
-- Pure reading experience with light/dark mode.
-- Equations and formulas are written in HTML not latex for adapting mobile view.
-- Default font for alphabet is Times New Roman.
-- Codes and pseudo codes using monospace font with syntax highlights.
-- Chinese font use Source Han Sans, Noto Sans SC, Microsoft YaHei or PingFang SC, whichever the
-  reader has installed first. Nothing is embedded or downloaded at page load.
-- Citations, Reference, Acknowledgement and format stuffs are not needed to be translated.
-- Need a table of content which is folded by default.
-
-If you find anything missing and need an installation, make list and the user will install it in
-the best way. Keep isolation environment.
-
-## While Translating
-
-- Translate sections one by one, step by step avoiding translate as a whole.
-- You are allowed to fix previous mistakes if new evidence appears in the following contents.
-- Do not spoil.
-- Follow the tongue.
-
-## Licensing
-
-Everything committed here — the pipeline under `tools/`, the tests, the template, styles and
-script directories, and the documentation — is MIT-licensed; see `LICENSE`. The translated text
-and the figures this pipeline produces are **not** part of the repository and are **not**
-covered by that grant: they reproduce material from the original papers and remain the rights
-holders' property. Read `NOTICE.md` before redistributing anything.
+See `CONTRIBUTING.md` for the development workflow and `AGENTS.md` for operating rules.

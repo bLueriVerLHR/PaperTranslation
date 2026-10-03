@@ -1,0 +1,12 @@
+[
+  {"file": "han-regular.otf", "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/2.003R/OTF/SimplifiedChinese/SourceHanSerifSC-Regular.otf", "sha256": "78aa7a328fd974df2d688c8a9fd74a33d8334dfa84ab24d9d11efb2ffc464117"},
+  {"file": "han-bold.otf", "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/2.003R/OTF/SimplifiedChinese/SourceHanSerifSC-Bold.otf", "sha256": "706b8c0de2deff6cbc0c87e2cdedfd33a78b7ffd76cebb4549012f197ba611fe"},
+  {"file": "han-license.txt", "url": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/2.003R/LICENSE.txt", "sha256": "9ff5bb567e1b92c801fc1069e5fbf992ff8efccacb9db94e5959a5b3ba9bb903"},
+  {"file": "maple-cn.zip", "url": "https://github.com/subframe7536/maple-font/releases/download/v7.9/MapleMono-CN-unhinted.zip", "sha256": "d41cb72721e99cfe4fbd1a7b0f182a013457de46aa612018f924dd024699d3b9"},
+  {"file": "maple-license.txt", "url": "https://raw.githubusercontent.com/subframe7536/maple-font/v7.9/OFL.txt", "sha256": "eb2d28d2e565a0757e3d64e34ebb452e75a0cad87c0ab3faf4e08ba7596de902"},
+  {"file": "tinos-regular.ttf", "url": "https://raw.githubusercontent.com/google/fonts/ba95515f1333efe9342c2ad988b9c2f6bef6dbad/ofl/tinos/Tinos-Regular.ttf", "sha256": "60a0e8ef0c04dd5dd69ffe91025fa2ae5836cbd35600a82ba031977557e2cb61"},
+  {"file": "tinos-bold.ttf", "url": "https://raw.githubusercontent.com/google/fonts/ba95515f1333efe9342c2ad988b9c2f6bef6dbad/ofl/tinos/Tinos-Bold.ttf", "sha256": "393269dbab8899f938db19783eca5eac92eb431f7ae0ab45b8349ca895f1a06b"},
+  {"file": "tinos-italic.ttf", "url": "https://raw.githubusercontent.com/google/fonts/ba95515f1333efe9342c2ad988b9c2f6bef6dbad/ofl/tinos/Tinos-Italic.ttf", "sha256": "5942266ed398b155d7dc23e36833e7ec6be988f2439bdbeb8ef1bede808eaa91"},
+  {"file": "tinos-bolditalic.ttf", "url": "https://raw.githubusercontent.com/google/fonts/ba95515f1333efe9342c2ad988b9c2f6bef6dbad/ofl/tinos/Tinos-BoldItalic.ttf", "sha256": "a5de79f0fe863ea0954757acb3d47b3ccd0a930ce3dd5b97230cd3866790a06e"},
+  {"file": "tinos-license.txt", "url": "https://raw.githubusercontent.com/googlefonts/tinos/5df023370055d3fe8f05aa288fe0ba9a6928068a/OFL.txt", "sha256": "cb3382d4643e8b02c12e322c220a3c76a5020d667e4fd4e7c75e744cca6caa6b"}
+]

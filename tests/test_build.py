@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tools import build
+from tools import build, paper
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_CONTENT = Path(__file__).resolve().parent / "fixtures" / "sample-content"
@@ -54,12 +54,116 @@ def test_wrap_tables_wraps_once() -> None:
     assert build.wrap_tables(once) == once
 
 
+def test_fenced_code_blocks_become_pre() -> None:
+    """A ``` fence must render as a block, not as an inline code run."""
+    md = build.make_markdown()
+    html = md.convert("正文：\n\n```c++\nint a = 1;\n```\n")
+    assert "<pre>" in html
+    assert 'class="language-c++"' in html
+    assert "```" not in html
+
+
+def test_code_fence_after_html_comment_still_renders() -> None:
+    """A caption comment placed directly above a fence must not swallow the block."""
+    md = build.make_markdown()
+    html = md.convert(
+        "正文：\n\n<!-- ptx_functions.cuh -->\n```assembly\nLDSM.16.M88.4 R32, [R176] ;\n```\n"
+    )
+    assert "<pre>" in html
+    assert 'class="language-assembly"' in html
+
+
 def test_combine_toc_merges_sections(tmp_path: Path) -> None:
     (tmp_path / "01-a.md").write_text("## 甲\n\ntext\n", encoding="utf-8")
     (tmp_path / "02-b.md").write_text("## 乙\n\n## 丙\n", encoding="utf-8")
     sections = build.read_sections(tmp_path)
     toc = build.combine_toc(sections)
     assert toc.count("<li>") == 3
+
+
+def test_a_body_table_of_contents_is_dropped(tmp_path: Path) -> None:
+    """A section that keeps the source's own contents list must not duplicate the page TOC."""
+    (tmp_path / "01-a.md").write_text(
+        "## 系列简介\n\n正文。\n\n"
+        "## 目录\n\n"
+        "- ### [第 1 部分](https://example.invalid/Part-1)\n"
+        "- ### [第 2 部分](https://example.invalid/Part-2)\n"
+        "- ### 第 3 部分（尚未发布）\n\n"
+        "---\n\n本文译自……\n",
+        encoding="utf-8",
+    )
+    sections = build.read_sections(tmp_path)
+    html = sections[0].html
+    assert "目录" not in html
+    assert "第 1 部分" not in html
+    # The prose on either side of the dropped block survives.
+    assert "正文。" in html
+    assert "本文译自" in html
+    assert [token["name"] for token in sections[0].tokens] == ["系列简介"]
+
+
+def test_an_ordinary_heading_before_a_list_is_kept(tmp_path: Path) -> None:
+    """Only a list of *headings* is a contents block; a plain list is ordinary prose."""
+    (tmp_path / "01-a.md").write_text(
+        "## Kernel 列表\n\n1. 基础实现\n2. Swizzling\n", encoding="utf-8"
+    )
+    sections = build.read_sections(tmp_path)
+    assert "基础实现" in sections[0].html
+    assert [token["name"] for token in sections[0].tokens] == ["Kernel 列表"]
+
+
+def test_source_links_are_aimed_at_their_sections() -> None:
+    """A source-site cross-reference lands on the section that now holds that part."""
+    targets = {"https://example.invalid/Part-2": "#sec-02-part-2"}
+    html = (
+        '<p>在<a href="https://example.invalid/Part-2#a-heading">第 2 部分</a>中，'
+        '我们见<a href="https://example.invalid/Part-2">此处</a>。</p>'
+        '<p>代码见<a href="https://github.com/x/y">GitHub</a>。</p>'
+    )
+    rewritten = build.rewrite_source_links(html, targets)
+    assert rewritten.count('href="#sec-02-part-2"') == 2
+    # A deep link can only reach the top of its section: the page never recorded the heading.
+    assert "#a-heading" not in rewritten
+    # Anything that is not a page of this source keeps the URL it was written with.
+    assert 'href="https://github.com/x/y"' in rewritten
+    assert build.rewrite_source_links(html, {}) == html
+
+
+def test_source_link_targets_of_a_pdf_paper_are_empty() -> None:
+    """A PDF-sourced paper has no web identity, so the rewrite must leave it alone."""
+    pdf_paper = paper.Paper(
+        slug="sample",
+        directory=REPO_ROOT / "papers" / "sample",
+        title="t",
+        subtitle="s",
+        author="a",
+        source_pdf=REPO_ROOT / "paper.pdf",
+        sections=[paper.SectionRange("00-front", 1, 2)],
+        expectations=paper.Expectations(),
+    )
+    assert build.source_link_targets(pdf_paper) == {}
+
+
+def test_source_link_targets_follow_the_manifest() -> None:
+    """Every web section contributes one absolute source URL to the rewrite map."""
+    web_paper = paper.Paper(
+        slug="sample",
+        directory=REPO_ROOT / "papers" / "sample",
+        title="t",
+        subtitle="s",
+        author="a",
+        source_pdf=None,
+        sections=[
+            paper.SectionRange("00-front", None, None, "index"),
+            paper.SectionRange("01-part-1", None, None, "Part-1"),
+        ],
+        expectations=paper.Expectations(),
+        source_web=paper.WebSource(base="https://example.invalid/series/"),
+    )
+    assert build.source_link_targets(web_paper) == {
+        "https://example.invalid/series/index": "#sec-00-front",
+        "https://example.invalid/series/Part-1": "#sec-01-part-1",
+    }
 
 
 def test_build_end_to_end(tmp_path: Path) -> None:

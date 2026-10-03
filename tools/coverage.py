@@ -62,7 +62,11 @@ def read_content(content_dir: Path) -> dict[str, str]:
 
 
 def extracted_figures(report_path: Path | None, expected: list[int]) -> list[int]:
-    """Return the figure numbers the extractor found, falling back to the expectations."""
+    """Return the figure numbers the extractor found, falling back to the expectations.
+
+    The PDF extractor records a ``path`` per crop and the web extractor records the source
+    ``source_url``; either way the only field both guarantee is the number.
+    """
     if report_path is None or not report_path.exists():
         return list(expected)
     data = json.loads(report_path.read_text(encoding="utf-8"))
@@ -97,10 +101,11 @@ def check(
             report.missing_headings.append(heading)
 
     # The manifest is the source of truth; a stale or missing extraction report can only add
-    # figures to check, never remove one.
+    # figures to check, never remove one. A figure's extension follows its source asset, so the
+    # reference is matched by number rather than by a fixed ``.png`` suffix.
     found = set(extracted_figures(report_path, expectations.figures))
     for number in sorted(found | set(expectations.figures)):
-        if f"figure-{number:02d}.png" not in joined:
+        if not re.search(rf"figure-{number:02d}\.[A-Za-z0-9]+", joined):
             report.missing_figures.append(number)
 
     for number in expectations.tables:

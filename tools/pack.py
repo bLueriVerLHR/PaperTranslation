@@ -48,7 +48,18 @@ _RESOURCE_RE = re.compile(
 # Ordinary hyperlinks in the prose; they do not affect offline rendering.
 _CONTENT_LINK_RE = re.compile(r'<a\b[^>]*href="(?!#)(?!data:)([^"]+)"', re.IGNORECASE)
 
-MIME_TYPES = {".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg"}
+MIME_TYPES = {
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    # Without this entry a vector figure would be embedded as application/octet-stream, which
+    # a browser refuses to render as an image.
+    ".svg": "image/svg+xml",
+}
+# A vector figure has nothing to gain from a raster re-encode.
+_VECTOR_SUFFIXES = {".svg"}
 
 
 def data_uri(data: bytes, mime: str) -> str:
@@ -75,7 +86,7 @@ def figure_data_uri(image: Path, use_webp: bool = True) -> str:
     often smaller untouched, so the re-encode is compared against the original and the smaller
     of the two is embedded. Nothing is written back to the source figure.
     """
-    if use_webp and (ffmpeg := ffmpeg_path()):
+    if use_webp and image.suffix.lower() not in _VECTOR_SUFFIXES and (ffmpeg := ffmpeg_path()):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / (image.stem + ".webp")
             result = subprocess.run(  # noqa: S603 - fixed argv, resolved ffmpeg path

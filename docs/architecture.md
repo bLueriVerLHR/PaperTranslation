@@ -10,9 +10,11 @@ re-runnable for every registered paper.
 
 ## The published boundary
 
-This repository ships the pipeline only. A translation is a derivative work of the paper it
+The main branch ships the pipeline only. A separately authorized reader-only export lives
+on `pages-content` and is deployed by `.github/workflows/pages.yml`; see `pages.md`.
+Canonical work and survey source material are never included in that export. A translation is a derivative work of the paper it
 translates and a figure crop is a verbatim extract from that paper's PDF, so the whole of
-`papers/` is `git`-ignored: a fresh clone has the tools and no content. The source PDF, the
+`dist/`, including retained `work/` materials, is `git`-ignored: a fresh clone has no content. The source PDF, the
 per-page rasters, the extracted section text and the finished translation all stay on the
 machine that produced them, and `tools/extract.py` rebuilds the mechanical parts from a PDF the
 user supplies. That keeps the MIT grant in `LICENSE` honest — it covers code and documentation,
@@ -28,14 +30,19 @@ any depth and would also swallow the tracked `src/survey/`.
 ## Papers are data, not code
 
 The pipeline serves any number of papers. Everything that differs between them lives under
-`papers/<slug>/`:
+`dist/<slug>/work/`:
 
 ```
-papers/<slug>/paper.json          identity, source PDF, section map, coverage expectations
-papers/<slug>/content/*.md        the translation, one file per section
-papers/<slug>/glossary.md         binding terminology for this paper
-papers/<slug>/assets/figures/     figure crops (local only, never committed)
+dist/<slug>/work/paper.json          identity, source kind, section map, coverage expectations
+dist/<slug>/work/content/*.md        the translation, one file per section
+dist/<slug>/work/glossary.md         binding terminology for this paper
+dist/<slug>/work/assets/figures/     figure crops (local only, never committed)
+dist/<slug>/work/reference/          useful extracted source text, rasters and inventory
 ```
+
+`work` has no leading underscore. It is the canonical rebuilding source, not disposable output.
+Never delete `dist/` to clean a build: update generated page/assets in place, preserving `work/`.
+Source PDFs remain external originals and are read in place, not copied into the workspace.
 
 Everything identical across papers stays shared under `src/`: the page template, the theme and
 print stylesheet, and the reader script. Adding a paper therefore means
@@ -56,7 +63,7 @@ The manifest schema:
   "title": "文档标题",
   "subtitle": "副标题",
   "author": "作者",
-  "source": {"pdf": ".local/source/<slug>/paper.pdf"},
+  "source": {"pdf": null},
   "sections": [{"name": "00-front", "first": 1, "last": 3}],
   "expectations": {"headings": ["## 摘要"], "figures": [1], "tables": [1], "equations": [1]}
 }
@@ -66,22 +73,71 @@ The manifest schema:
 coverage checker (what the finished translation must contain). Both are validated on load, so a
 typo fails loudly with the paper and field named.
 
+A null `source.pdf` records a PDF source without keeping a file path. Building uses the
+retained work materials and needs no PDF. Re-extraction requires
+`tools/extract.py --paper <slug> --pdf C:\path\to\original.pdf`; alternatively, a manifest may
+record the external original's path. Neither extraction nor building copies the PDF.
+
+## Source kinds: PDF or web page
+
+A paper has exactly one source, named by `source.pdf` or `source.web`; a manifest that names both
+or neither is rejected. A web-sourced paper replaces the printed page range with a page URL:
+
+```json
+{
+  "source": {"web": {"base": "https://example.org/paper/", "index": "https://example.org/search.json"}},
+  "sections": [{"name": "00-front", "url": "index"}, {"name": "01-intro", "url": "intro"}]
+}
+```
+
+`SectionRange.url` may be relative; `WebSource.absolute()` resolves it against `base`. The section
+`name` keeps the same `NN-name` shape in both worlds, because it is what `content/*.md` and
+`dist/<slug>/work/reference/sections/*.txt` are named, so the build, the coverage checker and the
+figure listing do not care where a section came from. `Paper.is_web` and `SectionRange.is_web`
+are the only switches: `tools/extract.py` reads a PDF, `tools/web.py` reads a page, and each
+refuses the other's paper with a message naming the right tool.
+
+The web extractor writes the same outputs as the PDF one — per-section text plus a `report.json`
+inventory — so a new source kind is additive rather than a second pipeline. Two details are
+specific to reading a rendered page rather than a PDF:
+
+- **Math is recovered, not transcribed.** The target site pre-renders equations to vector art,
+  but the renderer leaves `data-mml-node` on each element and a codepoint on each glyph, so
+  walking that structure reconstructs the MathML tree the pipeline needs. Codepoints arrive in
+  their styled form, so they are folded back to plain letters and the styling is recorded as
+  `mathvariant` — which is what the source LaTeX meant and what a browser renders from a system
+  font. No LaTeX parser and no runtime renderer enters the deliverable.
+- **Figure payloads are sanitised.** Hand-drawn SVG diagrams can carry an embedded web font and
+  the editor's original document in their markup. `sanitize_svg` strips both before a figure is
+  written: source figures must not bring their own fonts or editor source data into an export.
+- **A strike-out is recovered from the drawn line.** A source page struck through a term with a
+  `<line>`, never with a `notation` attribute, so `_strike_notation` reads the two endpoints back.
+  MathJax's SVG y-axis points up (the document is wrapped in `scale(1,-1)` to reach screen space),
+  so a line whose y increases rises left-to-right and is recorded as `updiagonalstrike`. A
+  `menclose` that carries no diagonal line — a box or a circle — gets no notation rather than an
+  invented one.
+
+Numbers are assigned by the extractor, not read from the source: a page may show the same asset
+on several pages, a figure may carry no caption at all, and a table may have none either. The
+counter issues one number per distinct asset (so a repeated diagram keeps a single identity) and
+the translation keeps `图 N` bare where the source gives no caption, rather than inventing text.
+
 ## Data flow
 
 ```
-.local/source/<slug>/<paper>.pdf                (external input, not committed)
+C:/external/original.pdf                       external original, read in place
         |
-        |  tools/extract.py --paper <slug>
+        |  tools/extract.py --paper <slug> --pdf C:/external/original.pdf
         v
-.local/source/<slug>/pages/page-NN.txt          per-page text, reading order
-.local/source/<slug>/pages-png/page-NN.png      per-page raster for formula reading
-.local/source/<slug>/sections/*.txt             section-level text
-papers/<slug>/assets/figures/figure-NN.png      figure crops (local only, never committed)
+dist/<slug>/work/reference/pages/page-NN.txt    per-page text, reading order
+dist/<slug>/work/reference/pages-png/page-NN.png  rasters for formula reading
+dist/<slug>/work/reference/sections/*.txt       section-level text
+dist/<slug>/work/assets/figures/figure-NN.png   local-only figure crops
         |
         |  authored translation
         v
-papers/<slug>/content/NN-name.md                one file per section, MathML inline
-papers/<slug>/glossary.md                       shared terminology
+dist/<slug>/work/content/NN-name.md             one file per section, MathML inline
+dist/<slug>/work/glossary.md                    shared terminology
         |
         |  tools/build.py --paper <slug>
         v
@@ -119,9 +175,9 @@ survey/curation/                      local provenance scripts: archive primary 
         |
         |  tools/survey.py
         v
-dist/survey/index.html                the hub: prose with cards inline where the prose puts them
-survey/papers/<slug>/meta.json   -->  dist/survey/papers/<slug>.html   one detail page per paper
-        + dist/survey/assets/{styles,scripts}/  reader.css, survey.css, reader.js
+dist/llm-survey/index.html            the LLM hub: prose with inline paper cards
+survey/papers/<slug>/meta.json   -->  dist/llm-survey/papers/<slug>.html   detail pages
+        + dist/llm-survey/assets/{styles,scripts}/  reader.css, survey.css, reader.js
 ```
 
 The important invariant is that a paper's hub card and its detail page are rendered from the
@@ -180,6 +236,46 @@ page, so equations are authored as MathML directly in the content files. Browser
 and accessible. Display equations are wrapped in `<div class="equation">` with a sibling
 `<span class="eqno">` so the printed number aligns to the right margin.
 
+**An equation is span-level, and `build.py` owns the blank lines.** MathML has no block-versus-inline
+distinction of its own — the `display` attribute carries that — but `md_in_html` treats a
+block-level tag at the start of a line as the end of the running paragraph, so a `math` that
+opens a source line would be lifted out of its sentence and emitted as a sibling block. `math`
+is therefore dropped from the parser's block-level set, and `_MathProtection` reconciles the tag
+with Markdown's block rules instead: a line holding nothing but an equation whose `<math>` wraps
+an `mtable` (or carries `display="block"`) is surrounded with blank lines, so it becomes its own
+block, and every other equation rejoins the prose it was written in. A content file never has to
+think about blank lines to get its layout right.
+
+The same pass escapes the characters Markdown would otherwise pair into markup. An inline
+`<math>` sits in a paragraph's text, so `md_in_html` hands its contents to the inline patterns,
+which are free to turn `a*b*c` into emphasis or `[a](b)` into a link. Characters that a rule can
+actually pair (`*`, `_`, `` ` ``, `[`, `]`, `|`, `\`) are written as numeric references inside
+math — the same character to MathML, no longer a pattern to the parser. The content files keep
+writing `64*128*2` and `M[i][j]`, and the escaping happens where the parser can see it.
+
+**A translated section does not carry a second table of contents.** When the source kept a
+contents list in its own body, the translation copies it verbatim, and the copy then fights the
+nav: `## 目录` sits at the same depth as `系列简介`, so both become top-level sidebar entries,
+and the fifteen `###` items under it become fifteen more — all of them aimed back into the copy
+instead of at a section, and each of them hiding a real section heading that has no other sidebar
+entry. `_DropBodyToc` recognises the shape rather than any wording: a heading followed by a list
+whose first item is itself a heading. It matches exactly one construct in the corpus (the one
+true body TOC) and leaves the outline-shaped list at `01-part-1.md`'s `## Kernel 列表` alone,
+because that one is a list of plain items. Removing it belongs in the build, not in the content:
+a rule about how a page presents itself should apply to every paper that has this shape, and
+`dist/<slug>/work/` is local-only, so an edit there would not survive publication of the pipeline.
+
+**A cross-reference to the source's own pages is aimed at this page's sections.** A web-source
+translation keeps the links the original wrote between its parts — 「继续阅读第 1 部分……」,
+「上一部分」, 「术语表」 — and those URLs leave a page built to open from `file://` without a
+server. `build.rewrite_source_links` maps every section's source URL (from `paper.json`, via
+`source_web.absolute`) to `#sec-<name>` and rewrites only links whose URL names one of those
+pages, so a link to the paper's repository or a citation is untouched and a PDF paper — which
+has no section URLs — gets an empty map and a no-op. A source-site anchor
+(`Part-3#kernel-1`) cannot be translated, because the built page never recorded the source's
+heading anchors; such a link lands at the top of the containing section, which is the closest
+truthful target.
+
 **One Markdown file per section.** Translation is a long-running, interruptible process.
 Per-section files let a session resume exactly where it stopped, and make terminology
 review and diffing tractable. The build concatenates them in filename order.
@@ -188,16 +284,12 @@ review and diffing tractable. The build concatenates them in filename order.
 characters, which would collapse every Chinese heading to an empty anchor. `tools/build.py`
 registers a slugify that keeps `\w` (which includes CJK) and falls back to `section`.
 
-**No font is embedded; the browser picks it.** The stylesheet only names font families in
-priority order: Times New Roman and metric-compatible serifs for Latin, then Source Han Sans SC,
-Noto Sans SC, Microsoft YaHei, PingFang SC and Hiragino Sans GB for Simplified Chinese, and a
-monospace chain that ends in the same CJK families for code. Every glyph is resolved from the
-reading machine's own fonts, so nothing is downloaded at load time, no font license travels with
-the deliverable, and each deliverable is about a megabyte smaller than a bundled CJK subset
-would make it. An earlier revision subset Source Han Sans SC with `fontTools`, committed it
-under `src/assets/fonts/`, and gated the build on a glyph-coverage check; that was dropped once
-exact glyph fidelity stopped being worth the bytes and the vendored license. The trade-off is
-that a reader without any listed CJK family gets whatever their system substitutes.
+**Offline fonts and Pages fonts are separate.** The shared stylesheet requests installed
+Times New Roman, Source Han Serif SC and Maple Mono, with system fallbacks. Default offline
+builds and optional packed files contain no downloaded fonts. The authorized Pages export
+adds self-hosted OFL WOFF2 subsets from hash-pinned sources, including a Times-compatible
+Tinos fallback for phones. Font binaries never enter main; original licenses accompany the
+renamed subsets on pages-content. See `pages.md` for the publication and subsetting steps.
 
 **Highlighting is declarative.** Highlighted pseudocode is authored with semantic classes
 (`alg-keyword`, `alg-comment`, …) styled by the committed stylesheet, rather than by adding a
@@ -244,33 +336,55 @@ deliberately left as links, since they cost nothing offline. Fonts are never emb
 folder or in an export.
 
 `build.copy_assets` deletes any file in the target asset directory that this build did not just
-write, so a figure dropped from `papers/<slug>/assets/figures/` cannot linger in the shipped
+write, so a figure dropped from `dist/<slug>/work/assets/figures/` cannot linger in the shipped
 folder and ship an image the page no longer references.
 
 ## Failure modes and guards
 
 | Failure | Guard |
 |---|---|
+| A translated section repeats the source's own table of contents | `build.py`'s `_DropBodyToc` preprocessor removes a heading that introduces a list of headings, so the folded TOC is the only one and the section headings it was burying become sidebar entries again |
+| A cross-reference to another part of the source leaves the offline page | `build.rewrite_source_links` aims each source-site URL at `#sec-<name>` of the section that now holds it; a link to any other host is left as written, and a PDF paper has no map at all |
+| A source-site deep link (`Part-3#kernel-1`) cannot become a page-internal one | Nothing to guess from: the built page never recorded the source's anchor names, so the link lands at the top of the containing section instead |
 | Content uses a CJK glyph the reader's fonts lack | Nothing to guard: glyphs come from the reader's system, and the browser falls back on its own |
 | Template placeholder left unresolved | `build()` raises `ValueError` listing the placeholders |
 | Figure crop includes body text or clips a label | `tools/extract.py` grows the crop around drawing/image bounds; crops are reviewed once against page rasters |
 | A manifest is malformed or a page range is impossible | `tools/paper.py` raises `PaperError` naming the paper and the field |
 | A tool is run without a slug while several papers exist | `paper.resolve()` refuses and lists the registered slugs |
-| Translation skips a paragraph or equation | `tools/coverage.py` cross-check against the manifest plus `.local/source/<slug>/report.json` |
+| Translation skips a paragraph or equation | `tools/coverage.py` cross-check against the manifest plus `dist/<slug>/work/reference/report.json` |
 | Wide table overflows the page on a phone | `build.py` wraps every `<table>` in a scrollable `.table-wrap`; narrow viewports give the table its intrinsic width |
+| Markdown pairs two characters inside an equation into markup | `build.py` `_MathProtection` writes them as numeric references inside every `<math>` before the parser runs |
+| A short label introducing a display equation is justified letter-by-letter | `build.py` `_MathProtection` isolates a lone display equation with blank lines, so it does not merge into the label's paragraph |
+| A browser draws no strike-out for a cancelled term | `chromium` implements neither `menclose` nor its `notation`, so `reader.css` draws the diagonal as a gradient across the element's box |
 | A display equation keeps a scroll container in print | The print stylesheet sets `.equation { overflow: visible }`, beside the `.table-wrap` rule: otherwise the printer draws a scrollbar over the equation number and clips wide formulas |
 | A packed file still references `assets/` | `tools/pack.py` raises `ValueError` listing the uninlined resource references |
 | A figure dropped from the sources lingers in the deliverable | `build.copy_assets` removes target files this build did not write; `tests/test_pack.py::test_build_removes_stale_figure_crops` covers it |
 | A slug is not a legal English folder name | `paper.load` rejects it against `SLUG_RE` with `invalid paper slug ...` |
-| A translation, figure crop or manifest is committed | `.gitignore` ignores all of `papers/`; reviews keep `git ls-files papers` empty, in the tree and in history |
+| A translation, figure crop or manifest is committed | `.gitignore` ignores all of `dist/`, including `work/`; reviews keep `git ls-files dist` empty |
 | A survey card and its detail page disagree | Both render from the same `survey/papers/<slug>/meta.json`; there is no second copy to edit |
 | A paper referenced twice gets duplicate HTML ids or two nav entries | `expand_cards` threads a shared counter to suffix only the id (`paper-<slug>` then `paper-<slug>--2`); `reading_order` deduplicates; `tests/test_survey_integrity.py` asserts both |
-| A stale generated detail page survives a rename | `survey.build` deletes `dist/survey/papers/*.html` outside the expected set |
+| A stale generated detail page survives a rename | `survey.build` deletes `dist/llm-survey/papers/*.html` outside the expected set |
 | An unverified count is silently reported as zero | `Paper.cites` is nullable; `citation_label` renders 未核实 for a missing count and shows a verified zero explicitly |
 | The hub references a paper that has no folder, or a folder is never referenced | `survey.build` raises `SurveyError` listing the orphans, in both directions |
 | A survey template placeholder is forgotten | `survey.render` raises `SurveyError` listing the unresolved placeholders |
 | A survey stylesheet ships inside a translated paper's `assets/` | `survey.css` lives in `src/survey/`, not `src/styles/`, because `build.copy_assets` copies that whole directory; `tests/test_pack.py::test_build_manifest_lists_the_assets` pins it |
 | The survey ignore rule swallows tracked source | The rule is anchored `/survey/`; a bare `survey/` also matches `src/survey/` and would silently drop the survey stylesheet |
-| A font byte or `@font-face` sneaks back into the deliverable | `tests/test_pack.py` asserts the built page and the exported file have neither; `tests/test_build.py` asserts the copied stylesheet has no `@font-face` |
+| A font byte or `@font-face` sneaks into the default offline deliverable | `tests/test_pack.py` asserts the built page and the exported file have neither; `tests/test_build.py` asserts the copied stylesheet has no `@font-face` |
 | Base64 payloads creep back into the built page | `tests/test_build.py` asserts the page contains no `base64` and no `data:image`, and that figures are referenced as `src="assets/figures/figure-NN.png"` |
-| Absolute paths or machine-specific fonts leak into output | dist references only relative `assets/` paths |
+| A ``` fence renders as an inline code run | `fenced_code` is in `build.make_markdown`'s extension list; `tests/test_build.py` asserts a fence yields a `<pre>` with its language class, including one placed directly under a caption comment |
+| A web source downloads an SVG figure the checker does not look for | `tools/coverage.py` matches `figure-NN.<any extension>`, not a fixed `.png` |
+| An SVG figure is packed as an unrenderable data URI | `tools/pack.py` maps `.svg` to `image/svg+xml`; a vector figure also skips the ffmpeg re-encode |
+| A shared SVG figure ships an embedded font | `tools/web.py:sanitize_svg` strips `<style>` (the only place an SVG `@font-face` can live) and editor metadata, with the element prefix tolerated because editors namespace their tags |
+| A manifest names a source that does not exist | `paper.load` raises unless exactly one of `source.pdf` / `source.web` is present, and `tools/web.py` refuses a PDF paper with the name of the tool to use instead |
+| Absolute paths or machine-specific fonts leak into output | reader HTML references only relative `assets/` paths; local-only work metadata is not reader output |
+| A rebuild cleanup destroys translation sources | update only generated page/assets; preserve `work/`; `test_build_preserves_work_and_rebuilds_without_pdf` covers it |
+
+## Disposable development state
+
+Initialize each PowerShell session with `. .\tools\dev-env.ps1`. The virtual environment,
+Python/pytest/ruff caches, task presets, reports, logs and experiments live under system TEMP,
+not beside source code. Use `$ProjectTemp/tasks`, `$ProjectTemp/reports` and
+`$ProjectTemp/scratch`; temporary paths must be absolute. The harness's `.pi/tasks` is a
+junction whose target is in system TEMP. These locations are disposable, unlike retained
+`dist/<slug>/work/` inputs and references. Legacy ignore entries are safeguards only, not
+active storage rules. Migration recovery archives in TEMP are not permanent source locations.

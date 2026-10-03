@@ -89,8 +89,9 @@ def _build(root: Path, dist: Path) -> dict:
 
 
 def test_deliverable_is_a_folder_with_a_page_per_paper(tmp_path: Path) -> None:
-    """dist/survey/ holds the hub, one detail page per paper and a real assets/ tree."""
-    dist = tmp_path / "dist" / "survey"
+    """dist/llm-survey/ holds the hub, detail pages and a real assets/ tree."""
+    assert survey.DEFAULT_DIST == survey.ROOT / "dist" / "llm-survey"
+    dist = tmp_path / "dist" / "llm-survey"
     manifest = _build(tmp_path / "survey", dist)
 
     assert (dist / "index.html").is_file()
@@ -114,7 +115,7 @@ def test_deliverable_is_a_folder_with_a_page_per_paper(tmp_path: Path) -> None:
 
 def test_card_and_detail_page_come_from_the_same_metadata(tmp_path: Path) -> None:
     """One meta.json feeds both the hub card and the detail page, so they cannot drift."""
-    dist = tmp_path / "dist" / "survey"
+    dist = tmp_path / "dist" / "llm-survey"
     _build(tmp_path / "survey", dist)
 
     hub = (dist / "index.html").read_text(encoding="utf-8")
@@ -154,7 +155,7 @@ def test_a_paper_may_be_referenced_more_than_once(tmp_path: Path) -> None:
     Reading order deduplicates, so the paper keeps one detail page and one place in the
     sequence; repeating it just renders the card again where the narrative needs it.
     """
-    dist = tmp_path / "dist" / "survey"
+    dist = tmp_path / "dist" / "llm-survey"
     manifest = _build(
         tmp_path / "survey",
         dist,

@@ -53,7 +53,7 @@
       button.hidden = window.scrollY < 600;
     }
     button.addEventListener("click", function () {
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     });
     window.addEventListener("scroll", update, { passive: true });
     update();
@@ -97,7 +97,59 @@
     });
   }
 
+  function initReadingTools() {
+    var toolbar = document.querySelector(".toolbar");
+    if (!toolbar || !document.querySelector(".body")) { return; }
+    var scale = 1;
+    try { scale = Number(window.localStorage.getItem("paper-reading-scale")) || 1; } catch (err) { /* Optional storage. */ }
+    scale = Math.max(.9, Math.min(1.3, scale));
+    function applyScale() { root.style.setProperty("--reading-scale", scale); }
+    applyScale();
+    [-.1, .1].forEach(function (step) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.textContent = step < 0 ? "A−" : "A+";
+      button.setAttribute("aria-label", step < 0 ? "减小正文字号" : "增大正文字号");
+      button.addEventListener("click", function () {
+        scale = Math.max(.9, Math.min(1.3, Math.round((scale + step) * 10) / 10));
+        applyScale();
+        try { window.localStorage.setItem("paper-reading-scale", scale); } catch (err) { /* Optional storage. */ }
+      });
+      toolbar.appendChild(button);
+    });
+    var toc = document.getElementById("toc");
+    if (toc) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "目录";
+      button.setAttribute("aria-controls", "toc");
+      button.addEventListener("click", function () {
+        toc.open = true;
+        toc.scrollIntoView();
+        toc.querySelector("summary").focus();
+      });
+      toolbar.appendChild(button);
+    }
+    function focusWideMath() {
+      document.querySelectorAll(".body math").forEach(function (element) {
+        if (!element.closest(".equation") && element.scrollWidth > element.clientWidth + 1) {
+          element.tabIndex = 0;
+          element.setAttribute("aria-label", "公式，可横向滚动");
+        }
+      });
+    }
+    if (document.fonts) { document.fonts.ready.then(focusWideMath); }
+    else { focusWideMath(); }
+    window.addEventListener("resize", focusWideMath);
+    document.querySelectorAll(".table-wrap, .equation, .body pre").forEach(function (element) {
+      element.tabIndex = 0;
+      element.setAttribute("role", "region");
+      element.setAttribute("aria-label", element.classList.contains("table-wrap") ? "表格，可横向滚动" : "代码或公式，可横向滚动");
+    });
+  }
+
   function init() {
+    initReadingTools();
     initTheme();
     initTopButton();
     initScrollSpy();

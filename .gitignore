@@ -1,33 +1,23 @@
-# Paper material: local-only, never published.
-#
-# Everything under papers/ derives from someone else's paper: the figure crops are verbatim
-# extracts from the source PDF, the content is a translation (a derivative work) of the original
-# text, and the manifests carry the papers' identity and section maps. None of it is covered by
-# LICENSE, so it stays out of the public repository. The pipeline regenerates the figures from a
-# PDF you supply yourself, and `git ls-files papers` must stay empty.
-papers/
+# All local paper inputs, retained work materials and generated reader output.
+# dist/<slug>/work/ contains derivative works and verbatim figure extracts too.
+/dist/
 
-# The LLM survey: local-only, never published.
-#
-# survey/ holds original survey prose plus translations of the surveyed papers' abstracts. The
-# prose is ours, but the abstracts are derivative works of the papers themselves, and the two are
-# interleaved in the same files, so the whole tree stays out of the published repository - the
-# same reasoning that keeps papers/ untracked. Build the deliverable with tools/survey.py.
-#
-# Anchored to the repository root on purpose: a bare `survey/` would also match the tracked
-# source directory `src/survey/`, silently dropping the survey stylesheet from the repository.
+# Local survey prose and translated abstracts; anchored to keep src/survey tracked.
 /survey/
 
-# Local-only and generated content
-.tasks/
-.local/
-.logs/
-.reports/
-.tmp/
-.pi/
-dist/
+# Harness configuration and the system-TEMP task junction.
+/.pi/
 
-# Python
+# Defensive denylist for retired workspace folders. These are NOT storage conventions;
+# new temporary/development state must use system TEMP via tools/dev-env.ps1.
+/papers/
+/.local/
+/.tasks/
+/.logs/
+/.reports/
+/.tmp/
+
+# Python (defensive: normal development routes caches/environment to system TEMP)
 __pycache__/
 *.py[cod]
 .venv/

@@ -16,7 +16,7 @@ def _manifest(**overrides: object) -> dict[str, object]:
         "title": "示例论文",
         "subtitle": "副标题",
         "author": "某人",
-        "source": {"pdf": ".local/source/demo/paper.pdf"},
+        "source": {"pdf": None},
         "sections": [{"name": "00-front", "first": 1, "last": 2}],
         "expectations": {"headings": ["## 摘要"], "figures": [1], "tables": [1], "equations": [1]},
     }
@@ -26,18 +26,16 @@ def _manifest(**overrides: object) -> dict[str, object]:
 
 @pytest.fixture
 def papers_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Point the loader at a temporary papers directory."""
-    root = tmp_path / "papers"
+    """Point the loader at a temporary deliverable directory."""
+    root = tmp_path / "dist"
     root.mkdir()
-    monkeypatch.setattr(paper, "PAPERS_DIR", root)
-    monkeypatch.setattr(paper, "LOCAL_SOURCE_DIR", tmp_path / ".local" / "source")
-    monkeypatch.setattr(paper, "DIST_DIR", tmp_path / "dist")
+    monkeypatch.setattr(paper, "DIST_DIR", root)
     return root
 
 
 def _write(root: Path, slug: str, data: dict[str, object]) -> Path:
     """Write a manifest under ``root`` and return its path."""
-    directory = root / slug
+    directory = root / slug / "work"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / paper.MANIFEST_NAME
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
@@ -60,13 +58,35 @@ def test_derived_paths_are_repo_relative(papers_root: Path) -> None:
     _write(papers_root, "demo", _manifest())
     loaded = paper.load("demo")
 
-    assert loaded.content_dir == papers_root / "demo" / "content"
-    assert loaded.glossary_path == papers_root / "demo" / "glossary.md"
-    assert loaded.figures_dir == papers_root / "demo" / "assets" / "figures"
-    assert loaded.source_dir.name == "demo"
+    assert loaded.content_dir == papers_root / "demo" / "work" / "content"
+    assert loaded.glossary_path == papers_root / "demo" / "work" / "glossary.md"
+    assert loaded.figures_dir == papers_root / "demo" / "work" / "assets" / "figures"
+    assert loaded.source_dir == papers_root / "demo" / "work" / "reference"
     assert loaded.report_path.name == "report.json"
     assert loaded.output_dir.parts[-2:] == ("dist", "demo")
     assert loaded.output_path.name == "index.html"
+
+
+def test_pdf_can_be_external_or_not_retained(papers_root: Path, tmp_path: Path) -> None:
+    _write(papers_root, "demo", _manifest())
+    assert paper.load("demo").source_pdf is None
+    external = tmp_path / "original.pdf"
+    _write(papers_root, "demo", _manifest(source={"pdf": str(external)}))
+    assert paper.load("demo").source_pdf == external
+
+
+def test_pdf_rejects_non_path(papers_root: Path) -> None:
+    _write(papers_root, "demo", _manifest(source={"pdf": 42}))
+    with pytest.raises(paper.PaperError, match="path or null"):
+        paper.load("demo")
+
+
+def test_available_ignores_output_and_unrelated_folders(papers_root: Path) -> None:
+    _write(papers_root, "demo", _manifest())
+    (papers_root / "survey").mkdir()
+    (papers_root / "stray").mkdir()
+    (papers_root / "stray" / "paper.json").write_text("{}", encoding="utf-8")
+    assert paper.available() == ["demo"]
 
 
 def test_load_rejects_unknown_slug(papers_root: Path) -> None:
@@ -157,7 +177,7 @@ def test_registered_papers_are_loadable() -> None:
     """Every local manifest must be valid; a published clone has none, so it skips."""
     real = paper.available()
     if not real:
-        pytest.skip("no papers are registered: papers/ is local-only and git-ignored")
+        pytest.skip("no papers are registered: dist/*/work/ is local-only and git-ignored")
     for slug in real:
         loaded = paper.load(slug)
         assert loaded.title and loaded.subtitle and loaded.author
