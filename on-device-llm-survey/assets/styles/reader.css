@@ -9,6 +9,7 @@
   --font-serif: "Times New Roman", "Liberation Serif", "Source Han Serif SC",
     "Noto Serif CJK SC", "Noto Serif SC", "Songti SC", SimSun, serif;
   --font-cjk: var(--font-serif);
+  --font-math: "STIX Two Math", "Cambria Math", "Latin Modern Math", math;
   --font-mono: "Maple Mono", "Maple Mono CN", Consolas, monospace;
   --reading-scale: 1;
 
@@ -109,9 +110,13 @@ body {
 .body img, .body svg { max-width: 100%; height: auto; }
 .body > *, .body section { min-width: 0; }
 .body blockquote { margin-inline: 0; padding-left: 1rem; border-left: 3px solid var(--rule); }
-.body :not(.equation) > math[display="block"] {
-  display: block; max-width: 100%; overflow-x: auto; padding-block: .5rem;
+.math-scroll {
+  display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden;
+  padding-block: .55em; margin-block: .6em;
+  overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch;
 }
+.math-scroll > math { margin-inline: auto; }
+.equation > .math-scroll { margin: 0; }
 .body pre, .table-wrap, .equation {
   overscroll-behavior-inline: contain;
   -webkit-overflow-scrolling: touch;
@@ -228,7 +233,7 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
 .equation {
   position: relative;
   margin: 1.35rem 0;
-  padding: 0 3.2em;
+  padding: .3em 3.2em;
   text-align: center;
   overflow-x: auto;
 }
@@ -244,11 +249,17 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
   color: var(--ink-soft);
 }
 
-math { font-size: 1.02em; }
-/* MathML has intrinsic width and cannot use prose line breaking. Keep wide inline
-   expressions local to their own scroll box; mtable also marks legacy display math. */
-.body math { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; }
-.body math:has(mtable) { display: block; padding-block: .5rem; }
+/* Preserve native MathML layout, MATH-table spacing and the text baseline.
+   Inline symbols are never scroll boxes; only display/wide expressions receive
+   a separate padded block scroller through the progressive reader script. */
+math { font-family: var(--font-math); font-size: 1em; }
+.body math { display: math; max-width: none; overflow: visible; vertical-align: baseline; }
+.body math[display="block"], .body math:has(mtable) { display: block math; }
+/* Native display fallback remains local even when JavaScript is unavailable. */
+.body :not(.math-scroll):not(.equation) > math[display="block"],
+.body :not(.math-scroll):not(.equation) > math:has(mtable) {
+  max-width: 100%; overflow-x: auto; padding-block: .55em;
+}
 
 /* Chromium implements neither ``menclose`` nor its ``notation`` attribute, both of which sit
    outside MathML Core, so a term the source struck out would otherwise read as if it were still
@@ -458,7 +469,7 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   /* Same reasoning for display equations: a scroll container makes the printer draw a
      scrollbar widget over the right margin, which covers the equation number, and clips
      any formula wider than the column. */
-  .equation { overflow: visible; }
+  .equation, .math-scroll { overflow: visible; max-width: none; }
   .body math { overflow: visible; max-width: none; }
   .body table { font-size: 7.6pt; line-height: 1.35; }
   .body th, .body td { padding: .18rem .28rem; overflow-wrap: anywhere; }

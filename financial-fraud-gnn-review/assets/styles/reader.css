@@ -9,6 +9,7 @@
   --font-serif: "Times New Roman", "Liberation Serif", "Source Han Serif SC",
     "Noto Serif CJK SC", "Noto Serif SC", "Songti SC", SimSun, serif;
   --font-cjk: var(--font-serif);
+  --font-math: "STIX Two Math", "Cambria Math", "Latin Modern Math", math;
   --font-mono: "Maple Mono", "Maple Mono CN", Consolas, monospace;
   --reading-scale: 1;
 
@@ -92,7 +93,13 @@ body {
 }
 
 .subtitle { margin: 0 0 .5rem; color: var(--ink-soft); font-size: 1.05rem; }
-.meta { margin: 0; color: var(--ink-soft); font-size: .86rem; }
+.meta { margin: 0; color: var(--ink-soft); font-size: .86rem; line-height: 1.65; }
+.reading-notice, .source-link, .source-details { margin-top: .5rem; }
+.title-block a { color: var(--accent); overflow-wrap: anywhere; }
+.source-details > summary { cursor: pointer; padding-block: .25rem; }
+.source-details p { margin: .35rem 0; }
+.source-details ul, .source-details ol { margin: .35rem 0; padding-left: 1.3em; }
+.source-details h2, .source-details h3 { font-size: inherit; margin: .5rem 0 .25rem; }
 
 .latin, .body h1, .body h2, .body h3, .body h4, .toc, code, pre {
   font-family: var(--font-serif);
@@ -103,9 +110,13 @@ body {
 .body img, .body svg { max-width: 100%; height: auto; }
 .body > *, .body section { min-width: 0; }
 .body blockquote { margin-inline: 0; padding-left: 1rem; border-left: 3px solid var(--rule); }
-.body :not(.equation) > math[display="block"] {
-  display: block; max-width: 100%; overflow-x: auto; padding-block: .5rem;
+.math-scroll {
+  display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden;
+  padding-block: .55em; margin-block: .6em;
+  overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch;
 }
+.math-scroll > math { margin-inline: auto; }
+.equation > .math-scroll { margin: 0; }
 .body pre, .table-wrap, .equation {
   overscroll-behavior-inline: contain;
   -webkit-overflow-scrolling: touch;
@@ -116,7 +127,17 @@ body {
 .toolbar a { align-self: center; padding: .5rem; }
 .toc a { display: inline-block; padding-block: .35rem; }
 
-.body p { margin: 0 0 .85em; text-align: justify; }
+/* Never justify mixed CJK/Latin prose: forced breaks and long identifiers otherwise
+   stretch spaces/characters. This shared rule also replaces local typography patches. */
+.body p, .body li, .subtitle, .meta, .colophon p {
+  text-align: start; text-align-last: auto; text-justify: none;
+  letter-spacing: normal; word-spacing: normal; hyphens: none;
+}
+.body p { margin: 0 0 .85em; }
+.body h1 {
+  font-size: 1.55em; line-height: 1.5; margin: 2.4rem 0 1rem;
+  padding-bottom: .5rem; border-bottom: 2px solid var(--rule); scroll-margin-top: 5rem;
+}
 
 .body h2 {
   font-size: 1.35rem;
@@ -157,7 +178,8 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
   overflow-x: auto;
 }
 
-.body pre code { background: none; padding: 0; }
+.body pre code { background: none; padding: 0; font-size: inherit; }
+.body pre { tab-size: 4; }
 
 /* ---------------------------------------------------------------- figures */
 .body figure {
@@ -211,7 +233,7 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
 .equation {
   position: relative;
   margin: 1.35rem 0;
-  padding: 0 3.2em;
+  padding: .3em 3.2em;
   text-align: center;
   overflow-x: auto;
 }
@@ -227,11 +249,17 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
   color: var(--ink-soft);
 }
 
-math { font-size: 1.02em; }
-/* MathML has intrinsic width and cannot use prose line breaking. Keep wide inline
-   expressions local to their own scroll box; mtable also marks legacy display math. */
-.body math { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; }
-.body math:has(mtable) { display: block; padding-block: .5rem; }
+/* Preserve native MathML layout, MATH-table spacing and the text baseline.
+   Inline symbols are never scroll boxes; only display/wide expressions receive
+   a separate padded block scroller through the progressive reader script. */
+math { font-family: var(--font-math); font-size: 1em; }
+.body math { display: math; max-width: none; overflow: visible; vertical-align: baseline; }
+.body math[display="block"], .body math:has(mtable) { display: block math; }
+/* Native display fallback remains local even when JavaScript is unavailable. */
+.body :not(.math-scroll):not(.equation) > math[display="block"],
+.body :not(.math-scroll):not(.equation) > math:has(mtable) {
+  max-width: 100%; overflow-x: auto; padding-block: .55em;
+}
 
 /* Chromium implements neither ``menclose`` nor its ``notation`` attribute, both of which sit
    outside MathML Core, so a term the source struck out would otherwise read as if it were still
@@ -270,12 +298,33 @@ math menclose[notation="downdiagonalstrike"] {
 .toc[open] > summary::before { content: "▾ "; }
 
 .toc nav { padding: .4rem 0 .2rem; }
-.toc ol { list-style: none; margin: 0; padding-left: 1.1rem; }
-.toc > nav > ol { padding-left: 0; }
-.toc li { margin: .15rem 0; font-size: .9rem; }
-.toc a { color: var(--ink); border-bottom: none; }
-.toc a:hover { color: var(--accent); }
-.toc a.active { color: var(--accent); font-weight: 700; }
+.toc ol, .toc-content ol { list-style: none; margin: 0; padding-left: 1.1rem; }
+.toc > nav > ol, .toc-content > ol { padding-left: 0; }
+.toc li, .toc-content li { margin: .15rem 0; font-size: .95rem; }
+.toc a, .toc-content a { display: block; padding-block: .5rem; color: var(--ink); text-decoration: none; border-bottom: none; }
+.toc a:hover, .toc-content a:hover { color: var(--accent); }
+.toc a.active, .toc-content a.active { color: var(--accent); font-weight: 700; }
+
+/* ------------------------------------------------------------------ cards */
+.reader-dialog {
+  width: min(44rem, calc(100% - 2rem)); max-width: calc(100% - 2rem);
+  max-height: 80vh; max-height: min(80svh, 44rem); margin: auto; padding: 0;
+  border: 1px solid var(--rule); border-radius: 1rem; overflow: hidden;
+  color: var(--ink); background: var(--paper); font-family: var(--font-cjk);
+  font-size: 1rem; line-height: 1.7; box-shadow: 0 16px 64px rgb(0 0 0 / 35%);
+}
+.reader-dialog[open] { display: flex; flex-direction: column; }
+.reader-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.reader-dialog-header { display: flex; align-items: flex-start; gap: 1rem; flex: none; padding: 1rem 1.25rem; border-bottom: 1px solid var(--rule); }
+.reader-dialog-header h2 { flex: 1; min-width: 0; font-size: 1.15rem; margin: .3rem 0; overflow-wrap: anywhere; }
+.reader-dialog-close { flex: none; font: inherit; min-height: 44px; min-width: 44px; cursor: pointer; padding: .5rem .8rem; border: 1px solid var(--rule); border-radius: .5rem; background: var(--paper); color: var(--accent); }
+.reader-dialog-close:hover { border-color: var(--accent); }
+.reader-dialog-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .5rem 1.25rem 1rem; overflow-wrap: anywhere; }
+.reader-dialog a { color: var(--accent); }
+.citation-detail + .citation-detail { border-top: 1px solid var(--rule); margin-top: 1rem; padding-top: 1rem; }
+.citation-detail p { margin: .5rem 0; }
+.citation-detail a { display: inline-block; min-height: 44px; padding-block: .5rem; }
+.body a.citation { text-decoration: underline dotted; text-underline-offset: .15em; cursor: pointer; }
 
 /* --------------------------------------------------------------- toolbar */
 .toolbar {
@@ -383,7 +432,9 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   .body pre { padding: .75rem; }
   .toc nav { max-height: 60svh; overflow-y: auto; }
   .toc a { padding-block: .5rem; }
-  .toc ol { padding-left: .8rem; }
+  .toc ol, .toc-content ol { padding-left: .8rem; }
+  .reader-dialog-header { gap: .5rem; padding: .75rem 1rem; }
+  .reader-dialog-body { padding-inline: 1rem; }
 }
 
 /* ------------------------------------------------------------------ print */
@@ -402,7 +453,11 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   .body { font-size: inherit; }
   body { background: #fff; color: #000; font-size: 10.5pt; line-height: 1.7; }
   .page { width: auto; margin: 0; padding: 0; box-shadow: none; }
-  .toolbar, .skip-link, .toc { display: none !important; }
+  .toolbar, .skip-link, .toc, .reader-dialog { display: none !important; }
+  body:has(.reader-dialog[open]) {
+    position: static !important; top: auto !important; left: auto !important;
+    right: auto !important; overflow: visible !important;
+  }
   .body h2, .body h3, .body h4 { break-after: avoid; }
   .body figure, .body table, .equation { break-inside: avoid; }
   .body p { orphans: 2; widows: 2; }
@@ -414,7 +469,7 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   /* Same reasoning for display equations: a scroll container makes the printer draw a
      scrollbar widget over the right margin, which covers the equation number, and clips
      any formula wider than the column. */
-  .equation { overflow: visible; }
+  .equation, .math-scroll { overflow: visible; max-width: none; }
   .body math { overflow: visible; max-width: none; }
   .body table { font-size: 7.6pt; line-height: 1.35; }
   .body th, .body td { padding: .18rem .28rem; overflow-wrap: anywhere; }

@@ -275,13 +275,45 @@
     });
   }
 
+  function updateMathLayout() {
+    document.querySelectorAll(".body math").forEach(function (element) {
+      var block = element.getAttribute("display") === "block" ||
+        element.querySelector("mtable") || element.closest(".equation");
+      var wrapper = element.parentElement;
+      var wrapped = wrapper.classList.contains("math-scroll");
+      var container = (wrapped ? wrapper.parentElement : element.parentElement)
+        .closest("p, li, td, th, blockquote, .body");
+      if (!container) { return; }
+      var style = window.getComputedStyle(container);
+      var available = container.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      var wide = element.getBoundingClientRect().width > available + 1;
+      if (block || wide) {
+        if (!wrapped) {
+          wrapper = document.createElement("span");
+          wrapper.className = "math-scroll";
+          element.before(wrapper);
+          wrapper.appendChild(element);
+        }
+        wrapper.setAttribute("role", "region");
+        wrapper.setAttribute("aria-label", "公式");
+        if (wrapper.scrollWidth > wrapper.clientWidth + 1) {
+          wrapper.tabIndex = 0;
+          wrapper.setAttribute("aria-label", "公式，可横向滚动");
+        } else { wrapper.removeAttribute("tabindex"); }
+      } else if (wrapped) { wrapper.replaceWith(element); }
+    });
+  }
+
   function initReadingTools() {
     var toolbar = document.querySelector(".toolbar");
     if (!toolbar || !document.querySelector(".body")) { return; }
     var scale = 1;
     try { scale = Number(window.localStorage.getItem("paper-reading-scale")) || 1; } catch (err) { /* Optional storage. */ }
     scale = Math.max(.9, Math.min(1.3, scale));
-    function applyScale() { root.style.setProperty("--reading-scale", scale); }
+    function applyScale() {
+      root.style.setProperty("--reading-scale", scale);
+      updateMathLayout();
+    }
     applyScale();
     [-.1, .1].forEach(function (step) {
       var button = document.createElement("button");
@@ -295,17 +327,8 @@
       });
       toolbar.appendChild(button);
     });
-    function focusWideMath() {
-      document.querySelectorAll(".body math").forEach(function (element) {
-        if (!element.closest(".equation") && element.scrollWidth > element.clientWidth + 1) {
-          element.tabIndex = 0;
-          element.setAttribute("aria-label", "公式，可横向滚动");
-        }
-      });
-    }
-    if (document.fonts) { document.fonts.ready.then(focusWideMath); }
-    else { focusWideMath(); }
-    window.addEventListener("resize", focusWideMath);
+    if (document.fonts) { document.fonts.ready.then(updateMathLayout); }
+    window.addEventListener("resize", updateMathLayout);
     document.querySelectorAll(".table-wrap, .equation, .body pre").forEach(function (element) {
       element.tabIndex = 0;
       element.setAttribute("role", "region");
