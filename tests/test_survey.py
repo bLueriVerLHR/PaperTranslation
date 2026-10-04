@@ -114,6 +114,10 @@ def test_deliverable_is_a_folder_with_a_page_per_paper(tmp_path: Path) -> None:
     assert manifest["papers"] == ["gpipe", "lora"]
     assert manifest["directions"] == ["系统", "VLA"]
     assert manifest["papers_without_abstract"] == []
+    assert manifest["public_export"] is False
+    assert (
+        json.loads((dist / "manifest.json").read_text(encoding="utf-8"))["public_export"] is False
+    )
     assert manifest["pages"] == ["index.html", "papers/gpipe.html", "papers/lora.html"]
 
 

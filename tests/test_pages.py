@@ -24,7 +24,7 @@ def test_public_files_never_include_sources(tmp_path: Path) -> None:
         "a/notes/source.md",
         "a/assets/private.json",
     ):
-        write(tmp_path / name, "fixture")
+        write(tmp_path / name, "{}" if name == "a/manifest.json" else "fixture")
     assert [p.relative_to(tmp_path).as_posix() for p in pages.public_files(tmp_path)] == [
         "a/assets/figure.svg",
         "a/index.html",
@@ -48,6 +48,73 @@ def test_excluded_projects_never_export_but_local_sources_survive(
     assert (tmp_path / "dist/hidden-project/work/keep.md").read_text() == "canonical"
     write(out / "hidden-project/index.html", "stale")
     assert any("publication-excluded" in error for error in pages.check_site(out))
+
+
+def test_local_only_profile_never_exports_html_or_figures(tmp_path: Path) -> None:
+    """A private translation remains excluded even during a full library export."""
+    write(tmp_path / "dist/private-paper/work/reader.json", '{"public_export": false}')
+    write(tmp_path / "dist/private-paper/index.html", "<title>Private translation</title>")
+    write(tmp_path / "dist/private-paper/assets/figures/figure-01.svg", "<svg/>")
+    write(tmp_path / "dist/approved/index.html", "<title>Approved</title>")
+    out = tmp_path / "site"
+    entries = pages.export(tmp_path / "dist", out)
+    assert entries == [{"path": "approved/index.html", "title": "Approved"}]
+    assert not (out / "private-paper").exists()
+    assert (tmp_path / "dist/private-paper/index.html").exists()
+
+
+@pytest.mark.parametrize("flag", [None, True, False])
+def test_translation_is_local_regardless_of_export_flag(tmp_path: Path, flag: bool | None) -> None:
+    import json
+
+    dist = tmp_path / "dist"
+    profile = {"kind": "translation"}
+    if flag is not None:
+        profile["public_export"] = flag
+    write(dist / "paper/work/reader.json", json.dumps(profile))
+    write(dist / "paper/work/content/00-front.md", "canonical translation")
+    write(dist / "paper/index.html", "<title>Translation</title>")
+    write(dist / "paper/assets/figures/figure.svg", "<svg/>")
+    write(dist / "paper.html", "<title>Packed translation</title>")
+    write(dist / "book/work/reader.json", '{"kind": "analysis"}')
+    write(dist / "book/index.html", "<title>Authored book</title>")
+    out = tmp_path / "out"
+    assert pages.export(dist, out) == [{"path": "book/index.html", "title": "Authored book"}]
+    assert not (out / "paper").exists() and not (out / "paper.html").exists()
+    assert (dist / "paper/work/content/00-front.md").read_text() == "canonical translation"
+    assert (dist / "paper/assets/figures/figure.svg").is_file()
+
+
+def test_paper_without_reader_profile_stays_local(tmp_path: Path) -> None:
+    write(tmp_path / "external/work/paper.json", "{}")
+    write(tmp_path / "external/index.html", "<title>External paper</title>")
+    write(tmp_path / "external.html", "<title>Packed paper</title>")
+    assert pages.public_files(tmp_path) == []
+
+
+def test_frozen_project_manifest_excludes_all_readers(tmp_path: Path) -> None:
+    write(tmp_path / "old-survey/manifest.json", '{"public_export": false}')
+    write(tmp_path / "old-survey/index.html", "<title>Experimental survey</title>")
+    write(tmp_path / "old-survey/papers/a.html", "<title>Translated abstract</title>")
+    write(tmp_path / "old-survey/assets/figure.svg", "<svg/>")
+    write(tmp_path / "old-survey.html", "<title>Packed prototype</title>")
+    assert pages.public_files(tmp_path) == []
+    assert (tmp_path / "old-survey/papers/a.html").is_file()
+
+
+@pytest.mark.parametrize("name", ["a/work/reader.json", "a/manifest.json"])
+def test_duplicate_publication_fields_are_rejected(tmp_path: Path, name: str) -> None:
+    write(tmp_path / name, '{"public_export": false, "public_export": true}')
+    write(tmp_path / "a/index.html", "<title>Ambiguous</title>")
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        pages.public_files(tmp_path)
+
+
+@pytest.mark.parametrize("value", ['"false"', "0", "null"])
+def test_publication_flag_requires_boolean(tmp_path: Path, value: str) -> None:
+    write(tmp_path / "a/manifest.json", '{"public_export": ' + value + "}")
+    with pytest.raises(ValueError, match="public_export must be a boolean"):
+        pages.public_files(tmp_path)
 
 
 def test_inventory_writes_git_stable_newlines(tmp_path: Path) -> None:

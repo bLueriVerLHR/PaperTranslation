@@ -21,13 +21,14 @@
 
 Publishing derivative works still requires the relevant rights/permissions. The pipeline's
 MIT license does not license translations or figures. Source materials remain ignored in main.
-The initial export was operator-approved, but this does not establish the original authors'
-translation/distribution permissions. Review licenses separately and retain required notices.
+Snapshot approval does not establish the original authors' adaptation/distribution permissions.
+Review licenses separately and retain required notices.
 
 ## Source and publication review
 
-The project no longer maintains `.pagesignore`. Before translating a rights-restricted
-published article, first seek its corresponding arXiv preprint and check identity, fixed
+Publication boundaries use project metadata, not a maintained `.pagesignore` list.
+Before translating a rights-restricted published article, first seek its corresponding arXiv
+preprint and check identity, fixed
 version and license. Translate the verified preprint version; cite the published paper for
 revisions without reproducing its full text by default. Being a preprint does not itself
 authorize adaptation or publication.
@@ -35,6 +36,26 @@ authorize adaptation or publication.
 Public snapshots still require explicit review and approval. A personal knowledge library on
 GitHub Pages is publicly accessible unless the hosting configuration actually restricts it.
 Translation-only publication and learning-use notices do not grant extra rights.
+
+**Paper translations are local-only.** The exporter excludes projects registered with
+`work/paper.json`, and profiles whose kind is `translation` (also the default when a profile
+omits kind), even with an obsolete `"public_export": true`. HTML, figures and conventional
+root-level packed `<slug>.html` copies are excluded together. Mark canonical translation
+profiles `"public_export": false` as well; no flag grants permission to publish translations.
+
+For other local-only projects, set `"public_export": false` in canonical
+`dist/<slug>/work/reader.json`. Generated project `manifest.json` also carries an explicit veto
+when appropriate: the legacy survey builder propagates its canonical identity's flag and
+defaults to local-only. These metadata fields define export eligibility; they do not record
+approval history, deployment status or a current website inventory.
+
+Publication metadata must use boolean flags and unique JSON keys. Duplicate fields or
+nonboolean values stop export rather than allowing a later value to override a veto.
+
+These filters are not semantic detection of arbitrary renamed or unregistered HTML copies,
+and are not substitutes for reviewing every staged file. Missing/true flags on nontranslation
+projects do not grant approval or rights. Changing metadata does not remove an already-live
+snapshot; existing historical readers and withdrawals follow the procedure below.
 
 `.gitignore` alone cannot withdraw an existing deployment or tracked historical content.
 An already-published withdrawal needs a replacement snapshot and live verification; historical

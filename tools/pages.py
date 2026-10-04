@@ -110,13 +110,59 @@ def excluded_projects(path: Path | None = None) -> set[str]:
     return excluded
 
 
-def public_files(dist: Path) -> list[Path]:
-    """Allow approved rendered assets; skip excluded projects and every private source."""
+def publication_data(path: Path) -> dict:
+    """Reject ambiguous publication JSON rather than silently using the last field."""
+
+    def unique_fields(pairs: list[tuple[str, object]]) -> dict:
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON key {key!r}: {path}")
+            result[key] = value
+        return result
+
+    data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_fields)
+    if not isinstance(data, dict):
+        raise ValueError(f"publication metadata must be an object: {path}")
+    if "public_export" in data and not isinstance(data["public_export"], bool):
+        raise ValueError(f"public_export must be a boolean: {path}")
+    return data
+
+
+def local_only_projects(dist: Path) -> set[str]:
+    """Exclude translations and explicit vetoes without changing existing deployments."""
     excluded = excluded_projects()
+    for work in dist.glob("*/work"):
+        profile = work / "reader.json"
+        data = publication_data(profile) if profile.is_file() else {}
+        # A paper manifest denotes an external paper, not an authored source-code book.
+        translation = (work / "paper.json").is_file() or (
+            profile.is_file() and data.get("kind", "translation") == "translation"
+        )
+        if translation or data.get("public_export") is False:
+            excluded.add(work.parent.name)
+    for manifest in dist.glob("*/manifest.json"):
+        data = publication_data(manifest)
+        if data.get("public_export") is False:
+            excluded.add(manifest.parent.name)
+    return excluded
+
+
+def public_files(dist: Path) -> list[Path]:
+    """Stage eligible readers; translations stay local even with an obsolete opt-in."""
+    excluded = local_only_projects(dist)
     files = []
     for path in sorted(dist.rglob("*")):
         relative = path.relative_to(dist)
-        if relative.parts[0] in excluded or is_private(relative):
+        if (
+            relative.parts[0] in excluded
+            or (
+                len(relative.parts) == 1
+                and path.suffix.lower() == ".html"
+                and path.stem in excluded
+            )
+            or is_private(relative)
+        ):
             continue
         if path.is_symlink():
             raise ValueError(f"symlink is not publishable: {relative}")
@@ -177,7 +223,7 @@ def render_home(entries: list[dict[str, str]]) -> str:
 <html lang="zh-Hans" data-theme="auto"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark"><title>纸上 · 阅读文库</title>
-<meta name="description" content="论文翻译、专题综述与源码阅读，手机友好的个人阅读文库。">
+<meta name="description" content="主题综述与源码分析，适合学习的个人阅读文库。">
 <link rel="icon" href="data:,"><link rel="stylesheet" href="assets/styles/reader.css">
 <link rel="stylesheet" href="assets/styles/library.css">
 <link rel="stylesheet" href="assets/fonts/fonts.css"></head><body>

@@ -1,17 +1,20 @@
 # Paper Translation Project
 
-A reproducible pipeline that turns research papers (PDF or web) into A4-sized,
-offline-readable Simplified Chinese HTML pages. Translation is authored section by section;
-extraction, MathML rendering, layout, coverage checks and packaging are automated.
+A reproducible pipeline for A4-sized, offline-readable Simplified Chinese HTML, with
+paper extraction, native MathML, shared reader layout, coverage checks and packaging.
+Translations are authored section by section; source-code analyses use the same reader runtime.
 
 ## What is published
 
 **On `main`: the pipeline only.** The separately approved `pages-content` branch and
-GitHub Pages site contain rendered readers, not rebuild sources. Translations are derivative
-works, figure crops are verbatim extracts, and source documents retain their authors' rights. All project content and output under
+GitHub Pages site contain approved self-authored reviews and source-code analyses, not
+rebuild sources. Paper translations are local-only and excluded from export. Translations
+and figure crops retain the original authors' rights. All project content and output under
 `dist/` is git-ignored, as is the local survey source under `/survey/`. A fresh clone has tools
 and synthetic test fixtures, but no registered paper. Read `NOTICE.md` before redistributing
 any output: the repository's MIT license does not cover other people's paper material.
+Writing conventions are in `docs/chinese-writing.md`; publication boundaries and procedures
+are in `docs/pages.md`.
 
 ## Project layout
 
@@ -21,7 +24,7 @@ Each project has one folder and one canonical set of rebuilding materials:
 dist/<slug>/
     index.html                  Offline reading page
     manifest.json               Generated page/asset inventory
-    assets/figures/             Published figures (page-specific)
+    assets/figures/             Reader figures (page-specific)
 ../assets/{styles,scripts}/      One shared reader/library/survey runtime
     notes/                      Supplementary analysis and reading notes, when present
     work/

@@ -476,6 +476,7 @@ def build(
     manifest = {
         "title": hub.title,
         "content_hash": digest,
+        "public_export": info.get("public_export", False),
         "directions": [d.get("name") for d in info.get("directions", [])],
         "papers": order,
         "papers_without_abstract": untranslated,

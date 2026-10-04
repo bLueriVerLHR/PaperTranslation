@@ -36,6 +36,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Publication policy and withdrawal
 
+- Exclude registered paper translations from fresh exports regardless of old opt-in flags;
+  retain local readers and reject their conventional root-level packed copies as well.
+- Propagate project-level publication vetoes through legacy survey manifests, defaulting to
+  local-only. Reject duplicate JSON fields and nonboolean publication switches.
 - Retire the project ignore list. Prefer a verified corresponding arXiv preprint whose
   license permits adaptations; use the published edition for cited revisions rather than
   reproducing its complete content by default.
@@ -63,9 +67,9 @@ All notable changes to this project are documented here. The format follows
   New Roman is unavailable. Include full license notices with the font assets.
 - Add staged publication validation and a non-force-pushing TEMP content-checkout helper.
 
-### Storage layout (current)
+### Storage layout
 
-- The LLM survey deliverable is `dist/llm-survey/`; per-paper supplementary notes live in
+- Introduce a folder-based LLM survey deliverable and per-paper supplementary notes under
   `dist/<slug>/notes/`.
 
 - Per-paper canonical translation, metadata, glossary, figure crops and useful reference
@@ -75,9 +79,7 @@ All notable changes to this project are documented here. The format follows
   may have a null path; building retained work does not need the original PDF.
 - All disposable environments, caches, task presets, logs, reports and experiments live in
   system TEMP via `tools/dev-env.ps1`. Migration archives are temporary recovery data only.
-- Directory names in earlier entries below describe historical layouts, not current operating
-  rules. Follow `AGENTS.md` and the layout above; do not recreate historical source or scratch
-  folders. The survey's source/detail-page directories are a separate, unchanged product.
+- Separate the legacy survey's source/detail-page layout from registered paper projects.
 
 ### Added
 

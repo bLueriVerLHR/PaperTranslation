@@ -12,6 +12,10 @@ All canonical project material lives under ignored `dist/`; never force-add it t
 `work/`, source PDFs, extracted reference data and `/survey/` sources remain local-only.
 Use `tools/pages.py` to stage approved rendered pages/assets in system TEMP and validate
 before pushing the content branch. Never publish that branch's files under the MIT license.
+Paper translations are local-only: do not publish full-paper readers or their crops,
+even with `public_export: true`. Public content consists of approved self-authored reviews
+and source-code books. Do not default to translating online surveys. Withdrawal, history
+rewriting and publishing local revisions require their own explicit authorization.
 
 ## Layout
 
@@ -105,12 +109,26 @@ Always run commands with `$Python`. `$P` is a registered project slug, discovere
   PDF copies removed during migration are only a temporary recovery archive, not a permanent
   source location or an input path to record in project metadata.
 
+## Documentation responsibilities
+
+- README describes capabilities, setup and project layout. `docs/` specifies architecture,
+  interfaces, procedures and writing conventions, not current task progress or approval history.
+- AGENTS contains durable execution constraints. Actual version changes belong in CHANGELOG;
+  temporary plans, pauses, approvals and execution logs belong in task state and TEMP reports.
+  Do not turn user dialogue or one-off operations into permanent documentation rules.
+
 ## Content and rendering conventions
 
 - Google-style Python: PEP 8 and PEP 257. Run `ruff format` and `ruff check` before committing.
 - Additive changes keep existing reader deliverables buildable. Do not commit generated output
   to main; only approved, validated reader-only exports belong on `pages-content`.
 - Translate one section at a time in source order. Do not translate ahead of the source.
+- Apply `docs/chinese-writing.md` when authoring or polishing Chinese content. Translations
+  and reviews use academic prose; source-code analyses use analysis-centred technical-book
+  prose with relevant practical cases. Task prompts, meeting/interview framing, answer scripts,
+  authoring progress and delivery/rebuild chatter do not belong in reader prose. Keep useful
+  technical conditions, evidence, attribution and verification limits; do not substitute keyword
+  deletion or boilerplate templates for paragraph-level review.
 - Author math directly as MathML. Do not add LaTeX or runtime math renderers to delivered pages.
 - Keep figures, CSS and scripts as real files referenced by relative paths. Do not introduce
   `data:` image URIs into the default reader. `tools/pack.py` is an opt-in export only.
@@ -143,9 +161,13 @@ Always run commands with `$Python`. `$P` is a registered project slug, discovere
 
 ## Survey conventions
 
-- `tools/survey.py` is separate from the paper builder and direction-agnostic. Add surveyed
-  works through `survey/papers/<slug>/{meta.json,abstract.md}` and hub `{{paper:<slug>}}`
-  markers, never tool constants. Do not modify or publish existing `survey/` source material
+- Self-authored reviews organize evidence and explanations by topic. Retain accurate source
+  attribution, distinguish reported findings from original analysis, and do not copy paper text.
+  New scopes and publication require explicit owner direction; unreviewed drafts remain local.
+- `tools/survey.py` is a legacy, direction-agnostic builder separate from the paper builder.
+  Its inputs use `survey/papers/<slug>/{meta.json,abstract.md}` and hub `{{paper:<slug>}}`
+  markers, never tool constants. The schema describes compatibility, not an instruction to
+  create or restore a dataset. Do not modify or publish existing `survey/` source material
   as part of pipeline cleanup.
 - Hub cards and detail pages come from the same metadata. Fail on markers without folders
   and folders without markers. Repeated references deduplicate reading order; only HTML IDs
