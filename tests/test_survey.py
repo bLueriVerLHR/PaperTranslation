@@ -99,9 +99,13 @@ def test_deliverable_is_a_folder_with_a_page_per_paper(tmp_path: Path) -> None:
     assert (dist / "papers" / "gpipe.html").is_file()
     assert (dist / "papers" / "lora.html").is_file()
     # Real files reached by relative path, never an inlined payload.
-    assert (dist / "assets" / "styles" / "reader.css").is_file()
-    assert (dist / "assets" / "styles" / "survey.css").is_file()
-    assert (dist / "assets" / "scripts" / "reader.js").is_file()
+    assert (dist.parent / "assets" / "styles" / "reader.css").is_file()
+    assert (dist.parent / "assets" / "styles" / "survey.css").is_file()
+    assert (dist.parent / "assets" / "scripts" / "reader.js").is_file()
+    assert not (dist / "assets/styles/reader.css").exists()
+    detail = (dist / "papers/gpipe.html").read_text(encoding="utf-8")
+    assert 'href="../../assets/styles/reader.css"' in detail
+    assert 'href="../index.html"' in detail
     page = (dist / "index.html").read_text(encoding="utf-8")
     assert "data:image" not in page
     assert "base64" not in page

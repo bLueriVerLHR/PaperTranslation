@@ -21,7 +21,8 @@ Each project has one folder and one canonical set of rebuilding materials:
 dist/<slug>/
     index.html                  Offline reading page
     manifest.json               Generated page/asset inventory
-    assets/                     Styles, reader script and published figures
+    assets/figures/             Published figures (page-specific)
+../assets/{styles,scripts}/      One shared reader/library/survey runtime
     notes/                      Supplementary analysis and reading notes, when present
     work/
         paper.json              Identity, source kind, section map, expectations
@@ -38,7 +39,8 @@ dist/<slug>/
 The folder is named `work`, without a leading underscore. It is retained for repairs,
 additional information and rebuilding; it is not a disposable build cache. **Do not delete
 `dist/` to clean the project.** Rebuilds update the reader and its published assets while
-preserving `work/`. For a reader-only copy, distribute `index.html` and `assets/` together;
+preserving `work/`. All pages reference one `dist/assets/` runtime. A reader-only library
+copy keeps that shared tree plus the selected project HTML/figures in the same relative layout;
 `work/` is not required for reading and may contain material unsuitable for redistribution.
 
 Source PDFs are not copied into the workspace. Extraction reads the user's external original
@@ -93,13 +95,23 @@ and author lists are intentionally not translated. Build from the retained work 
 & $Python tools\build.py --paper $P
 ```
 
-Open `dist/<slug>/index.html` directly from `file://`, or copy the folder to another machine.
+Open `dist/<slug>/index.html` directly from `file://`, or copy the selected project and its
+sibling shared `dist/assets/` tree to another machine.
 The reader has light/dark mode and A4 print styles. Figures, CSS and scripts remain real files
 reached by relative paths: no server, base64 payloads or runtime math renderer is needed.
 Offline builds use installed fonts: Times New Roman (with compatible Latin fallbacks),
 Source Han Serif SC for Chinese, and Maple Mono for code. Pages additionally self-hosts
 licensed WOFF2 subsets; see `docs/pages.md`. Pseudocode highlighting uses stylesheet classes
 rather than runtime tooling.
+
+A shared UI change needs no article rebuild or per-project copying:
+
+```powershell
+& $Python tools\assets.py             # refresh dist/assets/ once; migrate legacy URLs if needed
+```
+
+Pages deployments automatically compose that same runtime from main with the approved
+content snapshot. New translations still require separate publication approval.
 
 If a folder is inconvenient, export one file explicitly:
 

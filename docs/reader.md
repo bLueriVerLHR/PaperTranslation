@@ -33,7 +33,10 @@ keyboard-accessible block scroller; resize and reading-scale changes recompute t
 without modifying the MathML expression. Print restores visible overflow.
 
 Reader fixes must be tested against the staged public snapshot as well as local builds.
-Updating pipeline code alone does not update the assets retained on `pages-content`.
+Every reader references one library-root asset tree, not a project copy. `tools/assets.py`
+refreshes local runtime code without rebuilding prose. Actions composes the current runtime
+from main into the approved snapshot, so pipeline UI fixes update all readers automatically;
+this never authorizes publishing new article content.
 
 ## Compact metadata without lost originals
 

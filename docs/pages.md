@@ -118,10 +118,18 @@ re-run from the latest remote branch rather than forcing.
 
 ## Updates and limitations
 
-Rebuild locally, repeat the export and font subsetting, review and push. Actions cannot rebuild
-translations absent from main; it deploys the explicitly supplied content snapshot. A CSS or
-script change on main does not retroactively change the content branch: re-export to apply it.
-Pushes to either branch and manual workflow dispatch deploy the latest content snapshot.
+Content changes: rebuild locally, repeat the export/font subsetting, review and push.
+Actions cannot rebuild translations absent from main. It composes the explicitly approved
+content snapshot with one current `assets/{styles,scripts}/` runtime from main, validates the
+result, and deploys from system TEMP. Thus a shared UI fix on main updates every reader without
+rebuilding/re-exporting any article or copying code to project folders. Page text, figures and
+licensed fonts remain in the approved content snapshot; no new translation is published by a UI push.
+
+Local runtime refresh: `& $Python tools\assets.py`. To migrate or update a reader-only TEMP
+snapshot explicitly: `& $Python tools\pages.py --refresh-shared $Site`. The first migration
+changes only standard resource URLs and removes duplicate generated copies; later refreshes
+change only root assets/inventory. The validator rejects reintroduced copies/noncanonical URLs.
+Pushes to either branch and manual workflow dispatch deploy the latest approved snapshot.
 The deployment is serialized; deployment failure leaves the previous live version untouched.
 
 The content branch's Git history remains public even if a later export removes a page. Never

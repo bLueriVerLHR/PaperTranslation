@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools import build  # noqa: E402
+from tools import assets, build  # noqa: E402
 
 PRIVATE = {"work", "reference", "survey", ".git", "__pycache__"}
 ASSET_TYPES = {".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"}
@@ -120,6 +120,12 @@ def public_files(dist: Path) -> list[Path]:
             continue
         if path.is_symlink():
             raise ValueError(f"symlink is not publishable: {relative}")
+        # Standard UI code is installed once at the site root, never exported per project.
+        if any(
+            relative.as_posix() == name or relative.as_posix().endswith("/" + name)
+            for name in assets.SOURCES
+        ):
+            continue
         if path.is_file() and (
             path.suffix.lower() == ".html"
             or ("assets" in relative.parts and path.suffix.lower() in ASSET_TYPES)
@@ -191,8 +197,8 @@ def render_home(entries: list[dict[str, str]]) -> str:
 <script src="assets/scripts/reader.js"></script><script src="assets/scripts/library.js"></script></body></html>"""
 
 
-def check_site(site: Path) -> list[str]:
-    """Fail closed on excluded projects, sources, network resources and broken local URLs."""
+def check_site(site: Path, *, allow_legacy_assets: bool = False) -> list[str]:
+    """Reject source leaks, broken URLs and duplicated/noncanonical standard assets."""
     errors = []
     excluded = excluded_projects()
     for path in sorted(site.rglob("*")):
@@ -207,6 +213,10 @@ def check_site(site: Path) -> list[str]:
             errors.append(f"private/symlink: {relative}")
         if not path.is_file():
             continue
+        if not allow_legacy_assets and any(
+            relative.as_posix().endswith("/" + name) for name in assets.SOURCES
+        ):
+            errors.append(f"duplicated shared asset: {relative}")
         if (
             path.suffix.lower() not in PUBLIC_TYPES
             and relative.as_posix() != "site-manifest.json"
@@ -244,6 +254,12 @@ def check_site(site: Path) -> list[str]:
                 errors.append(f"non-portable URL: {relative}: {ref}")
                 continue
             target = (path.parent / unquote(url.path)).resolve()
+            if not allow_legacy_assets:
+                for standard in assets.SOURCES:
+                    if (url.path == standard or url.path.endswith("/" + standard)) and target != (
+                        site / standard
+                    ).resolve():
+                        errors.append(f"noncanonical shared asset URL: {relative}: {ref}")
             if not target.is_relative_to(site.resolve()) or not target.exists():
                 errors.append(f"missing/escaping URL: {relative}: {ref}")
             elif is_private(target.relative_to(site.resolve())):
@@ -268,7 +284,7 @@ def export(dist: Path, out: Path) -> list[dict[str, str]]:
         if source.suffix != ".html":
             shutil.copy2(source, target)
             continue
-        text = redact_local_paths(source.read_text(encoding="utf-8"))
+        text = assets.rewrite(redact_local_paths(source.read_text(encoding="utf-8")), relative)
         info = inspect_page(text)
         entries.append({"path": relative.as_posix(), "title": info.title.strip() or relative.stem})
         text = text.replace('initial-scale=1"', 'initial-scale=1, viewport-fit=cover"')
@@ -283,19 +299,13 @@ def export(dist: Path, out: Path) -> list[dict[str, str]]:
         target.write_text(text, encoding="utf-8")
     if not entries:
         raise ValueError("no rendered pages found")
-    # Every page receives the current shared typography and controls, even legacy readers.
-    for stylesheet in out.rglob("reader.css"):
-        shutil.copy2(ROOT / "src/styles/reader.css", stylesheet)
-    for script in out.rglob("reader.js"):
-        shutil.copy2(ROOT / "src/scripts/reader.js", script)
-    build.copy_assets(out)
+    # A single runtime tree serves every page, including nested legacy readers.
+    assets.install(out)
     # GitHub push events use workflows from the pushed branch. Carry this one bootstrap
     # on pages-content too; Actions explicitly excludes it from the published artifact.
     workflow = out / ".github/workflows/pages.yml"
     workflow.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / ".github/workflows/pages.yml", workflow)
-    (out / "assets/styles/library.css").write_bytes((ROOT / "src/pages/library.css").read_bytes())
-    (out / "assets/scripts/library.js").write_bytes((ROOT / "src/pages/library.js").read_bytes())
     (out / "index.html").write_text(render_home(entries), encoding="utf-8")
     # Fonts are added next by pages_fonts; a complete-site validation is mandatory afterwards.
     (out / "site-manifest.json").write_text(
@@ -326,8 +336,30 @@ def main() -> int:
     parser.add_argument("--dist", type=Path, default=ROOT / "dist")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--check", type=Path)
+    parser.add_argument(
+        "--refresh-shared",
+        type=Path,
+        help="update shared assets in a TEMP reader-only snapshot, without rebuilding prose",
+    )
     args = parser.parse_args()
-    if args.check:
+    if args.refresh_shared:
+        site = args.refresh_shared
+        if not site.is_absolute() or not site.resolve().is_relative_to(
+            Path(tempfile.gettempdir()).resolve()
+        ):
+            parser.error("--refresh-shared must be an absolute system TEMP path")
+        if not (site / "site-manifest.json").is_file():
+            parser.error("--refresh-shared needs an existing reader-only snapshot")
+        if errors := check_site(site, allow_legacy_assets=True):
+            print("\n".join(errors))
+            return 1
+        result = assets.refresh(site)
+        if errors := check_site(site):
+            print("\n".join(errors))
+            return 1
+        write_inventory(site)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    elif args.check:
         errors = check_site(args.check)
         if errors:
             print("\n".join(errors))

@@ -81,8 +81,9 @@ def test_build_writes_page_and_real_assets(tmp_path: Path) -> None:
     _build_fixture(dist)
 
     page = (dist / "index.html").read_text(encoding="utf-8")
-    assert (dist / "assets" / "styles" / "reader.css").is_file()
-    assert (dist / "assets" / "scripts" / "reader.js").is_file()
+    assert (dist.parent / "assets" / "styles" / "reader.css").is_file()
+    assert (dist.parent / "assets" / "scripts" / "reader.js").is_file()
+    assert not (dist / "assets/styles/reader.css").exists()
     assert (dist / "assets" / "figures" / "figure-03.png").is_file()
     # Figures stay relative file references; nothing is base64-encoded into the page.
     assert 'src="assets/figures/figure-03.png"' in page

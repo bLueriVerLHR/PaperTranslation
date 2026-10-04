@@ -2,8 +2,8 @@
 
 The build reads local-only ``dist/<slug>/work/content/*.md``, the
 shared page template, styles, scripts and that paper's figure crops, then writes the deliverable
-folder ``dist/<slug>/`` - ``index.html`` beside a real ``assets/`` tree, all referenced by
-relative path so the page opens straight from ``file://``. No network access and no runtime math
+folder ``dist/<slug>/`` - ``index.html`` beside its figure assets, referencing the single
+shared ``dist/assets/`` runtime by relative path so the page opens from ``file://``. No network access and no runtime math
 renderer are involved; equations are MathML authored directly in the content files, and fonts
 are left to the browser. The retained ``work/`` tree is the rebuild source of truth and
 must never be removed by output cleanup.
@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python tools/build.py` to import the package
     sys.path.insert(0, str(ROOT))
 
-from tools import paper, reader  # noqa: E402  (must follow the sys.path bootstrap above)
+from tools import assets, paper, reader  # noqa: E402  (must follow the sys.path bootstrap above)
 
 TEMPLATE_PATH = ROOT / "src" / "templates" / "page.html"
 STYLES_DIR = ROOT / "src" / "styles"
@@ -363,13 +363,17 @@ def copy_assets(
     styles_dir: Path | None = STYLES_DIR,
     scripts_dir: Path | None = SCRIPTS_DIR,
     figures_dir: Path | None = None,
+    shared_root: Path | None = None,
 ) -> dict[str, list[str]]:
-    """Copy styles, scripts and figures into the build output.
+    """Install styles/scripts once at the library root; copy this page's figures.
 
     A ``None`` directory means this build has no such asset set; missing directories are
     skipped rather than treated as an error. Existing files are overwritten in place and a
-    stale asset of the same name is replaced, so the copied tree always matches the sources.
+    changed resource replaces its shared copy. Shared folders are never blanket-pruned:
+    survey/library resources belong to the same tree. Stale figures are removed per page.
     """
+    if styles_dir == STYLES_DIR and scripts_dir == SCRIPTS_DIR:
+        assets.install(shared_root or dist.parent)
     plan = {
         "styles": (styles_dir, "assets/styles"),
         "scripts": (scripts_dir, "assets/scripts"),
@@ -377,19 +381,29 @@ def copy_assets(
     }
     copied: dict[str, list[str]] = {}
     for key, (source, relative) in plan.items():
-        target = dist / relative
+        root = dist if key == "figures" else (shared_root or dist.parent)
+        target = root / relative
         target.mkdir(parents=True, exist_ok=True)
         names: list[str] = []
         if source is not None and source.exists():
             for path in sorted(source.iterdir()):
                 if path.is_file():
-                    shutil.copy2(path, target / path.name)
+                    destination = target / path.name
+                    if not destination.exists() or destination.read_bytes() != path.read_bytes():
+                        shutil.copy2(path, destination)
                     names.append(path.name)
         # The output folder is the deliverable, so a figure crop left behind by an earlier
         # build must not survive: it would ship an image the page no longer references.
-        for stale in sorted(target.iterdir()):
-            if stale.is_file() and stale.name not in names:
-                stale.unlink()
+        if key == "figures":
+            for stale in sorted(target.iterdir()):
+                if stale.is_file() and stale.name not in names:
+                    stale.unlink()
+        else:
+            # Retire only these standard generated duplicates, never other local assets.
+            for name in names:
+                legacy = dist / relative / name
+                if legacy != target / name and legacy.is_file():
+                    legacy.unlink()
         copied[key] = names
     return copied
 
@@ -479,6 +493,7 @@ def build(
     )
 
     replacements = {
+        "{{ASSET_PREFIX}}": "../",
         "{{TITLE}}": escape(metadata.get("title", "")),
         "{{SUBTITLE}}": escape(metadata.get("subtitle", "")),
         "{{AUTHOR}}": escape(metadata.get("author", "")),
@@ -501,6 +516,7 @@ def build(
 
     dist.mkdir(parents=True, exist_ok=True)
     copied = copy_assets(dist, styles_dir, scripts_dir, figures_dir)
+    page = assets.rewrite(page, Path(dist.name) / "index.html")
     (dist / "index.html").write_text(page, encoding="utf-8")
     manifest = {
         "paper": paper_slug,
@@ -511,6 +527,7 @@ def build(
         "citations_linked": citations.linked,
         "citations_without_records": sorted(citations.unresolved),
         "assets": copied,
+        "shared_asset_root": "../assets",
     }
     (dist / "manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"

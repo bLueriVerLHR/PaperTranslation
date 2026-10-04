@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Shared runtime architecture
+
+- Replace per-project CSS/JS copies with one library-root runtime for papers, surveys,
+  analysis pages and the homepage; retain per-project figures and canonical sources.
+- Refresh UI assets independently of article builds. Pages composes current runtime code
+  from main with the approved content snapshot, so one UI fix updates every reader.
+- Migrate legacy URLs once; reject duplicate standard assets and noncanonical URLs in CI.
+  Preserve offline relative paths and single-file packaging.
+
 ### Math and navigation
 
 - Preserve native MathML spacing, a dedicated math font and the prose baseline; ordinary

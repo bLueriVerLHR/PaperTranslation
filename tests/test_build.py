@@ -280,9 +280,11 @@ def test_sample_fixture_exercises_every_rendering_path(tmp_path: Path) -> None:
     assert 'href="#21-样例小节"' in page
     assert 'href="#211-更深一层"' in page
 
-    # Assets are copied next to the page so it works offline from file://.
-    assert (dist / "assets" / "styles" / "reader.css").exists()
-    assert (dist / "assets" / "scripts" / "reader.js").exists()
+    # Shared code lives once at the library root; figures remain per paper.
+    assert (dist.parent / "assets" / "styles" / "reader.css").exists()
+    assert (dist.parent / "assets" / "scripts" / "reader.js").exists()
+    assert 'href="../assets/styles/reader.css"' in page
+    assert not (dist / "assets/styles/reader.css").exists()
     assert (dist / "assets" / "figures" / "figure-03.png").exists()
     assert not (dist / "assets" / "fonts").exists()
 
@@ -292,6 +294,6 @@ def test_sample_fixture_exercises_every_rendering_path(tmp_path: Path) -> None:
     assert "data:image" not in page
 
     # The stylesheet asks the browser for fonts by name and embeds no font bytes.
-    assert "@font-face" not in (dist / "assets" / "styles" / "reader.css").read_text(
+    assert "@font-face" not in (dist.parent / "assets" / "styles" / "reader.css").read_text(
         encoding="utf-8"
     )

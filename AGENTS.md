@@ -17,7 +17,8 @@ before pushing the content branch. Never publish that branch's files under the M
 
 ```
 dist/<slug>/index.html                Offline reader page
-dist/<slug>/assets/                   Published styles, script and figures
+dist/<slug>/assets/figures/           Page-specific published figures
+dist/assets/{styles,scripts}/         One shared reader/library/survey runtime
 dist/<slug>/manifest.json             Generated page/asset inventory
 dist/<slug>/work/paper.json           Project identity, source kind, sections, expectations
 dist/<slug>/work/content/*.md         Translation source of truth, one file per section
@@ -42,8 +43,10 @@ System TEMP/<project>/               Disposable environment, caches, tasks, repo
 ```
 
 `work` is the directory name, not an underscore-prefixed variant. Keep one canonical copy of
-translation source and metadata there, not a second parallel project-source tree. The reader
-needs only `index.html` and `assets/`; `work/` is retained for maintenance and rebuilding.
+translation source and metadata there, not a second parallel project-source tree. Reading needs the project HTML/figures plus the sibling library-root `dist/assets/` runtime;
+`work/` is retained for maintenance and rebuilding. Never reintroduce per-project copies of
+reader/library/survey CSS or JS. `tools/assets.py` updates the runtime once without rebuilding
+prose; Pages composes it from main into the approved snapshot at deployment.
 Never delete the whole `dist/` tree as a cleanup step: it now contains source-of-truth material.
 
 ## Environment and commands

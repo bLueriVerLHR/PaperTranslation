@@ -45,7 +45,11 @@ Never delete `dist/` to clean a build: update generated page/assets in place, pr
 Source PDFs remain external originals and are read in place, not copied into the workspace.
 
 Everything identical across papers stays shared under `src/`: the page template, the theme and
-print stylesheet, and the reader script. Adding a paper therefore means
+print stylesheet, and the reader script. The output graph is shared too: every paper, analysis,
+survey detail and homepage references the one `dist/assets/{styles,scripts}/` tree. No per-project
+runtime copies exist. `tools/assets.py` refreshes that tree independently of article building;
+`tools/pages.py --refresh-shared` composes the same runtime into an approved public snapshot.
+Actions performs that composition from main at deployment, without publishing new prose. Adding a paper therefore means
 writing a manifest — no tool changes, no new constants. `tools/paper.py` loads the manifest and
 derives every path (`content_dir`, `figures_dir`, `output_dir`, `output_path`, …), so a slug is
 the only paper-specific argument any tool takes.
@@ -142,7 +146,8 @@ dist/<slug>/work/glossary.md                    shared terminology
         |  tools/build.py --paper <slug>
         v
 dist/<slug>/index.html                          reader page (the deliverable)
-dist/<slug>/assets/{styles,scripts,figures}/    real files, referenced by relative path
+dist/<slug>/assets/figures/                    page-specific figure files
+dist/assets/{styles,scripts}/                  single shared runtime for the whole library
 dist/<slug>/manifest.json                       content hash + asset inventory
         |
         |  tools/pack.py --paper <slug> --out <file>      (optional single-file export)
@@ -177,7 +182,7 @@ survey/curation/                      local provenance scripts: archive primary 
         v
 dist/llm-survey/index.html            the LLM hub: prose with inline paper cards
 survey/papers/<slug>/meta.json   -->  dist/llm-survey/papers/<slug>.html   detail pages
-        + dist/llm-survey/assets/{styles,scripts}/  reader.css, survey.css, reader.js
+        + dist/assets/{styles,scripts}/             shared reader.css, survey.css, reader.js
 ```
 
 The important invariant is that a paper's hub card and its detail page are rendered from the

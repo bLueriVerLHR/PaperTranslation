@@ -30,7 +30,6 @@ import argparse
 import hashlib
 import json
 import re
-import shutil
 import sys
 from dataclasses import dataclass, field
 from datetime import date
@@ -41,9 +40,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python tools/survey.py` to import the package
     sys.path.insert(0, str(ROOT))
 
+from tools import assets  # noqa: E402
 from tools.build import (  # noqa: E402  (must follow the sys.path bootstrap above)
-    SCRIPTS_DIR,
-    STYLES_DIR,
     Section,
     combine_toc,
     make_markdown,
@@ -354,35 +352,13 @@ def render(template: Path, replacements: dict[str, str]) -> str:
 
 
 def write_assets(dist: Path) -> dict[str, list[str]]:
-    """Copy the shared stylesheet, the survey stylesheet and the reader script.
-
-    ``survey.css`` deliberately lives in ``src/survey/`` rather than ``src/styles/``: the paper
-    builder copies that whole directory, so a survey stylesheet placed there would ship inside
-    every translated paper's ``assets/`` as a file the page never references.
-    """
-    plan = {
-        "assets/styles": (STYLES_DIR, SURVEY_STYLES.parent),
-        "assets/scripts": (SCRIPTS_DIR,),
-    }
-    copied: dict[str, list[str]] = {}
-    for relative, sources in plan.items():
-        target = dist / relative
-        target.mkdir(parents=True, exist_ok=True)
-        names: list[str] = []
-        for source in sources:
-            if not source.exists():
-                continue
-            for path in sorted(source.iterdir()):
-                if path.is_file():
-                    shutil.copy2(path, target / path.name)
-                    names.append(path.name)
-        # The output folder is the deliverable, so a stylesheet or script left behind by an
-        # earlier build must not survive: it would ship a file the page no longer references.
-        for stale in sorted(target.iterdir()):
-            if stale.is_file() and stale.name not in names:
-                stale.unlink()
-        copied[relative.split("/")[-1]] = sorted(set(names))
-    return copied
+    """Use the same library-root assets as papers, analyses and the homepage."""
+    assets.install(dist.parent)
+    for relative in assets.SOURCES:
+        legacy = dist / relative
+        if legacy.is_file():
+            legacy.unlink()
+    return {"styles": ["reader.css", "survey.css"], "scripts": ["reader.js"]}
 
 
 def build(
@@ -453,7 +429,7 @@ def build(
         hub_template,
         {
             **base,
-            "{{ASSET_PREFIX}}": "",
+            "{{ASSET_PREFIX}}": "../",
             "{{TOC}}": combine_toc(sections),
             "{{CONTENT}}": wrap_tables("\n\n".join(section.html for section in sections)),
             "{{PAPER_COUNT}}": str(len(order)),
@@ -470,7 +446,8 @@ def build(
             paper_template,
             {
                 **base,
-                "{{ASSET_PREFIX}}": "../",
+                "{{ASSET_PREFIX}}": "../../",
+                "{{HUB_PREFIX}}": "../",
                 "{{PAPER_TITLE}}": escape(current.title_en),
                 "{{PAPER_TITLE_ZH}}": escape(current.title_zh or current.title_en),
                 "{{PAPER_SLUG}}": slug,
@@ -503,6 +480,7 @@ def build(
         "papers": order,
         "papers_without_abstract": untranslated,
         "assets": copied,
+        "shared_asset_root": "../assets",
         "pages": written,
     }
     (dist / "manifest.json").write_text(

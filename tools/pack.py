@@ -1,8 +1,8 @@
 """Optional: fold one paper's built folder into a single self-contained HTML file.
 
-The shipped deliverable is a *folder*: ``dist/<slug>/index.html`` beside a real ``assets/``
-tree, which every browser opens straight from ``file://``. That is what ``tools/build.py``
-produces and it is the layout the project ships.
+The default deliverable is a *library*: ``dist/<slug>/index.html`` beside its figures,
+referencing one shared ``dist/assets/`` runtime. It opens directly from ``file://``; a
+portable library copy preserves those sibling paths.
 
 This tool exists only for the case where a folder is awkward - mailing one file to a reader,
 or opening it from a device that cannot follow relative paths. It reads the built folder and
@@ -36,8 +36,8 @@ if str(ROOT) not in sys.path:  # allow `python tools/pack.py` to import the pack
 
 from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
 
-STYLESHEET_TAG = '<link rel="stylesheet" href="assets/styles/reader.css">'
-SCRIPT_TAG = '<script src="assets/scripts/reader.js"></script>'
+STYLESHEET_TAG = '<link rel="stylesheet" href="../assets/styles/reader.css">'
+SCRIPT_TAG = '<script src="../assets/scripts/reader.js"></script>'
 
 _IMAGE_RE = re.compile(r'src="assets/figures/([^"]+)"')
 # Resources the browser must fetch to render the page (images, scripts, stylesheets).
@@ -156,16 +156,17 @@ def pack(
         raise FileNotFoundError(f"no built page at {page_path}; run tools/build.py first")
     html = page_path.read_text(encoding="utf-8")
 
-    stylesheet = dist / "assets" / "styles" / "reader.css"
-    if stylesheet.exists():
-        css = stylesheet.read_text(encoding="utf-8")
-        html = html.replace(STYLESHEET_TAG, f"<style>\n{css}\n</style>")
-
-    script = dist / "assets" / "scripts" / "reader.js"
-    if script.exists():
-        html = html.replace(
-            SCRIPT_TAG, f"<script>\n{script.read_text(encoding='utf-8')}\n</script>"
-        )
+    # Shared-library defaults; retain support for explicitly archived legacy folders.
+    for prefix, root in (("../", dist.parent), ("", dist)):
+        stylesheet = root / "assets/styles/reader.css"
+        tag = f'<link rel="stylesheet" href="{prefix}assets/styles/reader.css">'
+        if stylesheet.exists():
+            css = stylesheet.read_text(encoding="utf-8")
+            html = html.replace(tag, f"<style>\n{css}\n</style>")
+        script = root / "assets/scripts/reader.js"
+        tag = f'<script src="{prefix}assets/scripts/reader.js"></script>'
+        if script.exists():
+            html = html.replace(tag, f"<script>\n{script.read_text(encoding='utf-8')}\n</script>")
 
     if figures_as_files:
         # The images travel beside the page, so rewrite the references before the leftover check:
@@ -185,7 +186,7 @@ def pack(
     if figures_as_files:
         # In this mode `figures/...` is the intended sibling path; only a leftover `assets/`
         # reference means the rewrite missed something.
-        leftovers = [ref for ref in leftovers if ref.startswith("assets/")]
+        leftovers = [ref for ref in leftovers if not ref.startswith("figures/")]
     if leftovers:
         raise ValueError(f"assets were not inlined: {leftovers}")
 
