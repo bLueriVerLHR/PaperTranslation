@@ -181,6 +181,22 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
 .body pre code { background: none; padding: 0; font-size: inherit; }
 .body pre { tab-size: 4; }
 
+/* Build-time Pygments tokens inherit the reader's light/dark palette. The code
+   stays selectable and readable without JavaScript or a token stylesheet fetch. */
+.body pre .syn-k, .body pre .syn-kn, .body pre .syn-kd,
+.body pre .syn-kt, .body pre .syn-kc, .body pre .syn-kr {
+  color: var(--accent); font-weight: 700;
+}
+.body pre .syn-c, .body pre .syn-c1, .body pre .syn-cm,
+.body pre .syn-cp, .body pre .syn-cs { color: var(--ink-soft); }
+.body pre .syn-s, .body pre .syn-s1, .body pre .syn-s2,
+.body pre .syn-sd, .body pre .syn-si, .body pre .syn-se {
+  color: color-mix(in srgb, var(--accent) 75%, var(--ink));
+}
+.body pre .syn-nf, .body pre .syn-nc { color: var(--accent); }
+.body pre .syn-mi, .body pre .syn-mf, .body pre .syn-mh,
+.body pre .syn-o, .body pre .syn-ow { font-weight: 600; }
+
 /* ---------------------------------------------------------------- figures */
 .body figure {
   margin: 1.6rem 0;

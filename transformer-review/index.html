@@ -18,14 +18,14 @@
   <button id="top-button" type="button" hidden>顶部</button>
 </div>
 
-<main class="page" id="content" data-content-hash="1bd7ae994fce"><a class="site-home" href="../index.html">← 文库</a>
+<main class="page" id="content" data-content-hash="50a70f34a69a"><a class="site-home" href="../index.html">← 文库</a>
   <header class="title-block">
     <h1>Transformer：架构、训练、推理与应用综述</h1>
     <p class="subtitle">通用架构与序列建模</p>
     <p class="meta"><span class="latin">原创研读与整理</span> · 原创综述 · 更新于 2026-10-05</p>
     <p class="meta reading-notice">引用文献与图示遵循各自原有许可与权利要求。</p>
 
-<details class="meta source-details"><summary>出处与说明</summary><p>本篇是围绕输入表示、交互计算、学习目标与应用接口组织的原创综述。主要方法证据来自原始 Transformer、BERT、ViT、MAE 与 CLIP；DSec 作为智能体训练基础设施案例，设备端 LLM 综述与 SalesRLAgent 提供系统和应用线索。语言与视觉之外的领域仅讨论迁移时需要辨认的条件，不作全领域覆盖或性能保证。</p>
+<details class="meta source-details"><summary>出处与说明</summary><p>关键代码为带版本出处的短摘录，遵循各自上游许可；<a href="assets/licenses/index.html">源码摘录的归属与许可证</a>。</p><p>本篇是围绕输入表示、交互计算、学习目标与应用接口组织的原创综述。主要方法证据来自原始 Transformer、BERT、ViT、MAE 与 CLIP；DSec 作为智能体训练基础设施案例，设备端 LLM 综述与 SalesRLAgent 提供系统和应用线索。训练／推理框架部分另依据固定提交的 FlashAttention 及本地框架源码，区分算子、训练执行、引擎调度与服务；不将旧研读笔记的性能比较当作实测。语言与视觉之外的领域仅讨论迁移时需要辨认的条件，不作全领域覆盖或性能保证。</p>
 <p>预训练、后训练与 KV 管理按具体任务辨认，不作为所有模态的共同流程。一般容量公式与假设数字是机制解释，不是实测结果；引用实验与生产经验属于原作者报告，未进行训练、系统部署或独立复现。</p>
 <p>引用材料保留各自权利。本篇不包含外部论文的完整译文或原图表。</p></details>
   </header>
@@ -73,7 +73,79 @@
 <li><a href="#精度时延能耗与内存的评估">精度、时延、能耗与内存的评估</a></li>
 </ol></li>
 </ol></li>
-<li><a href="#5-下游任务">5. 下游任务</a><ol>
+<li><a href="#5-训练推理框架">5. 训练／推理框架</a><ol>
+<li><a href="#从模型计算到系统执行三种不同的优化对象">从模型计算到系统执行：三种不同的优化对象</a><ol>
+<li><a href="#固定源码与结论范围">固定源码与结论范围</a></li>
+</ol></li>
+<li><a href="#flashattention减少注意力中间量的存储与搬运">FlashAttention：减少注意力中间量的存储与搬运</a><ol>
+<li><a href="#瓶颈不只是矩阵乘">瓶颈不只是矩阵乘</a></li>
+<li><a href="#前向算法在线-softmax-的不变量">前向算法：在线 softmax 的不变量</a></li>
+<li><a href="#数值问题全掩码指数基准与低精度">数值问题：全掩码、指数基准与低精度</a></li>
+<li><a href="#反向算法重算概率避免保存二次规模张量">反向算法：重算概率，避免保存二次规模张量</a></li>
+<li><a href="#反向的并行归约与确定性">反向的并行归约与确定性</a></li>
+</ol></li>
+<li><a href="#从算法到-gpuflashattention-的硬件组织">从算法到 GPU：FlashAttention 的硬件组织</a><ol>
+<li><a href="#gpu-的并行与存储层级">GPU 的并行与存储层级</a></li>
+<li><a href="#fa2查询块并行与-warp-内分工">FA2：查询块并行与 warp 内分工</a></li>
+<li><a href="#fa3hopper-的-tmawgmma-与生产者消费者">FA3：Hopper 的 TMA、WGMMA 与生产者／消费者</a></li>
+<li><a href="#fa4cutedslblackwell-的-tmem-与更细角色分工">FA4／CuTeDSL：Blackwell 的 TMEM 与更细角色分工</a></li>
+<li><a href="#splitkv解码时用键方向补足并行度">SplitKV：解码时用键方向补足并行度</a></li>
+<li><a href="#调优与调试先验证契约再解释性能">调优与调试：先验证契约，再解释性能</a></li>
+</ol></li>
+<li><a href="#内核开发工具triton-与-cutlasscute">内核开发工具：Triton 与 CUTLASS／CuTe</a><ol>
+<li><a href="#频繁变化的算子先建立块级实现">频繁变化的算子：先建立块级实现</a></li>
+<li><a href="#固定热点与复杂布局显式组合矩阵乘和流水线">固定热点与复杂布局：显式组合矩阵乘和流水线</a></li>
+</ol></li>
+<li><a href="#训练执行算子梯度与参数状态的分工">训练执行：算子、梯度与参数状态的分工</a><ol>
+<li><a href="#llmc把一次训练步展开到具体张量">llm.c：把一次训练步展开到具体张量</a></li>
+<li><a href="#deepspeed容量问题与推理批组织不是一件事">DeepSpeed：容量问题与推理批组织不是一件事</a></li>
+</ol></li>
+<li><a href="#云端通用引擎请求驱动的调度与状态管理">云端通用引擎：请求驱动的调度与状态管理</a><ol>
+<li><a href="#vllm从请求进度到实际输入批">vLLM：从请求进度到实际输入批</a></li>
+<li><a href="#分页前缀哈希与引用计数">分页、前缀哈希与引用计数</a></li>
+<li><a href="#真实问题长请求把短请求的输出拖慢">真实问题：长请求把短请求的输出拖慢</a></li>
+<li><a href="#后端接入能力协商与元数据一致性">后端接入：能力协商与元数据一致性</a></li>
+</ol></li>
+<li><a href="#前缀与程序型负载sglang-的树结构组织">前缀与程序型负载：SGLang 的树结构组织</a><ol>
+<li><a href="#radixcache逻辑前缀与物理页分开">RadixCache：逻辑前缀与物理页分开</a></li>
+<li><a href="#缓存感知排序与-prefilladder-准入">缓存感知排序与 PrefillAdder 准入</a></li>
+<li><a href="#dsl多分支与普通服务请求">DSL、多分支与普通服务请求</a></li>
+<li><a href="#hicache-与重叠调度">HiCache 与重叠调度</a></li>
+</ol></li>
+<li><a href="#专用云端路线执行后端量化与服务分层">专用云端路线：执行后端、量化与服务分层</a><ol>
+<li><a href="#tensorrt-llm不能只用编译-engine概括">TensorRT-LLM：不能只用“编译 engine”概括</a></li>
+<li><a href="#lmdeploy双引擎与权重格式的连接">LMDeploy：双引擎与权重格式的连接</a></li>
+<li><a href="#tgirust-接入与执行协议">TGI：Rust 接入与执行协议</a></li>
+<li><a href="#lightllm词元级分配与逐模型内核">LightLLM：词元级分配与逐模型内核</a></li>
+</ol></li>
+<li><a href="#端侧与单机内存格式计算图与模型生命周期">端侧与单机：内存格式、计算图与模型生命周期</a><ol>
+<li><a href="#llamacpp模型层ggml-与工具层">llama.cpp：模型层、ggml 与工具层</a></li>
+<li><a href="#逻辑批物理批与序列状态">逻辑批、物理批与序列状态</a></li>
+<li><a href="#llama-server共享批与状态线程">llama-server：共享批与状态线程</a></li>
+<li><a href="#exllamav2消费级-nvidia-的低比特执行">exllamav2：消费级 NVIDIA 的低比特执行</a></li>
+<li><a href="#ollama分发与运行时而非另一种注意力算法">Ollama：分发与运行时，而非另一种注意力算法</a></li>
+<li><a href="#mlc-llm将平台差异提前到编译流程">MLC-LLM：将平台差异提前到编译流程</a></li>
+</ol></li>
+<li><a href="#异构与稀疏把容量问题转成放置问题">异构与稀疏：把容量问题转成放置问题</a><ol>
+<li><a href="#ktransformersmoe-专家与主存旁的计算">ktransformers：MoE 专家与主存旁的计算</a></li>
+<li><a href="#powerinfer神经元级热冷划分">PowerInfer：神经元级热／冷划分</a></li>
+<li><a href="#vllm-ascend框架接口之外的硬件适配">vLLM-Ascend：框架接口之外的硬件适配</a></li>
+</ol></li>
+<li><a href="#贯穿框架的方案缓存图执行采样与分布式">贯穿框架的方案：缓存、图执行、采样与分布式</a><ol>
+<li><a href="#共享前缀省计算与省读取分开">共享前缀：省计算与省读取分开</a></li>
+<li><a href="#权重与-kv-量化容量估算到质量验证">权重与 KV 量化：容量估算到质量验证</a></li>
+<li><a href="#cuda-graph-与重叠执行稳定缓冲是前提">CUDA Graph 与重叠执行：稳定缓冲是前提</a></li>
+<li><a href="#投机解码减少目标模型步数而非跳过验证">投机解码：减少目标模型步数，而非跳过验证</a></li>
+<li><a href="#结构化输出语法状态与采样批相接">结构化输出：语法状态与采样批相接</a></li>
+<li><a href="#并行pd-分离与状态版本">并行、PD 分离与状态版本</a></li>
+</ol></li>
+<li><a href="#精简实现把完整机制压缩为可检查的状态机">精简实现：把完整机制压缩为可检查的状态机</a><ol>
+<li><a href="#nano-vllm分页与请求进度的最小链路">nano-vllm：分页与请求进度的最小链路</a></li>
+<li><a href="#mini-sglang准入句柄保护与在途元数据">mini-sglang：准入、句柄保护与在途元数据</a></li>
+</ol></li>
+<li><a href="#按问题选择方案而不是按框架名字选择">按问题选择方案，而不是按框架名字选择</a></li>
+</ol></li>
+<li><a href="#6-下游任务">6. 下游任务</a><ol>
 <li><a href="#语言与文本序列任务">语言与文本序列任务</a><ol>
 <li><a href="#销售对话转化预测与结构化决策">销售对话转化预测与结构化决策</a></li>
 </ol></li>
@@ -179,6 +251,16 @@
 <td>按职责辨认；重建解码器不一定自回归</td>
 </tr>
 <tr>
+<td>image tower / text tower</td>
+<td>图像编码器／文本编码器</td>
+<td>tower 指相对独立的编码分支，不是特殊网络层</td>
+</tr>
+<tr>
+<td>dual-encoder / two-tower architecture</td>
+<td>双编码器／双塔架构</td>
+<td>两个分支分别编码输入，再比较投影后的表示</td>
+</tr>
+<tr>
 <td>pretraining / post-training</td>
 <td>预训练／后训练</td>
 <td>训练安排，不是所有任务的固定生命周期</td>
@@ -234,6 +316,86 @@
 <td>模型计算／包含排队和调度等的服务过程</td>
 </tr>
 <tr>
+<td>FlashAttention</td>
+<td>FlashAttention</td>
+<td>IO 感知的注意力前向与反向实现，不是完整模型服务框架</td>
+</tr>
+<tr>
+<td>online softmax / log-sum-exp (LSE)</td>
+<td>在线 softmax／LSE</td>
+<td>分块归一化的行统计／对数指数和，前后向约定须一致</td>
+</tr>
+<tr>
+<td>HBM / shared memory / TMEM</td>
+<td>高带宽显存／共享内存／张量内存</td>
+<td>不同存储层级；TMEM 是特定硬件的矩阵运算存储</td>
+</tr>
+<tr>
+<td>warp / CTA / tile</td>
+<td>warp／协作线程块／计算块</td>
+<td>执行协作与数据分块，不能等同于 KV 页</td>
+</tr>
+<tr>
+<td>Triton / CUTLASS / CuTe</td>
+<td>Triton／CUTLASS／CuTe</td>
+<td>内核语言、模板库与布局抽象；Triton 不指同名推理服务器</td>
+</tr>
+<tr>
+<td>continuous batching / chunked prefill</td>
+<td>连续批处理／分块预填充</td>
+<td>按步调整请求批／分多步处理长输入</td>
+</tr>
+<tr>
+<td>paged KV / block table</td>
+<td>分页 KV／块表</td>
+<td>逻辑位置到物理状态的映射，不改变注意力公式</td>
+</tr>
+<tr>
+<td>prefix caching / RadixCache</td>
+<td>前缀缓存／RadixCache</td>
+<td>复用一致上下文的状态／基数树组织，仍受物理页约束</td>
+</tr>
+<tr>
+<td>SplitKV / cascade attention</td>
+<td>SplitKV／级联注意力</td>
+<td>沿键区间拆分并归约／组织共享前缀的读取</td>
+</tr>
+<tr>
+<td>CUDA Graph / overlap scheduling</td>
+<td>CUDA Graph／重叠调度</td>
+<td>捕获重放设备计算／错开准备、计算与输出，需保证缓冲生命周期</td>
+</tr>
+<tr>
+<td>speculative decoding</td>
+<td>投机解码</td>
+<td>草稿与目标验证，接受机制依采样算法而定</td>
+</tr>
+<tr>
+<td>TTFT / TPOT / ITL</td>
+<td>首词元时间／每输出词元时间／词元间隔</td>
+<td>定义测量边界，TTFT 不只是算子预填充耗时</td>
+</tr>
+<tr>
+<td>tensor / pipeline / data / expert parallelism</td>
+<td>张量／流水线／数据／专家并行（TP／PP／DP／EP）</td>
+<td>分别划分矩阵、层、请求或训练数据、专家</td>
+</tr>
+<tr>
+<td>prefill–decode disaggregation</td>
+<td>预填充—解码分离（PD 分离）</td>
+<td>不同实例执行两段计算，需传输并确认 KV</td>
+</tr>
+<tr>
+<td>W4A16 / EXL2 / GGUF</td>
+<td>W4A16／EXL2／GGUF</td>
+<td>权重与激活精度约定／量化格式／模型容器，不属同一分类轴</td>
+</tr>
+<tr>
+<td>ZeRO / offload</td>
+<td>ZeRO／卸载</td>
+<td>训练状态分片／状态转移至其他设备或存储，作用对象须说明</td>
+</tr>
+<tr>
 <td>quantization</td>
 <td>量化</td>
 <td>低精度表示和计算，须说明对象与格式</td>
@@ -283,7 +445,7 @@ Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 
 <p>对单一输入序列的自注意力，可以从三个线性投影理解其分工：查询表示当前位置需要寻找什么，键用于计算匹配分数，值承载被汇聚的信息。若一头的查询、键维度为 <math><msub><mi>d</mi><mi>h</mi></msub></math>，ViT 附录 A 使用的缩放点积形式为：<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[2]</a></p>
 <p><math display="block"><mi>A</mi><mo>=</mo><mrow><mi mathvariant="normal">softmax</mi><mo>(</mo><mfrac><mrow><mi>Q</mi><msup><mi>K</mi><mi mathvariant="normal">T</mi></msup></mrow><msqrt><msub><mi>d</mi><mi>h</mi></msub></msqrt></mfrac><mo>)</mo></mrow><mo>,</mo><mspace width="1em"/><mi>Y</mi><mo>=</mo><mi>A</mi><mi>V</mi></math></p>
 <p>这里 softmax 沿每个查询对应的键位置归一化。如果序列含 <math><mi>S</mi></math> 个位置，<math><mi>A</mi></math> 是 <math><mi>S</mi><mo>×</mo><mi>S</mi></math> 的权重矩阵，每个输出是值向量的加权和。多头注意力并行计算多组投影，将各头输出拼接后再投影；它不是把同一个注意力结果简单复制多份。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[2]</a></p>
-<p>相同的计算骨架仍可采用不同的可见性约束。BERT 在输入文本中使用双向自注意力；CLIP 的文本塔则保留因果自注意力。后者并不意味着 CLIP 的主任务是在生成描述，其实际目标是图文匹配。可见性、表征提取方式和训练目标必须分别辨认，不能仅凭“使用 Transformer”判断模型是否自回归生成。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
+<p>相同的计算骨架仍可采用不同的可见性约束。BERT 在输入文本中使用双向自注意力；CLIP 的文本编码器则保留因果自注意力。后者并不意味着 CLIP 的主任务是在生成描述，其实际目标是图文匹配。可见性、表征提取方式和训练目标必须分别辨认，不能仅凭“使用 Transformer”判断模型是否自回归生成。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
 
 Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [1, 4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[1, 4]</a></p>
 <p>稠密注意力的成对交互项随序列长度平方增长，但这只描述计算图中的一个部分。投影、前馈网络及硬件实现也影响代价；原 ViT 附录 D.4 特别比较了理论计算量与 TPU 上的速度。因此，不能把注意力矩阵缩小的比例直接解释为端到端加速比例。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[2]</a></p>
@@ -298,7 +460,7 @@ Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N
 
 Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [1, 2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[1, 2]</a></p>
 <p>MAE 在预训练时增加重建模块：较大的编码器只处理可见图块，较轻的解码器接收编码结果及补入的掩码词元，并重建图块像素。下游识别使用编码器，重建解码器被移除。这里的“解码器”指图像重建职责，并不表示它采用自回归词元生成，也不能与翻译模型的解码器不加区分地视为同一种结构。<a class="citation" href="https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html" title="Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009." aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.&quot;, &quot;url&quot;: &quot;https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html&quot;, &quot;fallback&quot;: false}]">[3]</a></p>
-<p>CLIP 的图像塔与文本塔分别编码两种模态，再通过投影后的向量相似度建立联系；其图像塔既有 ResNet 变体，也有 ViT 变体。双塔共享的是对齐后的表征空间，不是两种模态之间逐层交叉注意力。对比学习由此可以发生在独立编码器之间，而不要求先构造一个联合图文序列。<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
+<p>CLIP 的图像编码器与文本编码器分别提取两种模态的表示，再将其映射到共同的向量空间，通过相似度进行匹配；其中图像编码器既有 ResNet 变体，也有 ViT 变体。这种由两个相对独立的编码分支组成的结构称为“双塔架构”（dual-encoder），英文 tower 在此指编码分支，不是特殊的网络层。两个编码器共享的是对齐后的表征空间，不是两种模态之间逐层交叉注意力。对比学习由此可以发生在独立编码器之间，而不要求先构造一个联合图文序列。<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
 <p>原始机器翻译 Transformer 使用编码器—解码器结构。编码器可以双向读取源序列；解码器自身的注意力受因果掩码约束，同时通过交叉注意力读取源序列。训练时目标输入向右错位，模型在每个位置预测后续输出；推理时下一个输出必须依赖已生成的内容。训练能并行计算给定目标序列的位置，不意味着未知输出也能一次生成出来。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a></p>
 <h3 id="稀疏局部与交互路径">稀疏、局部与交互路径</h3>
 <p>限制每个查询可访问的位置，可以减少成对交互，也改变远距离信息的传播路径。原始 Transformer 在复杂度讨论中提出只考虑局部邻域的可能性，并指出这会增加最远依赖的路径长度；该文将其列为后续方向，而不是已完成的长序列方法评测。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a></p>
@@ -308,7 +470,7 @@ Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua
 <p>普通 softmax 点积注意力还包含按查询归一化的非线性，不能直接利用矩阵乘法结合律，把 <math><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>Q</mi><msup><mi>K</mi><mi mathvariant="normal">T</mi></msup><mo>)</mo><mi>V</mi></math> 改成 <math><mi>Q</mi><mo>(</mo><msup><mi>K</mi><mi mathvariant="normal">T</mi></msup><mi>V</mi><mo>)</mo></math> 并声称等价。线性注意力需要说明核函数、归一化与状态更新；近似方法还要说明误差条件。以下比较以作用点为准，不将设备端综述列出的全部方法视为已独立核验。</p>
 <h3 id="输入组织与计算复杂度">输入组织与计算复杂度</h3>
 <p>对隐藏维度为 <math><mi>d</mi></math>、长度为 <math><mi>S</mi></math> 的稠密自注意力，成对匹配和汇聚的运算项为 <math><mi>O</mi><mo>(</mo><msup><mi>S</mi><mn>2</mn></msup><mi>d</mi><mo>)</mo></math>，输入及输出投影还带有 <math><mi>O</mi><mo>(</mo><mi>S</mi><msup><mi>d</mi><mn>2</mn></msup><mo>)</mo></math> 项。若前馈中间维度为 <math><msub><mi>d</mi><mi mathvariant="normal">ff</mi></msub></math>，其两次线性变换的量级为 <math><mi>O</mi><mo>(</mo><mi>S</mi><mi>d</mi><msub><mi>d</mi><mi mathvariant="normal">ff</mi></msub><mo>)</mo></math>。这些是按常规稠密运算作出的量级分析，不是某设备上的时延公式。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a></p>
-<p>输入粒度与计算组织要一起看。ViT 减小图块会增加位置数；MAE 在预训练编码器前移除大量图块；CLIP 的图文双塔在编码后才计算配对相似度。三者都使用 Transformer，但减少或增加的计算发生在不同位置。模型名称、参数数量或某一算子 FLOPs 都不足以单独预测端到端效率。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
+<p>输入粒度与计算组织要一起看。ViT 减小图块会增加位置数；MAE 在预训练编码器前移除大量图块；CLIP 的图像与文本编码器在编码后才计算配对相似度。三者都使用 Transformer，但减少或增加的计算发生在不同位置。模型名称、参数数量或某一算子 FLOPs 都不足以单独预测端到端效率。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
 
 Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.
 
@@ -336,7 +498,7 @@ Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini
 
 Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009." aria-label="引用 [1, 3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.&quot;, &quot;url&quot;: &quot;https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html&quot;, &quot;fallback&quot;: false}]">[1, 3]</a></p>
 <h4 id="配对判别学习对齐而非生成描述">配对判别：学习对齐而非生成描述</h4>
-<p>CLIP 使用图文对中的对应关系作为监督。在含 <math><mi>B</mi></math> 个配对样本的批次中，图像塔与文本塔分别提取特征，经线性投影和 L2 归一化得到 <math><msub><mi>u</mi><mi>i</mi></msub></math> 与 <math><msub><mi>v</mi><mi>j</mi></msub></math>。配对分数是余弦相似度乘以学习的正尺度 <math><mi>α</mi></math>：<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
+<p>CLIP 使用图文对中的对应关系作为监督。在含 <math><mi>B</mi></math> 个配对样本的批次中，图像编码器与文本编码器分别提取特征，经线性投影和 L2 归一化得到 <math><msub><mi>u</mi><mi>i</mi></msub></math> 与 <math><msub><mi>v</mi><mi>j</mi></msub></math>。配对分数是余弦相似度乘以学习的正尺度 <math><mi>α</mi></math>：<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
 <p><math display="block"><msub><mi>s</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><mi>α</mi><msubsup><mi>u</mi><mi>i</mi><mi mathvariant="normal">T</mi></msubsup><msub><mi>v</mi><mi>j</mi></msub><mo>,</mo><mspace width="1em"/><mi>α</mi><mo>&gt;</mo><mn>0</mn></math></p>
 <p>对每个图像，把与之配对的文本作为批内分类目标；反向再对每个文本预测配对图像。两个方向的交叉熵取平均，使匹配约束同时作用于两种检索方向。这里监督的是整对样本的相对匹配，不是逐词生成描述，也不是对所有批内不配对样本给出语义无关的判定。批内负例是损失构造中的角色，不能不加区分地当作真实世界的排斥关系。<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
 <h3 id="单模态与多模态数据组织">单模态与多模态数据组织</h3>
@@ -354,7 +516,7 @@ Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 
 
 Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [1, 2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[1, 2]</a></p>
 <p>MAE 的像素重建模块在识别时被移除，编码器接收完整图像的图块。因此，下游迁移验证的是编码器能否在新的监督目标下提供有用表示，而不是重建图片是否看起来逼真。原文关于线性探测与部分微调的比较进一步表明：冻结特征的线性可分性与经过非线性适配后的表现可能产生不同排序。只以线性探测或只以重建质量评价预训练，都会遗漏另一部分能力。<a class="citation" href="https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html" title="Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009." aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.&quot;, &quot;url&quot;: &quot;https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html&quot;, &quot;fallback&quot;: false}]">[3]</a></p>
-<p>CLIP 的零样本分类提供另一种接口：把目标类别名称或描述输入文本塔，与图像表示比较相似度，以文本构造分类器，而不在目标训练样本上拟合分类权重。“零样本”限定的是目标任务的这种适配方式，不是否认预训练已使用大规模图文监督。它还依赖候选类别与描述模板；原作者明确承认开发中反复观察验证集，不能将该过程描写成完全没有评测反馈的模型或提示选择。<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
+<p>CLIP 的零样本分类提供另一种接口：把目标类别名称或描述输入文本编码器，与图像表示比较相似度，以文本构造分类器，而不在目标训练样本上拟合分类权重。“零样本”限定的是目标任务的这种适配方式，不是否认预训练已使用大规模图文监督。它还依赖候选类别与描述模板；原作者明确承认开发中反复观察验证集，不能将该过程描写成完全没有评测反馈的模型或提示选择。<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
 <p>这些迁移接口各自暴露不同限制。文本理解的有监督微调、视觉表示的线性探测、完整模型微调和文本驱动的零样本分类，回答的不是同一个问题。CLIP 在部分专业或复杂任务上表现较弱，类别设计还影响偏差；MAE 的重建目标与识别目标之间需要适配；ViT 的原始规模实验受数据与训练配方限定。跨研究综合应先辨认目标、输入与适配协议，再讨论共同趋势，而不是把不同任务上的最高分并列成统一排名。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
 
 Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.
@@ -420,8 +582,646 @@ Wanyi Chen et al. On-device large language models: a survey of model compression
 <p>设备端能耗还需要辨认测量边界。GPU 功率积分、整机功率、平均功率和每任务能量不是同一个量；设备峰值分配与全系统占用也不同。<a class="citation" href="https://doi.org/10.1007/s10462-026-11538-1" title="Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1." aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s10462-026-11538-1&quot;, &quot;fallback&quot;: false}]">[7]</a> 同质量条件下的速度或能量比较，比跨模型任选最高指标更能隔离方案作用。DSec 的沙箱规模和资源利用指标则属于工具执行平台，不与模型生成性能直接拼成排名。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
 </section>
 
-<section id="sec-05-downstream">
-<h2 id="5-下游任务">5. 下游任务</h2>
+<section id="sec-05-frameworks">
+<h2 id="5-训练推理框架">5. 训练／推理框架</h2>
+<h3 id="从模型计算到系统执行三种不同的优化对象">从模型计算到系统执行：三种不同的优化对象</h3>
+<p>Transformer 的架构规定了表示如何交互，训练与推理框架则决定这些计算怎样映射到设备、内存和请求。这里需要区分三个层次。算子层执行矩阵乘、注意力、归一化和量化；引擎层组织模型前向、状态分配、批处理与采样；服务层处理协议、连接、排队、路由和模型生命周期。FlashAttention 属于训练与推理都可使用的注意力加速技术，vLLM、SGLang 等主要组织推理执行，Ollama 则把执行引擎连接到模型分发与本地服务。它们不是同一层上的替代品。</p>
+<p>训练还要保存或重算激活、计算梯度并更新参数。推理通常不执行反向，却可能为每条活跃序列长期维护 KV cache。因而“模型装进显存”不等于“能够训练”，也不等于“能够同时服务很多长请求”。本节先从 FlashAttention 的前向和反向算法解释算子层，再沿训练执行、云端调度、端侧部署、异构硬件和服务组织展开。框架的共同机制与不同设计在同一条数据流上比较，不按功能名堆成排名。</p>
+<h4 id="固定源码与结论范围">固定源码与结论范围</h4>
+<p>下表列出本节采用的本地源码版本。框架路径均以工作区根目录为基准；除 FlashAttention 外，其余位于 <code>repos/llm-inference/repos/&lt;仓库名&gt;/</code>。短提交标识用于阅读定位，完整提交记录保留在本地来源清单。文中的源码文件与符号指向这些版本，不默认适用于后续版本。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>对象</th>
+<th>固定提交</th>
+<th>本节关注的执行对象</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/Dao-AILab/flash-attention/tree/e9515d5dee6ade134a33d6020d38d01ef0596996">FlashAttention</a></td>
+<td><code>e9515d5</code></td>
+<td>注意力前向、反向及 GPU 流水线</td>
+</tr>
+<tr>
+<td><a href="https://github.com/NVIDIA/cutlass">CUTLASS／CuTe</a></td>
+<td><code>0b55a2f</code></td>
+<td>布局、矩阵乘与流水线组合</td>
+</tr>
+<tr>
+<td><a href="https://github.com/triton-lang/triton">Triton</a></td>
+<td><code>ebdd5b6</code></td>
+<td>块级内核编程与编译</td>
+</tr>
+<tr>
+<td><a href="https://github.com/karpathy/llm.c">llm.c</a></td>
+<td><code>f1e2ace</code></td>
+<td>训练的前向、反向、优化器与验证</td>
+</tr>
+<tr>
+<td><a href="https://github.com/microsoft/DeepSpeed">DeepSpeed</a></td>
+<td><code>8fb2c9a</code></td>
+<td>训练状态管理与推理执行</td>
+</tr>
+<tr>
+<td><a href="https://github.com/vllm-project/vllm">vLLM</a></td>
+<td><code>b0e21b3083</code></td>
+<td>请求进度、块池与注意力后端</td>
+</tr>
+<tr>
+<td><a href="https://github.com/sgl-project/sglang">SGLang</a></td>
+<td><code>00bcc25f6c</code></td>
+<td>前缀树、缓存感知调度与程序接口</td>
+</tr>
+<tr>
+<td><a href="https://github.com/NVIDIA/TensorRT-LLM">TensorRT-LLM</a></td>
+<td><code>4151db3c</code></td>
+<td>TRT 引擎与 PyTorch 两条执行路线</td>
+</tr>
+<tr>
+<td><a href="https://github.com/InternLM/lmdeploy">LMDeploy</a></td>
+<td><code>110965c</code></td>
+<td>TurboMind／PyTorch 引擎与量化</td>
+</tr>
+<tr>
+<td><a href="https://github.com/huggingface/text-generation-inference">TGI</a></td>
+<td><code>b4adbf2</code></td>
+<td>Rust 接入、批调度与执行协议</td>
+</tr>
+<tr>
+<td><a href="https://github.com/ModelTC/LightLLM">LightLLM</a></td>
+<td><code>6c9e03b</code></td>
+<td>词元级 KV 分配与 Triton 内核</td>
+</tr>
+<tr>
+<td><a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a></td>
+<td><code>cb7934c52</code></td>
+<td>ggml 图、量化格式与序列状态</td>
+</tr>
+<tr>
+<td><a href="https://github.com/turboderp-org/exllamav2">exllamav2</a></td>
+<td><code>7dc12af</code></td>
+<td>低比特权重、缓存与动态生成</td>
+</tr>
+<tr>
+<td><a href="https://github.com/ollama/ollama">Ollama</a></td>
+<td><code>42e911b</code></td>
+<td>模型清单、下载、加载与卸载</td>
+</tr>
+<tr>
+<td><a href="https://github.com/mlc-ai/mlc-llm">MLC-LLM</a></td>
+<td><code>b84792a</code></td>
+<td>模型编译与跨端运行时</td>
+</tr>
+<tr>
+<td><a href="https://github.com/kvcache-ai/ktransformers">ktransformers</a></td>
+<td><code>a5d7ad9</code></td>
+<td>CPU／GPU 专家计算放置</td>
+</tr>
+<tr>
+<td><a href="https://github.com/SJTU-IPADS/PowerInfer">PowerInfer</a></td>
+<td><code>8bd56d6</code></td>
+<td>激活稀疏与热／冷权重放置</td>
+</tr>
+<tr>
+<td><a href="https://github.com/vllm-project/vllm-ascend">vLLM-Ascend</a></td>
+<td><code>4ebb309</code></td>
+<td>NPU 平台、算子与通信适配</td>
+</tr>
+<tr>
+<td><a href="https://github.com/GeeeekExplorer/nano-vllm">nano-vllm</a></td>
+<td><code>bb823b3</code></td>
+<td>请求、分块缓存和简化调度</td>
+</tr>
+<tr>
+<td><a href="https://github.com/sgl-project/mini-sglang">mini-sglang</a></td>
+<td><code>9a91cfa</code></td>
+<td>前缀树、准入、图重放与重叠执行</td>
+</tr>
+</tbody>
+</table></div>
+<p>源码能说明某个状态或执行路径如何组织，不能单独证明该框架更快。以下方案分析属于机制推导和静态研读，不是本机 GPU 测试报告。硬件、模型、精度、形状和并发改变时，需要重新测量；单个配置的性能不能外推成跨框架排名。</p>
+<h3 id="flashattention减少注意力中间量的存储与搬运">FlashAttention：减少注意力中间量的存储与搬运</h3>
+<h4 id="瓶颈不只是矩阵乘">瓶颈不只是矩阵乘</h4>
+<p>对一个注意力头，令查询、键和值分别为 Q、K、V，缩放系数为 s，掩码为 M。标准计算是：</p>
+<p><math display="block"><mi>S</mi><mo>=</mo><mi>s</mi><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>+</mo><mi>M</mi><mo>,</mo><mspace width="1em"/><mi>P</mi><mo>=</mo><msub><mi mathvariant="normal">softmax</mi><mi mathvariant="normal">row</mi></msub><mo>(</mo><mi>S</mi><mo>)</mo><mo>,</mo><mspace width="1em"/><mi>O</mi><mo>=</mo><mi>P</mi><mi>V</mi></math></p>
+<p>若将 S 和 P 完整写入高带宽显存（HBM），其元素数随查询长度与键长度的乘积增长。自注意力中两者都为 N 时，这两份中间矩阵是二次规模；Q、K、V 与输出则通常是长度乘头维度的规模。朴素多算子实现不仅要计算分数，还要把分数写出、为 softmax 读入、把概率写出，再为 PV 读入。张量核加快了矩阵乘，这些往返并不会自动消失。</p>
+<p><a href="https://arxiv.org/abs/2205.14135">FlashAttention 原始论文</a>的关键是 IO 感知：把查询、键和值切块，利用片上共享内存和寄存器，只保留当前块及少量行统计量，不在 HBM 中物化完整的 S、P。它计算的仍是给定可见性下的稠密注意力，而不是为了降成本删掉一部分键。浮点计算顺序、低精度转换和近似指令会产生数值差异；“精确注意力”描述算法对象，不表示与任何参考实现逐位一致。</p>
+<p>这项技术适用于训练和推理，但收益条件不同。长序列训练需要消除巨大的概率矩阵及其保存成本；预填充也可受益于分块和融合；单词元解码没有同样大的查询维度，此时并行度、KV 读取及启动开销更突出。更换注意力算子不会同步解决优化器状态、服务排队或权重加载。</p>
+<h4 id="前向算法在线-softmax-的不变量">前向算法：在线 softmax 的不变量</h4>
+<p>一行 softmax 的分母需要整行信息，却不必把整行分数保存下来。扫描过一部分键之后，维护三个状态：已见分数的最大值 m、以 m 为基准的指数和 ℓ，以及以同一基准加权的值向量和 u。u 尚未归一化，不应与最终输出 O 混用。</p>
+<p><math display="block"><mi>ℓ</mi><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mi>A</mi></mrow></munder><msup><mi>e</mi><mrow><msub><mi>S</mi><mi>j</mi></msub><mo>−</mo><mi>m</mi></mrow></msup><mo>,</mo><mspace width="1em"/><mi>u</mi><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mi>A</mi></mrow></munder><msup><mi>e</mi><mrow><msub><mi>S</mi><mi>j</mi></msub><mo>−</mo><mi>m</mi></mrow></msup><msub><mi>V</mi><mi>j</mi></msub></math></p>
+<p>新块 B 到来后，选择新的基准，并把旧状态换到这个基准：</p>
+<p><math display="block"><msup><mi>m</mi><mo>′</mo></msup><mo>=</mo><mi mathvariant="normal">max</mi><mo>(</mo><mi>m</mi><mo>,</mo><munder><mi mathvariant="normal">max</mi><mrow><mi>j</mi><mo>∈</mo><mi>B</mi></mrow></munder><msub><mi>S</mi><mi>j</mi></msub><mo>)</mo><mo>,</mo><mspace width="1em"/><mi>α</mi><mo>=</mo><msup><mi>e</mi><mrow><mi>m</mi><mo>−</mo><msup><mi>m</mi><mo>′</mo></msup></mrow></msup></math></p>
+<p><math display="block"><msup><mi>ℓ</mi><mo>′</mo></msup><mo>=</mo><mi>α</mi><mi>ℓ</mi><mo>+</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mi>B</mi></mrow></munder><msup><mi>e</mi><mrow><msub><mi>S</mi><mi>j</mi></msub><mo>−</mo><msup><mi>m</mi><mo>′</mo></msup></mrow></msup></math></p>
+<p><math display="block"><msup><mi>u</mi><mo>′</mo></msup><mo>=</mo><mi>α</mi><mi>u</mi><mo>+</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>∈</mo><mi>B</mi></mrow></munder><msup><mi>e</mi><mrow><msub><mi>S</mi><mi>j</mi></msub><mo>−</mo><msup><mi>m</mi><mo>′</mo></msup></mrow></msup><msub><mi>V</mi><mi>j</mi></msub></math></p>
+<p>最后才计算 O＝u／ℓ，并保存 log-sum-exp（LSE）＝m＋ln ℓ。α 同时作用于分母和加权输出，是因为两者都使用同一指数基准。只缩放分母而不缩放 u，会改变不同块的相对权重。对查询方向也分块后，一个执行单元只需维护若干行的状态，而不需要保持全部 N 行。</p>
+<p>下面是说明不变量的伪代码，不是 CUDA 实现。<code>scores</code> 已包含缩放与掩码；全掩码行需要单独约定输出，不能直接计算负无穷减负无穷。</p>
+<pre><code class="language-python"><span class="syn-k">for</span> <span class="syn-n">query_tile</span> <span class="syn-ow">in</span> <span class="syn-n">query_tiles</span><span class="syn-p">:</span>
+    <span class="syn-n">m</span><span class="syn-p">,</span> <span class="syn-n">denom</span><span class="syn-p">,</span> <span class="syn-n">numerator</span> <span class="syn-o">=</span> <span class="syn-o">-</span><span class="syn-n">inf</span><span class="syn-p">,</span> <span class="syn-mi">0</span><span class="syn-p">,</span> <span class="syn-n">zero_vector</span>
+    <span class="syn-k">for</span> <span class="syn-n">kv_tile</span> <span class="syn-ow">in</span> <span class="syn-n">visible_kv_tiles</span><span class="syn-p">(</span><span class="syn-n">query_tile</span><span class="syn-p">):</span>
+        <span class="syn-n">scores</span> <span class="syn-o">=</span> <span class="syn-n">scaled_qk</span><span class="syn-p">(</span><span class="syn-n">query_tile</span><span class="syn-p">,</span> <span class="syn-n">kv_tile</span><span class="syn-p">)</span> <span class="syn-o">+</span> <span class="syn-n">mask</span>
+        <span class="syn-n">next_m</span> <span class="syn-o">=</span> <span class="syn-n">maximum</span><span class="syn-p">(</span><span class="syn-n">m</span><span class="syn-p">,</span> <span class="syn-n">row_max</span><span class="syn-p">(</span><span class="syn-n">scores</span><span class="syn-p">))</span>
+        <span class="syn-n">alpha</span> <span class="syn-o">=</span> <span class="syn-n">exp</span><span class="syn-p">(</span><span class="syn-n">m</span> <span class="syn-o">-</span> <span class="syn-n">next_m</span><span class="syn-p">)</span>
+        <span class="syn-n">p_unnormalized</span> <span class="syn-o">=</span> <span class="syn-n">exp</span><span class="syn-p">(</span><span class="syn-n">scores</span> <span class="syn-o">-</span> <span class="syn-n">next_m</span><span class="syn-p">)</span>
+        <span class="syn-n">denom</span> <span class="syn-o">=</span> <span class="syn-n">alpha</span> <span class="syn-o">*</span> <span class="syn-n">denom</span> <span class="syn-o">+</span> <span class="syn-n">row_sum</span><span class="syn-p">(</span><span class="syn-n">p_unnormalized</span><span class="syn-p">)</span>
+        <span class="syn-n">numerator</span> <span class="syn-o">=</span> <span class="syn-n">alpha</span> <span class="syn-o">*</span> <span class="syn-n">numerator</span> <span class="syn-o">+</span> <span class="syn-n">p_unnormalized</span> <span class="syn-o">@</span> <span class="syn-n">kv_tile</span><span class="syn-o">.</span><span class="syn-n">values</span>
+        <span class="syn-n">m</span> <span class="syn-o">=</span> <span class="syn-n">next_m</span>
+    <span class="syn-n">output</span> <span class="syn-o">=</span> <span class="syn-n">numerator</span> <span class="syn-o">/</span> <span class="syn-n">denom</span>
+    <span class="syn-n">lse</span> <span class="syn-o">=</span> <span class="syn-n">m</span> <span class="syn-o">+</span> <span class="syn-n">log</span><span class="syn-p">(</span><span class="syn-n">denom</span><span class="syn-p">)</span>
+</code></pre>
+<p><code>repos/flash-attention/flash_attn/cute/softmax.py</code> 的 <code>Softmax</code>、<code>SoftmaxSm100</code> 承担这些统计量的更新；<code>block_info.py</code> 和 <code>mask.py</code> 则确定可见块与块内边界。因果注意力可跳过完全位于未来的块，对完全可见的块省掉逐元素掩码，只在边界块处理坐标。但“对角线上方／下方”依赖矩阵坐标约定，应直接以查询和键的位置关系判断，而不是背图形方向。</p>
+<h4 id="数值问题全掩码指数基准与低精度">数值问题：全掩码、指数基准与低精度</h4>
+<p>全掩码行没有有效键。若 m 和新块最大值都是负无穷，重缩放中的差会变成 NaN。实现需要对这种行作安全基准处理，并在最终分母为零时按接口约定返回输出和 LSE。测试应明确覆盖空序列、局部窗口完全排除一行、变长边界与因果不等长输入；随机的方阵测试不足以暴露这些条件。</p>
+<p>GPU 实现常利用以 2 为底的指数，通过缩放中的换底系数计算同一数学量。这样可以使用硬件指数指令及融合乘加，但不能把“使用 exp2”本身视为额外的算法近似；近似来自具体指令和精度。LSE 在前向保存与反向读取时必须约定对数的底，否则概率重构会出错。</p>
+<p><code>SoftmaxSm100</code> 的 <code>rescale_threshold</code> 路径会在条件满足时继续使用旧基准，并令重缩放因子为 1。旧基准不一定仍是最大值，但在实数运算中，只要分母和 u 始终用同一基准，归一化仍等价；变化主要在指数动态范围、舍入及实现成本。它不是简单地把新最大值忘掉而保留不一致的统计量。调节阈值应检查输出与梯度误差，而不是仅检查耗时。</p>
+<h4 id="反向算法重算概率避免保存二次规模张量">反向算法：重算概率，避免保存二次规模张量</h4>
+<p>训练需要对 Q、K、V 求梯度。令 G 表示损失对 O 的梯度，以下先考虑没有 dropout、掩码不含可训练参数的单头注意力。反向不重新作一次完整 softmax 归约，而是用前向保存的 LSE 重构当前块的概率：</p>
+<p><math display="block"><msub><mi>P</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><msup><mi>e</mi><mrow><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi mathvariant="normal">LSE</mi><mi>i</mi></msub></mrow></msup></math></p>
+<p>先由 O＝PV 得到 dV＝PᵀG、dP＝GVᵀ；softmax 的反向为逐行去掉概率加权均值：</p>
+<p><math display="block"><msub><mi>D</mi><mi>i</mi></msub><mo>=</mo><munder><mo>∑</mo><mi>j</mi></munder><msub><mi>P</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><msub><mi mathvariant="normal">dP</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>r</mi></munder><msub><mi>G</mi><mrow><mi>i</mi><mi>r</mi></mrow></msub><msub><mi>O</mi><mrow><mi>i</mi><mi>r</mi></mrow></msub></math></p>
+<p>第二个等号来自展开 dP＝GVᵀ，再把对键的求和重新组合为 O＝PV，不需要错误地假定 G＝dP Vᵀ。因此 D 可以在预处理 kernel 中用已保存的输出和上游梯度作行内点积；它只有每行一个数。</p>
+<p><strong>源码摘录：在寄存器中计算输出与输出梯度的行内点积。</strong> 仓库 <code>flash-attention</code>，固定提交 <code>e9515d5dee6ade134a33d6020d38d01ef0596996</code>；文件 <code>flash_attn/cute/flash_bwd_preprocess.py</code>，第 409–412 行，符号 <code>FlashAttentionBackwardPreprocess.kernel（无 O 残差分支）</code>。<a href="https://github.com/dao-ailab/flash-attention/blob/e9515d5dee6ade134a33d6020d38d01ef0596996/flash_attn/cute/flash_bwd_preprocess.py#L409-L412">对应源码</a>。</p>
+<pre><code class="language-python">                <span class="syn-c1"># Sum across the "k" dimension</span>
+                <span class="syn-n">pdpsum</span> <span class="syn-o">=</span> <span class="syn-p">(</span><span class="syn-n">tOrO</span><span class="syn-o">.</span><span class="syn-n">load</span><span class="syn-p">()</span><span class="syn-o">.</span><span class="syn-n">to</span><span class="syn-p">(</span><span class="syn-n">Float32</span><span class="syn-p">)</span> <span class="syn-o">*</span> <span class="syn-n">tOrdO</span><span class="syn-o">.</span><span class="syn-n">load</span><span class="syn-p">()</span><span class="syn-o">.</span><span class="syn-n">to</span><span class="syn-p">(</span><span class="syn-n">Float32</span><span class="syn-p">))</span><span class="syn-o">.</span><span class="syn-n">reduce</span><span class="syn-p">(</span>
+                    <span class="syn-n">cute</span><span class="syn-o">.</span><span class="syn-n">ReductionOp</span><span class="syn-o">.</span><span class="syn-n">ADD</span><span class="syn-p">,</span> <span class="syn-n">init_val</span><span class="syn-o">=</span><span class="syn-mf">0.0</span><span class="syn-p">,</span> <span class="syn-n">reduction_profile</span><span class="syn-o">=</span><span class="syn-p">(</span><span class="syn-mi">0</span><span class="syn-p">,</span> <span class="syn-kc">None</span><span class="syn-p">,</span> <span class="syn-mi">1</span><span class="syn-p">)</span>
+                <span class="syn-p">)</span>
+</code></pre>
+<p>预处理内核已经把 O 与 dO 的片段读入寄存器；这段无输出残差的分支先转换到 Float32，逐元素相乘并归约，后续代码再归约跨线程的部分和并写出每行统计。它在反向结构中的位置是“预处理 D 与必要统计 → 主循环重构 P 并计算梯度 → 合并／转换输出”，而非额外保存整张概率矩阵。</p>
+<p>可以逐步拿掉这些选择来理解设计。若先形成所有 P 与 dP，再求行内和，数学仍可成立，却重新引入与序列长度平方相关的中间量；利用上面的恒等式，D 的这一步只读取已经需要的 O 与 dO。进一步若在每个键块都重新计算相同的 D，又会重复行归约；单独预处理让多个键块读取同一结果，但增加一次 kernel 调度和一份行统计缓冲。若删去 Float32 转换，则改变归约的舍入路径，必须重新做误差验证，不能因公式相同便判定低精度实现等价。</p>
+<p><math display="block"><mi mathvariant="normal">dS</mi><mo>=</mo><mi>P</mi><mo>⊙</mo><mo>(</mo><mi mathvariant="normal">dP</mi><mo>−</mo><mi>D</mi><mo>)</mo><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">dQ</mi><mo>=</mo><mi>s</mi><mi mathvariant="normal">dS</mi><mi>K</mi><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">dK</mi><mo>=</mo><mi>s</mi><msup><mi mathvariant="normal">dS</mi><mi>T</mi></msup><mi>Q</mi></math></p>
+<p>这里 D 按行广播，⊙ 表示逐元素乘；缩放 s 在 Q、K 梯度中都不能漏掉。反向主循环包含重算 QKᵀ、计算 GVᵀ、PᵀG、dSᵀQ 和 dS K，共五类矩阵乘；概率重构和 softmax 梯度是逐元素运算与归约，不应算成额外 GEMM。</p>
+<p>这种计算多做了一次分数矩阵乘，却省掉前向保存与反向读取完整 P 的成本。前向保留 Q、K、V、O 以及行统计量，反向在片上重算每个概率块。具体路径还可能保存小规模辅助状态。dropout 路径必须重建相同随机掩码，不能重新抽取；若 LSE 参与损失，反向还多出相应梯度项。<code>flash_bwd_preprocess.py</code> 的文件头明确说明可将 D 替换为 D−dLSE，把这项并入主反向公式。</p>
+<h4 id="反向的并行归约与确定性">反向的并行归约与确定性</h4>
+<p>前向按查询块并行容易让一个执行单元完成输出的一部分；反向既要沿查询方向累加 dK、dV，又要沿键方向累加 dQ。常见路径让一个 CTA 负责一个键块，遍历相关查询块，在本 CTA 中积累 dK、dV，却要把 dQ 的不同键块贡献合并。<code>flash_bwd_preprocess.py</code>、<code>flash_bwd_sm90.py</code>／<code>flash_bwd_sm100.py</code>、<code>flash_bwd_postprocess.py</code> 分别对应预处理、主计算和累加结果转换。</p>
+<p>累加缓冲通常使用 FP32，然后转换到目标精度。原子加或异步块归约可以减少临时缓冲和归约步骤，但浮点加法的到达顺序可能变化。确定性模式需要固定写入顺序或采用分开的部分和与确定归约，增加同步或存储成本；具体方案随 kernel 路径而变。GQA 中多个查询头共享同一个 KV 头，dK、dV 也必须合并这些头的贡献，不能按一头一份直接覆盖。</p>
+<p>实际训练若在长序列或稀疏路径出现梯度异常，首先应对齐缩放、mask、LSE 底数、dropout 状态和累加精度，再比较最早出现误差的张量位置。只比较最终 loss，可能掩盖错误来源。部分稀疏 MLA 路径额外保存输出舍入残差，使 D 的计算接近更高精度输出；这是用线性规模附加状态控制误差，而不是恢复保存整个概率矩阵。</p>
+<h3 id="从算法到-gpuflashattention-的硬件组织">从算法到 GPU：FlashAttention 的硬件组织</h3>
+<h4 id="gpu-的并行与存储层级">GPU 的并行与存储层级</h4>
+<p>CUDA 中线程以 warp 执行，CTA 是协作线程块；CTA 共享片上共享内存，寄存器通常由线程持有，HBM 则承载权重和大张量。更大的 tile 能增加数据复用，却同时增加共享内存、寄存器和累加器占用。超过资源预算可能导致 spill、减少驻留 CTA，甚至无法启动。occupancy 不是越高越好：少量 CTA 若能充分使用张量核，也可能比高 occupancy 的低效内核更快。</p>
+<p>PTX 是虚拟指令层，SASS 是目标架构上的实际机器指令。源码中的一次矩阵乘会展开为多条指令，异步操作又可能跨越源码中的局部边界。理解 kernel 时要同时辨认“数据在哪”“谁负责产生”“谁在等待”“何时可以覆盖”。优化不能靠删掉看似重复的等待来完成。</p>
+<h4 id="fa2查询块并行与-warp-内分工">FA2：查询块并行与 warp 内分工</h4>
+<p><a href="https://arxiv.org/abs/2307.08691">FlashAttention-2</a>从非矩阵乘成本、序列方向并行度及 warp 分工改进执行组织。它不只是换一条 GPU 指令。沿查询块扩大网格能改善小 batch、少头时的并行度；将不同查询行分给不同 warp，可以减少同一输出的跨 warp 合并。</p>
+<p>在 <code>csrc/flash_attn/src/kernel_traits.h</code>、<code>flash_fwd_kernel.h</code> 和 <code>softmax.h</code> 中，tile 大小、线程数、共享内存布局及矩阵乘原语一起决定执行路径。Ampere 路线用 <code>cp.async</code> 把全局数据异步搬入共享内存，<code>ldmatrix</code> 按矩阵乘需要的布局读取数据，<code>mma.sync</code> 执行 warp 级矩阵乘。搬运 K／V 与计算可部分重叠，但等待拷贝完成并不等于所有其他线程都已安全使用数据，CTA 内的协作同步仍须满足。</p>
+<p>矩阵乘累加器的布局决定 softmax 行内归约该由哪些 lane 参与。某些 <code>m16n8k16</code> 布局下，同一行的片段分在四个 lane，局部归约后用 shuffle 合并；不是所有布局都可以机械地使用 <code>Allreduce&lt;4&gt;</code>。P 转成较低精度后若能直接作为下一次 PV 的寄存器操作数，可以省掉共享内存往返，否则需要重排或共享内存中转。</p>
+<p>若头维度增大后突然变慢，方案不是只增大 tile。应检查编译后的寄存器用量与 spill，再缩小查询／键 tile、降低同时存活的中间量，或者减少重叠深度。<code>kSmemKVSize</code> 中的两份空间首先表示 K 与 V，不能直接当成两级流水线。算法的前向和反向资源账本也不同，反向多出的梯度累加空间必须单独计入。</p>
+<h4 id="fa3hopper-的-tmawgmma-与生产者消费者">FA3：Hopper 的 TMA、WGMMA 与生产者／消费者</h4>
+<p><a href="https://arxiv.org/abs/2407.08608">FlashAttention-3</a>利用 Hopper 的异步搬运与矩阵乘，把加载与计算交给不同 warp group。TMA 通过张量描述符处理 tile 搬运、布局和边界；WGMMA 由 warp group 协作发起异步矩阵乘。关键文件是 <code>hopper/mainloop_fwd_sm90_tma_gmma_ws.hpp</code>、<code>flash_fwd_kernel_sm90.h</code>，以及 CuTeDSL 对应的 <code>flash_attn/cute/flash_fwd_sm90.py</code>。</p>
+<p>生产者等待某个环形缓冲 stage 空闲，再发起搬运；消费者等待该 stage 的事务完成，发起矩阵乘，并在不再读取后释放。屏障不仅记录到达次数，还要与预期传输字节数、stage 编号和 phase 对齐。多级缓冲隐藏了 HBM 延迟，却增加了共享内存占用；生产者的低寄存器需求可以让出配额给计算角色，但仍受 CTA／SM 的总资源限制。</p>
+<p>WGMMA 的异步性允许在一个操作未结束时做独立的 softmax、输出重缩放或发起下一操作。<code>wait_group</code> 等待的是已提交组的完成程度，不是任意一份数据就绪。使用其结果或覆盖其源操作数之前，必须确认相应组已完成。ping-pong 调度让不同 warp group 错开矩阵乘与标量运算，减少张量核等待 softmax 的空档；其收益依形状和流水线而变。</p>
+<p>真实问题是“张量核很快，但 softmax 和搬运让它闲着”。处理顺序应是先确认空档位置，再选流水级数和角色分工；盲目增加消费者数量，会稀释每线程寄存器预算并增大同步成本。FP8 路线还要处理缩放、数据排布与数值误差，不能仅由数据宽度推导吞吐倍数。FA2 也并非只能在 Ampere 运行，硬件支持旧指令与有没有使用新架构的专属路径是两回事。</p>
+<h4 id="fa4cutedslblackwell-的-tmem-与更细角色分工">FA4／CuTeDSL：Blackwell 的 TMEM 与更细角色分工</h4>
+<p>固定源码中 <code>flash_attn/cute/</code> 包含 CuTeDSL 路线及多个架构实现，不宜把整个目录都等同于一种 Blackwell kernel。<code>flash_fwd_sm100.py</code>、<code>flash_bwd_sm100.py</code> 承担 SM100 路线，SM90、SM120 另有实现。Python 在这里描述待编译的设备程序，并不是由 Python 解释器逐元素计算注意力。</p>
+<p>Blackwell 的 <code>tcgen05.mma</code> 将累加结果放到张量内存（TMEM），减少长期累加器对通用寄存器的挤压。加载、矩阵乘、softmax、输出校正、写回和 tile 调度可由不同 warp 角色负责。S 完成后 softmax 角色从 TMEM 读取、计算 P，再交回矩阵乘角色执行 PV；输出校正角色同时保证旧的输出累加器已按新基准缩放。一个阶段的“完成”因此不只表示数据已经加载。</p>
+<p><code>pipeline_s_p_o</code> 表达的正是这个握手：S 就绪；P 写好且 O 校正完成；随后才能执行 PV。S 与低精度 P 的空间复用依赖位宽和生命周期，必须先读完 S 再覆盖。更多并行角色可以重叠 softmax 与矩阵乘，也增加 TMEM 读写、屏障与布局转换。对短输入，这些成本可能压过收益。</p>
+<p>2CTA 路线让 cluster 中两个 CTA 协作完成更大的 tile，但 tile 坐标、远端共享内存、参与者数量和事务字节数必须在 cluster 范围一致。<code>tile_scheduler.py</code> 还包含 Cluster Launch Control（CLC）相关调度，通过领取工作改善不均匀 tile 的负载。CLC 解决的是工作分派，不改变在线 softmax 的数学。只有 leader 领取 cluster 工作，再把一致的坐标交给协作者，才能避免两侧处理不同 tile。</p>
+<p>SM100、SM103、SM120 不能只因同属 Blackwell 就共用所有特性。归约读、SplitKV、确定性反向和专用头维度的支持，都应以接口中的分派和约束为准。<code>interface.py</code> 的形状检查、启发式选择与编译键，是从一次实际调用追踪到 kernel 的起点。</p>
+<h4 id="splitkv解码时用键方向补足并行度">SplitKV：解码时用键方向补足并行度</h4>
+<p>单词元解码的查询方向很短，网格可能没有足够 CTA。SplitKV 将键区间分给多个 CTA，各自计算局部输出和局部 LSE，然后合并。若局部输出 Oₐ 已归一化，最终输出必须按各分片的概率质量加权，不能直接平均：</p>
+<p><math display="block"><mi>z</mi><mo>=</mo><mi mathvariant="normal">max</mi><msub><mi mathvariant="normal">LSE</mi><mi>a</mi></msub><mo>,</mo><mspace width="1em"/><msub><mi>w</mi><mi>a</mi></msub><mo>=</mo><msup><mi>e</mi><mrow><msub><mi mathvariant="normal">LSE</mi><mi>a</mi></msub><mo>−</mo><mi>z</mi></mrow></msup><mo>,</mo><mspace width="1em"/><mi>O</mi><mo>=</mo><mfrac><mrow><munder><mo>∑</mo><mi>a</mi></munder><msub><mi>w</mi><mi>a</mi></msub><msub><mi>O</mi><mi>a</mi></msub></mrow><mrow><munder><mo>∑</mo><mi>a</mi></munder><msub><mi>w</mi><mi>a</mi></msub></mrow></mfrac></math></p>
+<p><code>flash_fwd_combine.py</code> 负责这种部分结果合并。分片越多，独立工作越多，却需要额外部分和、写回与合并 kernel；短 KV 时可能更慢。空分片必须由各角色一致处理，否则某个消费者会等待根本不会产生的数据。确定性反向与 SplitKV 前向的归约组织也不能混为一谈。</p>
+<h4 id="调优与调试先验证契约再解释性能">调优与调试：先验证契约，再解释性能</h4>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>实际现象</th>
+<th>首先检查的状态</th>
+<th>可选处理及代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>长序列前向占用异常</td>
+<td>是否仍物化完整 S／P；算子是否回退</td>
+<td>使用支持该 mask 的融合路径；不支持时保留正确回退</td>
+</tr>
+<tr>
+<td>大头维度运行变慢</td>
+<td>寄存器、共享内存、spill、驻留数</td>
+<td>缩小 tile／重叠深度；数据复用可能下降</td>
+</tr>
+<tr>
+<td>解码 GPU 利用率低</td>
+<td>查询方向网格与 KV 长度</td>
+<td>SplitKV；增加部分结果和归约开销</td>
+</tr>
+<tr>
+<td>反向只有部分行出错</td>
+<td>mask、LSE、D、缩放与累加顺序</td>
+<td>对照高精度逐块结果；确定性模式只解决特定归约顺序</td>
+</tr>
+<tr>
+<td>多级流水首次环绕后挂起</td>
+<td>stage／phase、事务字节、释放时机</td>
+<td>修正生产消费契约，不凭经验额外添加屏障</td>
+</tr>
+<tr>
+<td>加 printf 后错误消失</td>
+<td>编译产物和执行时序变化</td>
+<td>对照 PTX／SASS 与无害扰动；暂不据此断言编译器错误</td>
+</tr>
+</tbody>
+</table></div>
+<p>固定仓库的 <code>AI/DEBUG_METHODOLOGY.md</code>、<code>DEBUG_2CTA.md</code> 和 <code>RACECHECK_TMA_HAZARD.md</code> 保留了具体调试案例。可迁移的方法是提出有反证条件的预测，而不是把其中的某一种 bug 当成新故障的默认原因。先保存具体错位张量、输入、编译配置和工具链；再比较缓存清理后的多次运行及语义无害的代码扰动。一次成功运行只证明那个配置当次成功。</p>
+<p>例如怀疑 phase 环绕出错，可以预测：保持 tile 与形状族不变，错误在访问同一 stage 的次数跨过某个边界时出现。若这个边界不随流水级数变化，原解释就需要重新审视。racecheck 报告也要与最小复现、同步语义及工具版本交叉核对；不能因为上游曾出现假阳性，就忽略新报告。</p>
+<h3 id="内核开发工具triton-与-cutlasscute">内核开发工具：Triton 与 CUTLASS／CuTe</h3>
+<h4 id="频繁变化的算子先建立块级实现">频繁变化的算子：先建立块级实现</h4>
+<p>Triton 以程序实例处理一块张量，<code>program_id</code> 确定块坐标，<code>arange</code> 建立元素索引，<code>load</code>、<code>store</code>、<code>dot</code> 和归约表达计算。线程映射、布局转换与部分流水线由编译器处理。<code>python/triton/language/core.py</code>、<code>runtime/jit.py</code>、<code>compiler/code_generator.py</code> 分别是语言、JIT 和前端生成的入口；后续通过 IR、目标后端和 LLVM 等阶段降级，不应概括成“先生成 CUDA 源码”。</p>
+<p><strong>源码摘录：规范化掩码与替代值后交给编译语义层。</strong> 仓库 <code>triton</code>，固定提交 <code>ebdd5b6b485600bdd62fb3becab87e0f6bf15b6f</code>；文件 <code>python/triton/language/core.py</code>，第 2440–2446 行，符号 <code>load</code>。<a href="https://github.com/triton-lang/triton/blob/ebdd5b6b485600bdd62fb3becab87e0f6bf15b6f/python/triton/language/core.py#L2440-L2446">对应源码</a>。</p>
+<pre><code class="language-python">    <span class="syn-k">if</span> <span class="syn-n">mask</span> <span class="syn-ow">is</span> <span class="syn-ow">not</span> <span class="syn-kc">None</span><span class="syn-p">:</span>
+        <span class="syn-n">mask</span> <span class="syn-o">=</span> <span class="syn-n">_semantic</span><span class="syn-o">.</span><span class="syn-n">to_tensor</span><span class="syn-p">(</span><span class="syn-n">mask</span><span class="syn-p">)</span>
+    <span class="syn-k">if</span> <span class="syn-n">other</span> <span class="syn-ow">is</span> <span class="syn-ow">not</span> <span class="syn-kc">None</span><span class="syn-p">:</span>
+        <span class="syn-n">other</span> <span class="syn-o">=</span> <span class="syn-n">_semantic</span><span class="syn-o">.</span><span class="syn-n">to_tensor</span><span class="syn-p">(</span><span class="syn-n">other</span><span class="syn-p">)</span>
+    <span class="syn-n">volatile</span> <span class="syn-o">=</span> <span class="syn-n">_unwrap_if_constexpr</span><span class="syn-p">(</span><span class="syn-n">volatile</span><span class="syn-p">)</span>
+    <span class="syn-n">cache_policy</span> <span class="syn-o">=</span> <span class="syn-n">_normalize_cache_policy</span><span class="syn-p">(</span><span class="syn-kc">None</span><span class="syn-p">,</span> <span class="syn-n">cache_modifier</span><span class="syn-p">,</span> <span class="syn-n">eviction_policy</span><span class="syn-p">)</span>
+    <span class="syn-k">return</span> <span class="syn-n">_semantic</span><span class="syn-o">.</span><span class="syn-n">load</span><span class="syn-p">(</span><span class="syn-n">pointer</span><span class="syn-p">,</span> <span class="syn-n">mask</span><span class="syn-p">,</span> <span class="syn-n">other</span><span class="syn-p">,</span> <span class="syn-n">cache_policy</span><span class="syn-p">,</span> <span class="syn-n">volatile</span><span class="syn-p">)</span>
+</code></pre>
+<p>这段 <code>load</code> 不直接启动一个 Python 逐元素循环，而是把可选 mask、越界替代值和缓存策略转换到语义层可处理的对象，再交给 <code>_semantic.load</code> 参与编译。块级程序描述索引和边界，编译器负责后续布局与指令生成；二者通过这里的类型和参数约定连接。</p>
+<p>尾块只有 100 个有效元素而 tile 有 128 个位置时，没有 mask 的直接读取会访问无效位置；只有 mask 却没有为后续计算选择合适的替代值，又可能使被屏蔽元素的值破坏归约。显式的掩码与 <code>other</code> 把“哪些地址有效”和“无效元素如何参与运算”分开，代价是额外谓词以及边界路径。具体替代值取决于算法，求和可用零，最大值或 softmax 则不能照搬；这段包装代码只建立参数契约，正确性仍取决于调用者。</p>
+<p>当新模型引入新的掩码、低精度格式或 MoE 路由，工程难题往往不是单个形状的最高速度，而是快速得到可验证、可维护的实现。Triton 可以先承担 RoPE、RMSNorm、量化／反量化、gather／scatter 或注意力参考路径，再根据真实热点选择是否下沉。<code>num_warps</code>、<code>num_stages</code> 和 autotune 配置影响资源与重叠，不能保证所有参数组合都更快。</p>
+<p>一个边界处理错误的块级 kernel，在 GPU 上跑得很快也仍然是错误的。测试需覆盖非整块长度、非连续步长、空块和不同 dtype；解释器或 CPU 对照可检查部分张量逻辑，但不能证明 GPU 异步同步或性能。Triton 与 CUDA 的差别在控制粒度与开发成本，不存在无需条件的代码量／性能百分比。</p>
+<h4 id="固定热点与复杂布局显式组合矩阵乘和流水线">固定热点与复杂布局：显式组合矩阵乘和流水线</h4>
+<p>CUTLASS 参数化矩阵乘、主循环和 epilogue，CuTe 用 Layout、Tensor 与 Atom 描述布局、张量视图和硬件原语。Layout 是逻辑坐标到存储偏移的映射，Tensor 是带布局的数据视图，Atom 则描述一次 MMA 或 Copy 的协作形状。<code>include/cute/layout.hpp</code>、<code>tensor.hpp</code>、<code>atom/</code> 和 <code>arch/</code> 对应这些层次；<code>python/CuTeDSL/</code> 将相关组织暴露给 Python DSL。</p>
+<p><strong>源码摘录：区分坐标寻址与子布局切片。</strong> 仓库 <code>cutlass</code>，固定提交 <code>0b55a2f691d69981583568fd9eb69687b1f0de8a</code>；文件 <code>include/cute/layout.hpp</code>，第 163–175 行，符号 <code>Layout::operator()</code>。<a href="https://github.com/NVIDIA/cutlass/blob/0b55a2f691d69981583568fd9eb69687b1f0de8a/include/cute/layout.hpp#L163-L175">对应源码</a>。</p>
+<pre><code class="language-cpp"><span class="syn-w">  </span><span class="syn-c1">// Slice the layout and return the sublayout (Coord has an Underscore slice op)</span>
+<span class="syn-w">  </span><span class="syn-k">template</span><span class="syn-w"> </span><span class="syn-o">&lt;</span><span class="syn-k">class</span><span class="syn-w"> </span><span class="syn-nc">Coord</span><span class="syn-o">&gt;</span>
+<span class="syn-w">  </span><span class="syn-n">CUTE_HOST_DEVICE</span><span class="syn-w"> </span><span class="syn-k">constexpr</span>
+<span class="syn-w">  </span><span class="syn-k">auto</span>
+<span class="syn-w">  </span><span class="syn-k">operator</span><span class="syn-p">()(</span><span class="syn-n">Coord</span><span class="syn-w"> </span><span class="syn-k">const</span><span class="syn-o">&amp;</span><span class="syn-w"> </span><span class="syn-n">coord</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-k">const</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">    </span><span class="syn-k">if</span><span class="syn-w"> </span><span class="syn-k">constexpr</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-n">has_underscore</span><span class="syn-o">&lt;</span><span class="syn-n">Coord</span><span class="syn-o">&gt;::</span><span class="syn-n">value</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">      </span><span class="syn-k">return</span><span class="syn-w"> </span><span class="syn-n">slice</span><span class="syn-p">(</span><span class="syn-n">coord</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-k">this</span><span class="syn-p">);</span>
+<span class="syn-w">    </span><span class="syn-p">}</span><span class="syn-w"> </span><span class="syn-k">else</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">      </span><span class="syn-k">return</span><span class="syn-w"> </span><span class="syn-n">crd2idx</span><span class="syn-p">(</span><span class="syn-n">coord</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-n">shape</span><span class="syn-p">(),</span><span class="syn-w"> </span><span class="syn-n">stride</span><span class="syn-p">());</span>
+<span class="syn-w">    </span><span class="syn-p">}</span>
+
+<span class="syn-w">    </span><span class="syn-n">CUTE_GCC_UNREACHABLE</span><span class="syn-p">;</span>
+<span class="syn-w">  </span><span class="syn-p">}</span>
+</code></pre>
+<p><code>Layout</code> 的同一个调用入口区分两个动作：普通坐标由 shape 和 stride 映射到偏移，含下划线的坐标则表达切片并返回子布局。以教学布局形状 <code>(2, 3)</code>、步长 <code>(3, 1)</code> 为例，坐标 <code>(1, 2)</code> 对应偏移 5；改为转置视图时，需要改变映射，而不一定复制数据。这是布局关系的算术例子，不是特定 MMA 指令的实际线程布局。</p>
+<p>若每个 kernel 都手写展平与反展平，矩阵乘、行归约和异步拷贝之间就会散落不同坐标约定，一次改 tile 可能要求同步改多处地址计算。把 shape／stride 与切片组合成对象，是把这种约定集中起来；它不能自动保证带下划线的切片或共享内存 swizzle 正确，复杂模板与设备原语的兼容性仍须核对。避免拷贝的收益也不能脱离实际访存模式评估。</p>
+<p>在 FlashAttention 中，QKᵀ 的累加器布局必须连接到 softmax 的行归约，再连接到 PV 的操作数布局。只让每个 GEMM 独立最快，未必让整条链最快：布局转换和共享内存往返可能抵消收益。CuTe 的价值是把这些关系表达成可组合对象，并仍能选择架构原语；复杂性被集中到布局与流水线契约，而不是消失。</p>
+<p>实际优化可以从一个固定热点形状入手：先统计读写量与等待，再尝试把 bias、激活、量化缩放放进 epilogue，或让 P 直接连接下一次矩阵乘。每次融合都应验证被覆盖缓冲的最后一个读者。CuTe 的纯 Python 布局工具能帮助检查映射，但不能替代真实设备上的同步测试。</p>
+<h3 id="训练执行算子梯度与参数状态的分工">训练执行：算子、梯度与参数状态的分工</h3>
+<h4 id="llmc把一次训练步展开到具体张量">llm.c：把一次训练步展开到具体张量</h4>
+<p>llm.c 将 GPT 的训练流程直接写在 C／CUDA 中。<code>train_gpt2.c</code>、<code>train_gpt2.cu</code> 连接词元嵌入、注意力、前馈、输出 logits、损失、反向和优化器；<code>llmc/attention.cuh</code>、<code>matmul.cuh</code>、<code>layernorm.cuh</code>、<code>gelu.cuh</code>、<code>adamw.cuh</code>、<code>global_norm.cuh</code> 则使各环节可分别研读。它主要是训练实现与验证入口，不是 vLLM 那样的在线调度系统。</p>
+<p>一批输入的前向生成损失，反向将输出梯度依层传回并累积参数梯度，优化器在约定的累积边界执行更新。梯度裁剪、混合精度、权重主副本和优化器状态影响内存及数值；FlashAttention 只减少注意力相关中间量，不会消除这些状态。推理可以复用前向算子，却不用训练的优化器更新路径。</p>
+<p><code>llmc/fused_classifier.cuh</code> 展示了另一种 IO 优化：在已算好的 logits 上融合 softmax、损失和 logits 梯度生成，减少概率张量的写读。它不意味着把 LM head 的矩阵乘也装入同一个分类器 kernel。该文件的 <code>fused_classifier_kernel5</code> 在单线程读取目标 logit计算损失后加 CTA 同步，随后才原地覆盖为梯度；缺少这条边界会使其他线程提前改写 logits，产生错误甚至溢出。</p>
+<p><strong>源码摘录：损失读取完成后才允许覆盖 logits。</strong> 仓库 <code>llm.c</code>，固定提交 <code>f1e2ace651495b74ae22d45d1723443fd00ecd3a</code>；文件 <code>llmc/fused_classifier.cuh</code>，第 82–92 行，符号 <code>fused_classifier_kernel5</code>。<a href="https://github.com/karpathy/llm.c/blob/f1e2ace651495b74ae22d45d1723443fd00ecd3a/llmc/fused_classifier.cuh#L82-L92">对应源码</a>。</p>
+<pre><code class="language-cuda"><span class="syn-w">    </span><span class="syn-c1">// calculate the probability needed for the loss and update (single-threaded)</span>
+<span class="syn-w">    </span><span class="syn-k">if</span><span class="syn-p">(</span><span class="syn-nb">threadIdx</span><span class="syn-p">.</span><span class="syn-n">x</span><span class="syn-w"> </span><span class="syn-o">==</span><span class="syn-w"> </span><span class="syn-mi">0</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">        </span><span class="syn-kt">float</span><span class="syn-w"> </span><span class="syn-n">prob</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-n">expf</span><span class="syn-p">((</span><span class="syn-kt">float</span><span class="syn-p">)</span><span class="syn-n">logits</span><span class="syn-p">[</span><span class="syn-n">idx</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-w"> </span><span class="syn-n">P</span><span class="syn-w"> </span><span class="syn-o">+</span><span class="syn-w"> </span><span class="syn-n">ix</span><span class="syn-p">]</span><span class="syn-w"> </span><span class="syn-o">-</span><span class="syn-w"> </span><span class="syn-n">sp</span><span class="syn-p">.</span><span class="syn-n">Offset</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-w"> </span><span class="syn-n">sp</span><span class="syn-p">.</span><span class="syn-n">Scale</span><span class="syn-p">;</span>
+<span class="syn-w">        </span><span class="syn-n">losses</span><span class="syn-p">[</span><span class="syn-n">idx</span><span class="syn-p">]</span><span class="syn-w"> </span><span class="syn-o">-=</span><span class="syn-w"> </span><span class="syn-n">logf</span><span class="syn-p">(</span><span class="syn-n">prob</span><span class="syn-p">);</span>
+<span class="syn-w">    </span><span class="syn-p">}</span>
+
+<span class="syn-w">    </span><span class="syn-c1">// without this synchronization point we have a race condition:</span>
+<span class="syn-w">    </span><span class="syn-c1">// the logits used above to compute the loss are concurrently (race) modified to carry backward pass grads.</span>
+<span class="syn-w">    </span><span class="syn-c1">// since the "logits" are overwritten to be in the [-1, 1] range and sp.Offset is sometimes smaller than -90</span>
+<span class="syn-w">    </span><span class="syn-c1">// we errouneously end up computing exp^(90+) which gives us infinities in the loss! this is the fix.</span>
+<span class="syn-w">    </span><span class="syn-nf">__syncthreads</span><span class="syn-p">();</span>
+</code></pre>
+<p>先比较两个版本的资源关系：分离的分类器保持 logits 不变并另写梯度，较容易避免读写冲突，却增加张量和访存；融合版把同一缓冲从 logits 切换为梯度，节约存储，但必须规定最后一个旧数据读者。这里线程 0 读目标位置并计算损失，CTA 中其他线程随后更新词表的不同片段。没有屏障时，“线程 0 分支已在源码中出现”并不能保证所有线程在运行时都等它读完。</p>
+<p>文件注释直接说明了被观察到的失败机制：旧 logit 被梯度覆盖后，损失计算把错误数值与原 softmax 偏移组合，可能出现过大的指数和无穷损失。<code>__syncthreads()</code> 在此建立整块线程之间的读取／覆盖边界。它是融合正确性的成本，而不是可以为了速度随意删除的冗余；这里依据源码及其注释解释问题，没有把本机未运行的移除屏障版本写成实验结果。</p>
+<p>实际问题是“大词表训练时，分类器张量和访存成为热点”。解决方案需要先区分 LM head GEMM 的成本、softmax 的成本和保存概率的成本，再决定融合哪些步骤。只有输出文本正常或 loss 大致下降不能证明正确；<code>test_gpt2.c</code>／<code>.cu</code> 与参考张量对比，<code>dev/loss_checker_ci.py</code> 比较损失，是两层不同验证。混合精度误差要用逐张量绝对／相对误差及训练曲线共同解释。</p>
+<h4 id="deepspeed容量问题与推理批组织不是一件事">DeepSpeed：容量问题与推理批组织不是一件事</h4>
+<p>DeepSpeed 同时包含训练与推理能力。训练侧的 <a href="https://arxiv.org/abs/1910.02054">ZeRO</a>通过在数据并行参与者之间划分优化器状态、梯度和参数来减少每卡冗余；不同 stage 划分的对象不同，参数按需聚合又增加通信。CPU／NVMe 卸载进一步将容量压力转移到搬运与带宽。这里只辨认其系统职责，不展开完整 ZeRO 训练实现。</p>
+<p>如果长序列训练 OOM，先辨认占用来自注意力中间矩阵、其他激活，还是参数／梯度／优化器状态。注意力 IO 优化、激活重计算和状态分片分别作用于不同对象，可以组合却不能相互替代。状态分片减少常驻量后，也可能把瓶颈转成集合通信；需要检查微批大小、累积步数、聚合时机与互连，而不是只报告卡数。</p>
+<p>推理侧 <code>deepspeed/inference/v2/engine_v2.py</code>、<code>ragged/</code>、<code>allocator.py</code>、<code>scheduling_utils.py</code> 组织不规则批、状态和执行。<a href="https://arxiv.org/abs/2401.08671">DeepSpeed-FastGen</a>的 Dynamic SplitFuse 把长预填充拆开，并把预填充块与增量生成词元混入预算内的一次执行。它控制的是步内工作量及生成请求的等待，不是训练参数分片。服务封装还涉及独立的 MII 项目，不能从本地 DeepSpeed 目录推断已经拥有全部 MII 实现。</p>
+<p><strong>源码摘录：先验证准入，再建立序列状态与设备批元数据。</strong> 仓库 <code>deepspeed</code>，固定提交 <code>8fb2c9a256c00df488793ac4a103f688992dcfe4</code>；文件 <code>deepspeed/inference/v2/engine_v2.py</code>，第 122–139 行，符号 <code>InferenceEngineV2.put</code>。<a href="https://github.com/microsoft/DeepSpeed/blob/8fb2c9a256c00df488793ac4a103f688992dcfe4/deepspeed/inference/v2/engine_v2.py#L122-L139">对应源码</a>。</p>
+<pre><code class="language-python">        <span class="syn-k">if</span> <span class="syn-n">do_checks</span><span class="syn-p">:</span>
+            <span class="syn-n">token_lens</span> <span class="syn-o">=</span> <span class="syn-p">[</span><span class="syn-nb">len</span><span class="syn-p">(</span><span class="syn-n">tokens</span><span class="syn-p">)</span> <span class="syn-k">for</span> <span class="syn-n">tokens</span> <span class="syn-ow">in</span> <span class="syn-n">batch_tokens</span><span class="syn-p">]</span>
+            <span class="syn-n">schedule_check</span> <span class="syn-o">=</span> <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">can_schedule</span><span class="syn-p">(</span><span class="syn-n">batch_uids</span><span class="syn-p">,</span> <span class="syn-n">token_lens</span><span class="syn-p">)</span>
+            <span class="syn-k">if</span> <span class="syn-n">schedule_check</span> <span class="syn-o">!=</span> <span class="syn-n">SchedulingResult</span><span class="syn-o">.</span><span class="syn-n">Success</span><span class="syn-p">:</span>
+                <span class="syn-k">raise</span> <span class="syn-n">SchedulingError</span><span class="syn-p">(</span><span class="syn-n">schedule_check</span><span class="syn-p">)</span>
+
+        <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_batch</span><span class="syn-o">.</span><span class="syn-n">clear</span><span class="syn-p">()</span>
+        <span class="syn-k">for</span> <span class="syn-n">uid</span><span class="syn-p">,</span> <span class="syn-n">tokens</span> <span class="syn-ow">in</span> <span class="syn-nb">zip</span><span class="syn-p">(</span><span class="syn-n">batch_uids</span><span class="syn-p">,</span> <span class="syn-n">batch_tokens</span><span class="syn-p">):</span>
+
+            <span class="syn-n">host_seq_desc</span> <span class="syn-o">=</span> <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_state_manager</span><span class="syn-o">.</span><span class="syn-n">get_or_create_sequence</span><span class="syn-p">(</span><span class="syn-n">uid</span><span class="syn-p">)</span>
+            <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_model</span><span class="syn-o">.</span><span class="syn-n">maybe_allocate_kv</span><span class="syn-p">(</span><span class="syn-n">host_seq_desc</span><span class="syn-p">,</span> <span class="syn-n">tokens</span><span class="syn-o">.</span><span class="syn-n">numel</span><span class="syn-p">())</span>
+            <span class="syn-n">host_seq_desc</span><span class="syn-o">.</span><span class="syn-n">pre_forward</span><span class="syn-p">(</span><span class="syn-n">tokens</span><span class="syn-o">.</span><span class="syn-n">numel</span><span class="syn-p">())</span>
+
+            <span class="syn-c1"># We can disable checks since we already validated schedulability.</span>
+            <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_batch</span><span class="syn-o">.</span><span class="syn-n">insert_sequence</span><span class="syn-p">(</span><span class="syn-n">host_seq_desc</span><span class="syn-p">,</span> <span class="syn-n">tokens</span><span class="syn-p">,</span> <span class="syn-n">do_checks</span><span class="syn-o">=</span><span class="syn-n">do_checks</span><span class="syn-p">)</span>
+
+        <span class="syn-c1"># Send all metadata to the device</span>
+        <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_batch</span><span class="syn-o">.</span><span class="syn-n">finalize</span><span class="syn-p">()</span>
+</code></pre>
+<p><code>put</code> 先做可调度性判断，再清空本轮批描述，按 UID 取得或建立持久序列状态，准备 KV 和本轮进度，最后把批元数据发往设备。结构上区分了跨轮次存活的 state manager 与每次执行重新组织的 ragged batch；后续模型准备与前向消费的是后者，而不是原始服务请求。</p>
+<p>若把每条序列 padding 到本批最长长度，组批较直接，却在长度差异大时浪费输入计算；ragged 表达让有效词元和序列描述共同决定执行，额外承担索引与元数据成本。若去掉准入检查但没有上层等价保证，KV 或跟踪序列容量不足可能在分配／组批阶段才失败。因此 <code>do_checks=False</code> 不是免除容量约束，而是把证明责任转移给已完成检查的调用方。这一推理路径的容量契约与 ZeRO 的训练状态分片是不同问题。</p>
+<p>固定词元数有助于约束步内负载，但并不保证每步耗时相等：KV 长度、注意力模式、MoE 路由、缓存命中和通信仍会改变成本。比较 SplitFuse 与其他框架的分块预填充，应观察 TPOT 分布与首词元时延，而不是仅把同一名称视为不同算法。</p>
+<h3 id="云端通用引擎请求驱动的调度与状态管理">云端通用引擎：请求驱动的调度与状态管理</h3>
+<h4 id="vllm从请求进度到实际输入批">vLLM：从请求进度到实际输入批</h4>
+<p>vLLM 的一条生成请求经过协议处理、输入预处理、引擎核心、调度器、执行器、GPU worker、采样和输出处理。<code>vllm/v1/engine/async_llm.py</code> 的 <code>AsyncLLM</code> 连接前端与引擎；<code>engine/core.py</code> 的 <code>EngineCore.step</code> 串起调度、执行和状态回写；<code>core/sched/scheduler.py</code> 的 <code>Scheduler.schedule</code> 决定本步计算量；<code>worker/gpu_model_runner.py</code> 的 <code>GPUModelRunner</code> 构造设备输入和注意力元数据。</p>
+<p>进程边界把协议解析、tokenizer、流式输出与核心执行解耦，但消息、序列化、忙轮询和错误传播都有成本。worker 不是拿到原始 HTTP JSON 后自行推断状态，而是消费引擎定义的调度输出。<code>core/sched/output.py</code> 的 <code>SchedulerOutput</code> 包含新请求、已有请求增量、各请求的词元数、块更新、结束／抢占、草稿和 KV 连接器信息，是这一边界上的数据契约。</p>
+<p>固定版本的 V1 调度注释明确不以“预填充阶段／解码阶段”作为调度主抽象，而以已完成进度追赶当前应计算的词元总数。前缀命中缩短待计算区间，分块预填充由预算截断，投机草稿增加待验证词元。这里“无阶段”只描述调度进度模型；算子层仍需识别不同查询长度和执行形状。</p>
+<p><strong>源码摘录：把请求进度差额约束到本轮预算。</strong> 仓库 <code>vllm</code>，固定提交 <code>b0e21b308352587a6fd02f72722a2e815bfd62f0</code>；文件 <code>vllm/v1/core/sched/scheduler.py</code>，第 683–692 行，符号 <code>Scheduler.schedule</code>。<a href="https://github.com/vllm-project/vllm/blob/b0e21b308352587a6fd02f72722a2e815bfd62f0/vllm/v1/core/sched/scheduler.py#L683-L692">对应源码</a>。</p>
+<pre><code class="language-python">            <span class="syn-n">num_new_tokens</span> <span class="syn-o">=</span> <span class="syn-p">(</span>
+                <span class="syn-n">request</span><span class="syn-o">.</span><span class="syn-n">num_tokens_with_spec</span>
+                <span class="syn-o">+</span> <span class="syn-n">request</span><span class="syn-o">.</span><span class="syn-n">num_output_placeholders</span>
+                <span class="syn-o">-</span> <span class="syn-n">request</span><span class="syn-o">.</span><span class="syn-n">num_computed_tokens</span>
+            <span class="syn-p">)</span>
+            <span class="syn-k">if</span> <span class="syn-mi">0</span> <span class="syn-o">&lt;</span> <span class="syn-n">long_prefill_token_threshold</span> <span class="syn-o">&lt;</span> <span class="syn-n">num_new_tokens</span><span class="syn-p">:</span>
+                <span class="syn-n">num_new_tokens</span> <span class="syn-o">=</span> <span class="syn-n">long_prefill_token_threshold</span>
+            <span class="syn-n">num_new_tokens</span> <span class="syn-o">=</span> <span class="syn-nb">min</span><span class="syn-p">(</span>
+                <span class="syn-n">num_new_tokens</span><span class="syn-p">,</span> <span class="syn-n">token_budget</span><span class="syn-p">,</span> <span class="syn-n">input_budget</span> <span class="syn-o">-</span> <span class="syn-n">draft_slots</span>
+            <span class="syn-p">)</span>
+</code></pre>
+<p>代码首先计算“应达到的进度减去已经计算的进度”，再分别施加长预填充阈值和本轮预算。若只保留请求数上限，一条 8192 词元的新请求与一条只需 1 个词元的生成请求会被当成相同的一个名额，执行时间却完全不同。以本轮可用输入预算 512、长预填充阈值 512 为例，前者只能推进一个块，而不是一次吞掉全部输入；后续轮次继续从 <code>num_computed_tokens</code> 接上。这是可从状态轨迹复核的分解，不是该配置的时延实验。</p>
+<p>只加分块仍不够：没有完成进度会重复计算已经处理的区间，没有输出占位又可能在异步结果回传前错误地安排后续工作。因此三项进度与多项预算共同构成调度契约；其代价是每轮状态回写和重新组批，而不是消除了长请求的总计算量。</p>
+<p>下面是连接块分配的教学伪代码，函数名与变量名为解释性简化，不是原文摘录：</p>
+<pre><code class="language-python"><span class="syn-n">needed</span> <span class="syn-o">=</span> <span class="syn-n">tokens_with_spec</span> <span class="syn-o">+</span> <span class="syn-n">output_placeholders</span> <span class="syn-o">-</span> <span class="syn-n">computed_tokens</span>
+<span class="syn-n">scheduled</span> <span class="syn-o">=</span> <span class="syn-n">clip_by_token_budget_and_other_limits</span><span class="syn-p">(</span><span class="syn-n">needed</span><span class="syn-p">)</span>
+<span class="syn-n">blocks</span> <span class="syn-o">=</span> <span class="syn-n">kv_manager</span><span class="syn-o">.</span><span class="syn-n">allocate_slots</span><span class="syn-p">(</span><span class="syn-n">request</span><span class="syn-p">,</span> <span class="syn-n">scheduled</span><span class="syn-p">)</span>
+<span class="syn-k">if</span> <span class="syn-n">blocks</span> <span class="syn-ow">is</span> <span class="syn-kc">None</span><span class="syn-p">:</span>
+    <span class="syn-n">defer_or_preempt</span><span class="syn-p">(</span><span class="syn-n">request</span><span class="syn-p">)</span>
+</code></pre>
+<p>异步输出占位表达已提交但尚未回传的生成结果，不能当作已经确认的词元；采样完成后还要处理接受／拒绝、停止、取消和资源释放。真实调度受请求数、词元、编码器、草稿和模型长度等多种预算约束，不能只靠一个 batch size 解释。</p>
+<h4 id="分页前缀哈希与引用计数">分页、前缀哈希与引用计数</h4>
+<p>连续 KV 预分配容易在短请求中浪费容量，也难以在变长请求间复用空间。vLLM 把逻辑序列映射到定长物理块，<code>KVCacheManager</code> 管请求的块，<code>BlockPool</code> 管可分配块与缓存，注意力后端通过 <code>block_table</code> 找到数据。这是 <a href="https://arxiv.org/abs/2309.06180">PagedAttention</a> 的内存管理主线；它与 FlashAttention 的片上分块属于不同层次。</p>
+<p>同一词元段在不同上下文中通常产生不同 KV，因此前缀哈希需要串入先前块的身份。<code>core/kv_cache_utils.py</code> 的 <code>hash_block_tokens</code> 和附加键生成函数还处理 LoRA、多模态与嵌入等影响状态的上下文。缓存共享既要语义一致，也要命名空间与版本一致；不能只按一段文本的相等性共享。</p>
+<p>引用计数防止活跃请求使用的块被随意回收。零引用块可留作缓存，待重新分配时淘汰；共享数据被修改前还要判断可写性或执行写时复制。<code>BlockPool.touch</code>、<code>get_new_blocks</code>、<code>is_block_writable</code> 和 <code>KVCacheManager.free</code> 因而分属命中、分配、写入与释放不同动作。SGLang 同样需要保护在用数据，不能把引用计数说成它独有的能力。</p>
+<p>分页减少碎片，不减少有效 KV 元素本身。序列长度、并发和 KV 头数共同扩大占用；块大小更小可减少尾块浪费，却增加索引与管理成本。<code>KVCacheSpec</code> 还要描述不同层的全注意力、窗口、MLA 或状态型布局，混合模型的命中边界必须是相关组都可恢复的边界。</p>
+<h4 id="真实问题长请求把短请求的输出拖慢">真实问题：长请求把短请求的输出拖慢</h4>
+<p>一条长预填充独占执行时，其他请求即使只差一个生成词元，也会等待整个长计算完成。分块预填充让长输入分多步推进，与增量生成共享预算；运行中请求优先、长预填充阈值和请求准入共同控制干扰。它通常以延长长请求的预填充完成时间，换取其他请求更稳定的生成间隔。</p>
+<p>方案验证应同时记录首词元时间（TTFT）、输出词元间隔（TPOT／ITL）、尾分位及公平性。减小块不一定更好：会增加轮数、调度和 kernel 启动开销。vLLM 的部分分支会跳过本轮不能推进的请求继续尝试其他请求，这可提高利用率，但不等于严格 FCFS；若长请求持续被跳过，需要以等待时间和优先级策略辨认饥饿。</p>
+<p>如果 KV 块不足，V1 可抢占请求、释放状态并在之后重算。重算成本取决于被释放的上下文，不是免费恢复。单独的 KV offload／连接器路线可以搬运冷状态，但不能把旧版调度器的 swap 描述直接套到当前抢占路径。频繁抢占应优先检查准入、最大输出、KV 预算和并发，增加词元预算可能使问题更严重。</p>
+<h4 id="后端接入能力协商与元数据一致性">后端接入：能力协商与元数据一致性</h4>
+<p><code>attention/selector.py</code> 的 <code>get_attn_backend</code> 把设备、头维度、dtype、KV 精度、窗口、sink、MLA 和并行等条件交给平台选择，<code>attention/backends/registry.py</code> 注册实现。支持单项能力不等于支持所有组合；一个后端需要声明支持范围，也需要对不支持组合回退或拒绝。</p>
+<p>执行器生成 <code>query_start_loc</code>／累积长度、<code>block_table</code>、位置和 KV 写入槽位。变长打包消除 padding 浪费，分页寻址避免 KV 重排，但序列边界必须同时传到 kernel。固定长度、变长连续 KV、分页 KV 是不同接口，FlashAttention 并不要求所有调用都使用分页或打包。</p>
+<p>新增后端的实际方案应从数学参考实现开始，核对不等长因果对齐、GQA 头映射、窗口、缓存 dtype、步长和图捕获，再注册能力声明。一个 kernel 单独正确，不代表引擎组装的输入正确；若只有多请求批出错，首先检查边界和槽位映射，不要先改注意力公式。</p>
+<h3 id="前缀与程序型负载sglang-的树结构组织">前缀与程序型负载：SGLang 的树结构组织</h3>
+<h4 id="radixcache逻辑前缀与物理页分开">RadixCache：逻辑前缀与物理页分开</h4>
+<p>SGLang 的 <code>python/sglang/srt/mem_cache/radix_cache.py</code> 用基数树组织前缀。节点保存一段词元及对应 KV 索引，<code>match_prefix</code> 返回最长可复用前缀；匹配在段中间结束时，<code>_split_node</code> 改变树结构以暴露边界，不需要复制整段 KV。插入把已算前缀登记进树，驱逐回收未受保护的节点。</p>
+<p>树按词元表达逻辑关系，但物理页约束仍存在。固定源码的 <code>match_prefix</code> 明确在 <code>page_size &gt; 1</code> 时把键截断到页边界。因此“基数树永远逐词元复用，而块式缓存永远低一档”并不成立。它的优势是自然表示分支与共享祖先，并让调度可以读到这些关系；收益依负载、页大小和缓存容量而变。</p>
+<p><strong>源码摘录：先应用物理页边界，再查找逻辑前缀。</strong> 仓库 <code>sglang</code>，固定提交 <code>00bcc25f6c857dc7cfb9e624ee38269d4c3735f6</code>；文件 <code>python/sglang/srt/mem_cache/radix_cache.py</code>，第 392–407 行，符号 <code>RadixCache.match_prefix</code>。<a href="https://github.com/sgl-project/sglang/blob/00bcc25f6c857dc7cfb9e624ee38269d4c3735f6/python/sglang/srt/mem_cache/radix_cache.py#L392-L407">对应源码</a>。</p>
+<pre><code class="language-python">        <span class="syn-n">key</span> <span class="syn-o">=</span> <span class="syn-n">params</span><span class="syn-o">.</span><span class="syn-n">key</span>
+        <span class="syn-n">key</span><span class="syn-p">,</span> <span class="syn-n">_</span> <span class="syn-o">=</span> <span class="syn-n">key</span><span class="syn-o">.</span><span class="syn-n">maybe_to_bigram_view</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">is_eagle</span><span class="syn-p">)</span>
+
+        <span class="syn-k">if</span> <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">disable</span> <span class="syn-ow">or</span> <span class="syn-nb">len</span><span class="syn-p">(</span><span class="syn-n">key</span><span class="syn-p">)</span> <span class="syn-o">==</span> <span class="syn-mi">0</span><span class="syn-p">:</span>
+            <span class="syn-k">return</span> <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_empty_match_result</span>
+
+        <span class="syn-n">key</span> <span class="syn-o">=</span> <span class="syn-n">key</span><span class="syn-o">.</span><span class="syn-n">page_aligned</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">page_size</span><span class="syn-p">)</span>
+
+        <span class="syn-k">if</span> <span class="syn-nb">len</span><span class="syn-p">(</span><span class="syn-n">key</span><span class="syn-p">)</span> <span class="syn-o">==</span> <span class="syn-mi">0</span><span class="syn-p">:</span>
+            <span class="syn-k">return</span> <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_empty_match_result</span>
+
+        <span class="syn-n">value</span><span class="syn-p">,</span> <span class="syn-n">last_node</span> <span class="syn-o">=</span> <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_match_prefix_helper</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">root_node</span><span class="syn-p">,</span> <span class="syn-n">key</span><span class="syn-p">)</span>
+        <span class="syn-k">if</span> <span class="syn-n">value</span><span class="syn-p">:</span>
+            <span class="syn-n">value</span> <span class="syn-o">=</span> <span class="syn-n">torch</span><span class="syn-o">.</span><span class="syn-n">cat</span><span class="syn-p">(</span><span class="syn-n">value</span><span class="syn-p">)</span>
+        <span class="syn-k">else</span><span class="syn-p">:</span>
+            <span class="syn-n">value</span> <span class="syn-o">=</span> <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">_empty_match_result</span><span class="syn-o">.</span><span class="syn-n">device_indices</span>
+</code></pre>
+<p>这段路径先处理模型所需的键视图，再将键收缩到物理页边界，最后沿树匹配。若页大小为 16，长度为 70 的普通词元键在这一步只能保留 64 个词元；末尾 6 个词元不能因文本相同就被当作完整的共享页。去掉对齐会让“逻辑命中长度”与可登记、恢复的物理缓存单位脱节，后续索引和所有权就必须另行支持部分页；当前路径选择保持二者一致，代价是放弃不足一页的可复用尾部。</p>
+<p>基数树不是用来消除这个物理约束，而是用来表达公共祖先和分支。可依次比较“不缓存”“整条前缀精确键缓存”“公共片段组成的树”：第二种能复用相同提示，却难以直接表示只共享前半段的多分支；树节点分裂暴露共享边界，但又引入结构变更、查找和引用保护。对这些操作的 CPU 成本，需要单独观测，不能由命中词元数直接推出服务加速。</p>
+<p><code>RadixKey.extra_key</code> 为适配器或其他不应共享的请求划分命名空间；<code>inc_lock_ref</code>／<code>dec_lock_ref</code> 保护正在使用的节点。缓存匹配也会更新时间戳。树查找并非完全无副作用的只读动作，节点分裂、引用保护与驱逐需要保持一致。</p>
+<h4 id="缓存感知排序与-prefilladder-准入">缓存感知排序与 PrefillAdder 准入</h4>
+<p><code>managers/schedule_policy.py</code> 的策略包括最长前缀匹配、按树结构排序及不依赖缓存的 FCFS 等。排序回答“优先尝试谁”，<code>PrefillAdder</code> 则回答“预算是否允许接纳”。命中长前缀减少本轮新增计算，但后续生成仍需要增长空间；锁定前缀也使一部分缓存暂时不可驱逐。</p>
+<p>过长队列会使前缀匹配和排序本身成为 CPU 热点，固定版本在部分缓存感知策略的等待队列超过阈值时回退 FCFS。阈值是这个版本的工程条件，不是通用调度定律。缓存感知也可能牺牲公平性：无共享前缀的请求不能因命中率目标而无限等待。</p>
+<p>实际场景是“一批文档问答共享系统提示词，用户问题不同”。首先保持提示模板、tokenizer、模型和适配器版本一致，并把稳定的公共内容放在真正相同的前缀位置；再考察缓存容量与路由是否让相近请求到同一实例。随机化的请求标识若放在提示开头，会破坏所有后续前缀共享。重排提示又可能影响模型行为，所以必须同时检查输出质量，不能只为命中率改写语义。</p>
+<h4 id="dsl多分支与普通服务请求">DSL、多分支与普通服务请求</h4>
+<p><code>python/sglang/lang/api.py</code>、<code>ir.py</code> 和 <code>interpreter.py</code> 用 <code>gen</code>、<code>select</code>、角色和分支等接口表达语言模型程序。连续生成与分支会自然形成共享前缀，使程序结构与缓存结构相接。但 RadixCache 并不只服务 DSL：普通 HTTP 请求只要拥有相同有效前缀，也能复用；vLLM 同样可以作为外部程序的执行引擎。</p>
+<p>结构化程序的收益来自可以明确传递重复的上下文、控制生成边界及组织分支，不是“一个框架只认识程序、另一个只认识请求”的绝对分界。选型时要看应用是否需要这样的前端接口，还是只需要通用生成服务。两者都必须处理模型状态、调度预算和采样。</p>
+<h4 id="hicache-与重叠调度">HiCache 与重叠调度</h4>
+<p><code>mem_cache/</code> 将批分配、allocator、设备 pool、主机 pool 和外部 storage 分开；HiCache 的 L1／L2／L3 分别承载设备、主存和外部存储中的状态。<code>l2_transfer.py</code>、<code>storage_prefetch.py</code>、<code>hicache_storage.py</code> 连接搬运、预取与后端。缓存命中在慢层时并不等于立即可执行，需要把数据搬回或按相应路径使用。</p>
+<p>实际问题是“共享前缀很长，但 GPU 放不下所有热门上下文”。可将较冷状态留在主存或存储，提前预取，比较搬运时间与重算时间后决定是否恢复。读取失败、版本不一致或恢复代价过大时，需要降级重算；不能让一个逻辑命中永久阻塞请求。分层扩大可保留的容量，却增加额外状态机和 IO。</p>
+<p><code>scheduler.py</code> 的普通与重叠事件循环，以及 <code>batch_overlap/</code>，把结果处理、元数据准备与设备执行错开。重叠需要保证上一批仍在读取的张量和页表不会被下一批覆盖；这比多开一个线程更重要。并行 rank 间也必须对批组成、候选与状态更新保持一致。</p>
+<h3 id="专用云端路线执行后端量化与服务分层">专用云端路线：执行后端、量化与服务分层</h3>
+<h4 id="tensorrt-llm不能只用编译-engine概括">TensorRT-LLM：不能只用“编译 engine”概括</h4>
+<p>固定版本同时保留 TRT 引擎与 <code>_torch/</code> 路线。经典路线经构建生成 engine，将部分图优化、精度和内核选择提前；PyTorch 路线在 <code>_torch/attention/</code>、<code>pyexecutor/</code>、<code>speculative/</code>、<code>compilation/</code> 组织执行与优化。不应把整个平台都描述为部署前必须构建 engine，也不能从目录大小推断哪条路线在所有负载下最好。</p>
+<p><code>cpp/tensorrt_llm/kernels/</code> 将上下文融合注意力、解码注意力、weight-only 矩阵乘、MoE、采样和通信等分开。预填充与解码的不同形状由不同内核承接，低比特格式与特定硬件原语紧密耦合。<code>_torch/attention/ATTENTION_DEVELOPER_GUIDE.md</code> 与后端接口提供了新注意力实现的接入边界。</p>
+<p>实际场景是“模型和硬件长期固定，需要降低延迟并纳入现有 NVIDIA 部署栈”。可分别评估 engine 与 PyTorch 路线，固定模型、硬件、精度和形状范围，考察构建／预热、峰值内存、请求尾延迟以及升级重建成本。模型频繁变化或形状范围很宽时，特化收益可能被构建和维护成本抵消；不存在由厂商身份推出的性能第一。</p>
+<p><code>pyexecutor/cuda_graph_runner.py</code>、<code>breakable_cuda_graph/</code>、KV 管理、连接器与卡死诊断说明优化对象不止单个 kernel。多节点还要同时维护通信拓扑、专家映射和状态传输；一次局部快速矩阵乘未必改善端到端延迟。</p>
+<h4 id="lmdeploy双引擎与权重格式的连接">LMDeploy：双引擎与权重格式的连接</h4>
+<p>LMDeploy 的 TurboMind 由 <code>lmdeploy/turbomind/</code> 与根目录 <code>src/</code> 连接 Python 接口和 C++／CUDA 执行，PyTorch 路线则在 <code>lmdeploy/pytorch/</code> 拆出主循环、分页、缓存、后端、投机与连接器。模型适配需要先辨认使用哪条引擎，不同路线支持的组合不能互相代替。</p>
+<p>W4A16 表示权重用 4 位存储、激活保留 16 位。相对 16 位权重，理想原始权重数据缩小到四分之一，但尺度、分组、元数据与未量化张量仍占空间；参与计算时还需对应内核的解包和缩放。AWQ 的校准和权重排布必须连接到实际执行格式，不能把“做过量化”当成“这个后端能直接运行”。</p>
+<p>当单卡装不下目标模型时，可先测量权重、KV 和工作区分别占多少，再尝试与该引擎匹配的低比特转换。若限制来自长上下文并发，权重量化腾出的空间有帮助，但 KV 仍持续增长；若瓶颈是大 batch 计算，解量化开销又可能改变收益。<code>turbomind/converter.py</code>、<code>weight_format.py</code> 与 PyTorch 的分页／cache engine 是检查这两条容量路径的入口。</p>
+<p><code>serve/</code> 的协议适配、代理和输入处理降低应用迁移成本，但接口相容不意味着所有参数和错误语义完全相同。流式消息、工具调用和多模态需要独立回归测试。</p>
+<h4 id="tgirust-接入与执行协议">TGI：Rust 接入与执行协议</h4>
+<p>TGI 用 Rust 组织 HTTP 接入、校验和部分批调度，通过 Protobuf／gRPC 与 Python 等执行后端连接。<code>router/src/validation.rs</code>、<code>router/src/infer/</code>、<code>proto/</code> 和 <code>server/text_generation_server/</code> 说明边界上的请求与批状态如何表达。其后端还可适配其他执行栈，不能把所有批处理策略都归给一个固定的 Python 循环。</p>
+<p>如果服务的连接、校验或 tokenizer 已占据明显 CPU 时间，应把接入与执行分别剖析。Rust 接入可以提供不同的并发组织和资源控制，但跨语言通信增加序列化、超时、取消与状态一致性成本。语言选择本身不保证低尾延迟；需要测量 HTTP 到排队、排队到执行以及执行到流式回传各段。</p>
+<p>对既有 HuggingFace 模型与云端接入流程，TGI 是检查协议与后端分离的案例。选型还应核实当前上游维护状态、部署后端的能力和依赖版本，而不是把这个固定源码快照当作长期支持承诺。</p>
+<h4 id="lightllm词元级分配与逐模型内核">LightLLM：词元级分配与逐模型内核</h4>
+<p>LightLLM 的 TokenAttention 以词元为粒度管理 KV 位置，<code>lightllm/common/kv_cache_mem_manager/</code> 与 <code>req_manager/</code> 分离物理分配和请求映射。它减少固定页末端未用槽位，却增加细粒度索引、分配和搬运组织；“没有块内碎片”不等于整个服务内存利用率达到百分之百。</p>
+<p>模型目录中的 Triton 内核及 autotune 配置体现逐硬件、逐形状调优。实际问题是“请求长度差异大，尾块浪费明显”。先测量有效 KV、尾块、索引和预留缓冲的比例，再比较词元级和块级方案；若尾块只占很小部分，换管理粒度不一定抵得上额外索引成本。</p>
+<p><code>server/</code> 的路由、多级缓存、PD 分离和 RL 接口连接更高层的执行。Windows 检出对带冒号的调优配置路径存在限制，本地工作树不完整；因此这部分以固定提交中的 Git 对象为来源，不能把检出缺失当成框架没有内核，也不能在当前机器声称完成部署验证。</p>
+<h3 id="端侧与单机内存格式计算图与模型生命周期">端侧与单机：内存格式、计算图与模型生命周期</h3>
+<h4 id="llamacpp模型层ggml-与工具层">llama.cpp：模型层、ggml 与工具层</h4>
+<p>llama.cpp 的 <code>include/llama.h</code> 定义公开 API，<code>src/</code> 组织模型、上下文、图、批、缓存和采样，<code>ggml/</code> 提供张量、量化和硬件后端，<code>tools/</code> 提供 CLI、server、转换和评估。运行时不需要 Python／PyTorch，但构建工具、可选后端和第三方组件仍有依赖，不能把“无需 Python”写成“完全零依赖”。</p>
+<p>GGUF 保存模型元数据、张量及其类型；加载器读取架构、tokenizer 和张量布局。<code>ggml_type</code> 中的量化块格式直接影响字节数与可用点积内核。K-quant、i-quant 和不同浮点低比特格式并不是名称上的同一方案，校准、分组和混合精度选择都影响质量。</p>
+<p><code>ggml_gallocr</code> 依据计算图中张量的生命周期规划缓冲，后端调度器划分图并插入设备间拷贝。<code>mmap</code> 可以把文件映射接入加载，但后端可能还需重排或复制，GPU 权重也不会仅因 mmap 就无需设备内存。冷启动缺页和暖页缓存应分别测量。</p>
+<h4 id="逻辑批物理批与序列状态">逻辑批、物理批与序列状态</h4>
+<p>一次 <code>llama_decode</code> 提交的是逻辑 batch，<code>llama_batch_allocr</code> 根据记忆状态与 <code>n_ubatch</code> 拆成物理批。调大 <code>n_batch</code> 增加一次可提交的输入，调大 <code>n_ubatch</code> 才直接改变某次执行的工作区和形状。两者不能互换解释。</p>
+<p><strong>源码摘录：将逻辑批拆为可容纳的物理批并返回处理上下文。</strong> 仓库 <code>llama.cpp</code>，固定提交 <code>cb7934c52ca8710994b2ecc19775ebefcfdb8d01</code>；文件 <code>src/llama-memory.h</code>，第 85–91 行，符号 <code>llama_memory_i::init_batch</code>。<a href="https://github.com/ggml-org/llama.cpp/blob/cb7934c52ca8710994b2ecc19775ebefcfdb8d01/src/llama-memory.h#L85-L91">对应源码</a>。</p>
+<pre><code class="language-cpp"><span class="syn-w">    </span><span class="syn-c1">// split the input batch into a set of ubatches and verify that they can fit into the cache</span>
+<span class="syn-w">    </span><span class="syn-c1">// return a context object containing the ubatches and memory state required to process them</span>
+<span class="syn-w">    </span><span class="syn-c1">// check the llama_memory_context_i::get_status() for the result</span>
+<span class="syn-w">    </span><span class="syn-k">virtual</span><span class="syn-w"> </span><span class="syn-n">llama_memory_context_ptr</span><span class="syn-w"> </span><span class="syn-nf">init_batch</span><span class="syn-p">(</span>
+<span class="syn-w">            </span><span class="syn-n">llama_batch_allocr</span><span class="syn-w"> </span><span class="syn-o">&amp;</span><span class="syn-w"> </span><span class="syn-n">balloc</span><span class="syn-p">,</span>
+<span class="syn-w">            </span><span class="syn-kt">uint32_t</span><span class="syn-w"> </span><span class="syn-n">n_ubatch</span><span class="syn-p">,</span>
+<span class="syn-w">            </span><span class="syn-kt">bool</span><span class="syn-w"> </span><span class="syn-n">embd_all</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-mi">0</span><span class="syn-p">;</span>
+</code></pre>
+<p>接口把拆批和缓存适配交给 memory 实现，返回可检查状态的上下文，而不是把逻辑批直接当成一次设备执行。假设一次输入有 2048 个词元、物理批上限为 256，逻辑提交仍可保持完整，执行则需要按合适边界分成多轮。这样减小的是某一轮的工作区和计算形状，不是这条输入的总 KV 或模型权重。</p>
+<p>如果只允许“一个逻辑批对应一个物理批”，应用要么自行拆提示并处理位置／序列状态，要么承受大批的峰值需求；前者把内部契约泄漏到 API 使用者，后者限制容量。上下文接口集中承担准备、推进和应用状态的责任，不同 memory 类型实现相同调用边界。代价是更多子批执行与状态管理；<code>init_batch</code> 的返回值仍需检查，存在接口不等于任意拆分都能成功。</p>
+<p><code>src/llama-memory.h</code> 的 <code>seq_rm</code>、<code>seq_cp</code>、<code>seq_add</code> 等接口按序列与位置操作状态，支持分支、删除和部分模型的位置调整。缓存快照和 slot 内公共前缀提供另一类复用，与 vLLM 的块哈希、SGLang 的基数树不同。位置平移是否有效仍取决于模型和相应实现，不是任意 Transformer 都能无损改位置。</p>
+<p>当笔记本在长输入时占用骤增，可先把逻辑批和物理批分开调节，确认权重卸载层数、KV 类型、上下文上限和算子工作区。减小物理批可降低峰值，却可能增加执行次数；把更多层放 GPU 可减少 CPU 计算，却消耗有限显存并改变设备间传输。<code>tools/fit-params/</code>、<code>llama-bench</code> 与 <code>perplexity</code> 分别服务配置、速度和部分质量检查，不应只看模型文件大小。</p>
+<h4 id="llama-server共享批与状态线程">llama-server：共享批与状态线程</h4>
+<p><code>tools/server/README-dev.md</code> 描述 server context、slot、请求／结果队列与 HTTP 层。多个兼容 slot 将提示词或上一轮生成词元放入共享 batch，再调用 <code>llama_decode</code>，因此它并非没有连续批处理。批组成仍受配置相容性和容量约束。</p>
+<p>模型状态由专用执行路径维护，JSON 解析、模板和响应格式化放在 HTTP 处理侧。把可并行的格式化移出状态热路径，能减少多序列生成互相干扰。流式重连若使用保留缓冲，需要限制会话容量并保持所有者隔离；它恢复的是输出传送，不等于任意时间点的模型状态容灾。</p>
+<p>router 和 sleep 路线分别处理多模型入口与空闲资源释放。若偶发请求服务长期占内存，卸载上下文可以节约常驻量，但下一请求承担恢复成本；健康检查应避免意外触发模型重载。模型生命周期和每词元计算是两种优化对象。</p>
+<h4 id="exllamav2消费级-nvidia-的低比特执行">exllamav2：消费级 NVIDIA 的低比特执行</h4>
+<p>exllamav2 将线性层、注意力、缓存和生成器直接组织在模型部件周围。<code>conversion/</code>、<code>linear.py</code>、<code>exllamav2_ext/</code> 连接 EXL2 权重转换与 CUDA 执行，<code>cache.py</code> 包含基础、8 位和 Q4／Q6／Q8 等缓存类型，<code>generator/dynamic.py</code> 则组织动态生成与页管理。这些路径支持的格式以本版本实际实现为准，不将 EXL3 自动归入 exllamav2。</p>
+<p>混合比特转换在目标平均容量下为敏感部分分配更多精度，校准语料影响误差评估。权重低比特与 KV 低比特仍是两条独立轴；Hadamard 相关实现也需要按具体路径辨认用途，不能仅凭目录名断言所有权重转换都执行同一种旋转算法。</p>
+<p>实际场景是“单卡显存有限，希望保留较大的模型与长上下文”。可先确定权重转换质量，再分别选择缓存精度、最大长度和动态批容量。某一缓存类型支持不代表所有注意力后端都支持；需要逐 token 对照与任务质量评估。decode 的小 batch 常受带宽影响，大 batch 又改变 GEMM 与 KV 的比例，不能把个人单请求延迟外推到多租户服务吞吐。</p>
+<h4 id="ollama分发与运行时而非另一种注意力算法">Ollama：分发与运行时，而非另一种注意力算法</h4>
+<p>Ollama 的 Go 服务、API、模型清单和内容寻址 blob，把下载、配置、加载、执行与卸载组织成一个本地运行时。<code>server/download.go</code>、模型创建相关文件和 <code>api/</code> 承载这一层；执行后端则与 <code>llm/</code>、<code>llama/</code> 等实现连接。它复用已有模型执行能力，增量价值主要在分发、配置和生命周期，不能笼统称为更快的 llama.cpp。</p>
+<p><strong>源码摘录：区分请求事件、已加载模型与进行中的加载。</strong> 仓库 <code>ollama</code>，固定提交 <code>42e911bc3d05798cad729cb474bf62f378cb2e26</code>；文件 <code>server/sched.go</code>，第 61–82 行，符号 <code>Scheduler</code>。<a href="https://github.com/ollama/ollama/blob/42e911bc3d05798cad729cb474bf62f378cb2e26/server/sched.go#L61-L82">对应源码</a>。</p>
+<pre><code class="language-go"><span class="syn-kd">type</span><span class="syn-w"> </span><span class="syn-nx">Scheduler</span><span class="syn-w"> </span><span class="syn-kd">struct</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">    </span><span class="syn-nx">pendingReqCh</span><span class="syn-w">  </span><span class="syn-kt">chan</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-nx">LlmRequest</span>
+<span class="syn-w">    </span><span class="syn-nx">finishedReqCh</span><span class="syn-w"> </span><span class="syn-kt">chan</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-nx">LlmRequest</span>
+<span class="syn-w">    </span><span class="syn-nx">expiredCh</span><span class="syn-w">     </span><span class="syn-kt">chan</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-nx">runnerRef</span>
+<span class="syn-w">    </span><span class="syn-nx">unloadedCh</span><span class="syn-w">    </span><span class="syn-kt">chan</span><span class="syn-w"> </span><span class="syn-kt">any</span>
+
+<span class="syn-w">    </span><span class="syn-c1">// loadedMu protects loaded and activeLoading</span>
+<span class="syn-w">    </span><span class="syn-nx">loadedMu</span><span class="syn-w"> </span><span class="syn-nx">sync</span><span class="syn-p">.</span><span class="syn-nx">Mutex</span>
+
+<span class="syn-w">    </span><span class="syn-c1">// activeLoading is the model that we are currently working on loading,</span>
+<span class="syn-w">    </span><span class="syn-c1">// including by evicting one or more other models. We can only load</span>
+<span class="syn-w">    </span><span class="syn-c1">// one model at a time but new requests to models that already loaded can</span>
+<span class="syn-w">    </span><span class="syn-c1">// happen in parallel</span>
+<span class="syn-w">    </span><span class="syn-nx">activeLoading</span><span class="syn-w"> </span><span class="syn-nx">llm</span><span class="syn-p">.</span><span class="syn-nx">LlamaServer</span>
+<span class="syn-w">    </span><span class="syn-nx">loaded</span><span class="syn-w">        </span><span class="syn-kt">map</span><span class="syn-p">[</span><span class="syn-kt">string</span><span class="syn-p">]</span><span class="syn-o">*</span><span class="syn-nx">runnerRef</span>
+
+<span class="syn-w">    </span><span class="syn-nx">loadFn</span><span class="syn-w">          </span><span class="syn-kd">func</span><span class="syn-p">(</span><span class="syn-nx">req</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-nx">LlmRequest</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">systemInfo</span><span class="syn-w"> </span><span class="syn-nx">ml</span><span class="syn-p">.</span><span class="syn-nx">SystemInfo</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">gpus</span><span class="syn-w"> </span><span class="syn-p">[]</span><span class="syn-nx">ml</span><span class="syn-p">.</span><span class="syn-nx">DeviceInfo</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">requireFull</span><span class="syn-w"> </span><span class="syn-kt">bool</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-kt">bool</span>
+<span class="syn-w">    </span><span class="syn-nx">newServerFn</span><span class="syn-w">     </span><span class="syn-kd">func</span><span class="syn-p">(</span><span class="syn-nx">systemInfo</span><span class="syn-w"> </span><span class="syn-nx">ml</span><span class="syn-p">.</span><span class="syn-nx">SystemInfo</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">gpus</span><span class="syn-w"> </span><span class="syn-p">[]</span><span class="syn-nx">ml</span><span class="syn-p">.</span><span class="syn-nx">DeviceInfo</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">model</span><span class="syn-w"> </span><span class="syn-kt">string</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">f</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-nx">gguf</span><span class="syn-p">.</span><span class="syn-nx">Model</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">adapters</span><span class="syn-w"> </span><span class="syn-p">[]</span><span class="syn-kt">string</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">projectors</span><span class="syn-w"> </span><span class="syn-p">[]</span><span class="syn-kt">string</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">opts</span><span class="syn-w"> </span><span class="syn-nx">api</span><span class="syn-p">.</span><span class="syn-nx">Options</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">numParallel</span><span class="syn-w"> </span><span class="syn-kt">int</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">config</span><span class="syn-w"> </span><span class="syn-nx">llm</span><span class="syn-p">.</span><span class="syn-nx">LlamaServerConfig</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-nx">llm</span><span class="syn-p">.</span><span class="syn-nx">LlamaServer</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-kt">error</span><span class="syn-p">)</span>
+<span class="syn-w">    </span><span class="syn-nx">getGpuFn</span><span class="syn-w">        </span><span class="syn-kd">func</span><span class="syn-p">(</span><span class="syn-nx">ctx</span><span class="syn-w"> </span><span class="syn-nx">context</span><span class="syn-p">.</span><span class="syn-nx">Context</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nx">runners</span><span class="syn-w"> </span><span class="syn-p">[]</span><span class="syn-nx">ml</span><span class="syn-p">.</span><span class="syn-nx">FilteredRunnerDiscovery</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-p">[]</span><span class="syn-nx">ml</span><span class="syn-p">.</span><span class="syn-nx">DeviceInfo</span>
+<span class="syn-w">    </span><span class="syn-nx">getSystemInfoFn</span><span class="syn-w"> </span><span class="syn-kd">func</span><span class="syn-p">()</span><span class="syn-w"> </span><span class="syn-nx">ml</span><span class="syn-p">.</span><span class="syn-nx">SystemInfo</span>
+<span class="syn-w">    </span><span class="syn-nx">waitForRecovery</span><span class="syn-w"> </span><span class="syn-nx">time</span><span class="syn-p">.</span><span class="syn-nx">Duration</span>
+<span class="syn-p">}</span>
+</code></pre>
+<p>这里的四类 channel 表达请求到达、请求结束、模型过期和卸载完成等不同事件；<code>loaded</code> 记录已经存在的 runner，<code>activeLoading</code> 标记正在进行的加载。锁保护的是这两份模型生命周期状态，不是注意力中的 KV tile。源码注释还说明：加载串行组织，已加载模型的新请求仍可继续处理；是否真的及时推进，还取决于后续事件循环与执行资源。</p>
+<p>没有共享的驻留模型表，每条请求独立启动 runner 会重复加载权重，并难以共同判断显存容量。仅加缓存表也不够：两个请求发现同一模型未就绪后同时加载，会产生重复占用；正在加载的状态把这段空窗纳入调度。代价是新模型加载可能排队，卸载与请求引用必须协调。因而更短的 keep-alive 不是无条件优化：它降低空闲驻留，却可能把同一模型的下一次请求重新送入加载队列。</p>
+<p>Modelfile 把模板、系统提示和参数连接到模型条目，清单描述实际层；只有完全相同的数据层才能内容去重，两个不同微调的全部权重并不会天然只需增量下载。模型标签可以改变，复现应同时固定内容身份、模板与采样设置。</p>
+<p>桌面应用若要在多个模型间切换，方案需要同时管理驻留数量、空闲卸载和加载失败。短 keep-alive 节省内存，却可能使连续交互反复加载；长保留降低暖启动延迟，却挤占其他应用。存在云代理能力时还要区分本地执行与远端请求，不能只因使用本地客户端就宣称所有数据离线处理。</p>
+<h4 id="mlc-llm将平台差异提前到编译流程">MLC-LLM：将平台差异提前到编译流程</h4>
+<p>MLC-LLM 用 <code>python/mlc_llm/model/</code>、<code>quantization/</code>、<code>compiler_pass/</code> 和 <code>interface/</code> 连接模型定义、量化和目标编译，<code>cpp/</code> 运行时加载产物并组织缓存、采样，<code>android/</code>、<code>ios/</code>、<code>web/</code> 展示跨端接入。TVM 子模块未完整检出，静态研读范围不包含完整 TVM 编译器本体。</p>
+<p>编译式部署可以把解量化、布局与融合接到目标后端，同时仍需运行时处理请求和动态 KV。固定的是产物约定的能力与布局，不意味着每条序列长度都在编译期不变。修改模型、量化或目标条件时，可能需要重新生成产物。</p>
+<p>若同一产品要在手机、浏览器和桌面上运行，核心问题不是只选一个通用 API，而是建立可重复的编译、打包和运行流程。应固定模型库与权重版本的匹配，并分别测试设备内存、目标后端算子和冷启动。不同平台的散热、驱动和资源限制不能用一台服务器的结果替代。</p>
+<h3 id="异构与稀疏把容量问题转成放置问题">异构与稀疏：把容量问题转成放置问题</h3>
+<h4 id="ktransformersmoe-专家与主存旁的计算">ktransformers：MoE 专家与主存旁的计算</h4>
+<p>MoE 为一个词元选择少量专家，但全部专家权重仍须可访问。权重总容量可能远大于某次执行的激活量。ktransformers 的 <code>kt-kernel/</code>、<code>ktransformers/</code> 及历史实现，探索把部分专家权重留在主存并用 CPU 内核计算，把其他热点留在 GPU。具体放置随模型与配置而变。</p>
+<p>它利用的是模型 router 给出的专家级选择，不需要像神经元稀疏方案那样猜测全部激活。CPU 计算可以避免每一步把完整专家权重搬入 GPU，却要传递激活和路由结果，受主存带宽、CPU 矩阵运算、NUMA 与同步限制。MoE 的瓶颈不是永远只有容量，batch 与专家集中程度改变后，也可能受算力或通信限制。</p>
+<p>实际问题是“大主存能放权重，GPU 显存放不下，希望低成本离线使用”。方案应先确认主存与内核支持，再测单请求和小并发的各层时间；如果 CPU 专家段占主要延迟，增加 GPU 的非专家层并不能根治。该方案的目标是降低硬件容量门槛，不是无条件达到多卡全 GPU 服务的吞吐。</p>
+<h4 id="powerinfer神经元级热冷划分">PowerInfer：神经元级热／冷划分</h4>
+<p>PowerInfer 利用适用模型的激活稀疏性和激活分布偏斜，把经常访问的神经元权重放 GPU，较冷部分放 CPU，并用预测机制组织稀疏计算。其 <code>powerinfer/</code>、相关模型与预测资料提供这种放置的研究案例。固定目录中的后续模型路线不应与原始论文实验配置混写。</p>
+<p>关键条件是激活确实足够稀疏，预测与异构协作成本小于省下的计算／读取。ReLU 类结构和稠密激活模型不能默认共用收益结论，预测遗漏还要评估质量影响。它与 ktransformers 的 MoE 路由稀疏是两个不同来源，也与稀疏注意力的键选择不同。</p>
+<p>若想在消费级设备使用这种方案，先核实模型是否满足方法假设，再以稠密参考执行比较输出、漏选和耗时。不能对任意现成模型加一个预测器，就推断取得相同加速。<a href="https://arxiv.org/abs/2312.12456">PowerInfer</a> 的实验是特定模型、硬件与实现的证据，不是所有端侧 Transformer 的性能保证。</p>
+<h4 id="vllm-ascend框架接口之外的硬件适配">vLLM-Ascend：框架接口之外的硬件适配</h4>
+<p>vLLM-Ascend 用 <code>vllm_ascend/platform.py</code> 对接平台，<code>attention/</code>、<code>quantization/</code>、<code>worker/</code> 与 <code>csrc/</code> 承担实际执行，CANN／ACLNN 和通信相关实现替代 CUDA 路径。这里迁移的不是在线 softmax 的一个 Python 函数，而是设备、内存、算子、图、状态布局和分布式契约。</p>
+<p>新硬件移植可从数学参考后端建立正确基线，再补齐注意力、MoE、量化和通信热点，最后接入图执行和服务。<code>patch/</code> 表明有部分行为通过适配覆盖处理，但其存在不提供“多少百分比可由接口解决”的数字。应按具体 patch 判断上游耦合与升级风险。</p>
+<p>实际场景是“API 和模型不变，执行设备从 CUDA GPU 换成 NPU”。需要逐层比较输出、验证缓存增长和重用，再测试多 rank 的候选、采样与取消。量化权重还须确认格式与内核匹配；协议层没有改动并不证明底层等价。</p>
+<h3 id="贯穿框架的方案缓存图执行采样与分布式">贯穿框架的方案：缓存、图执行、采样与分布式</h3>
+<h4 id="共享前缀省计算与省读取分开">共享前缀：省计算与省读取分开</h4>
+<p>前缀缓存避免重复执行已经算过的上下文，cascade attention 等路径进一步尝试在一批查询中复用共享前缀的读取。二者分别作用于重复计算和注意力读取组织。缓存命中后，新的查询仍要访问这些历史 KV；它们没有从模型状态中消失。</p>
+<p>大量请求使用相同系统提示时，应先确认真实词元前缀一致、路由能到拥有缓存的实例，记录命中长度与驱逐；然后才评估共享读取路径是否值得启用。共享区太短、batch 太小或额外归约太贵时，普通路径可能更合适。不同租户、适配器、模型权重及检索内容的隔离必须进入缓存身份，避免错误共享和不合适的状态暴露。</p>
+<h4 id="权重与-kv-量化容量估算到质量验证">权重与 KV 量化：容量估算到质量验证</h4>
+<p>权重量化减少模型存储与部分读取，KV 量化减少活跃上下文状态及相关带宽，激活量化又改变计算路径。它们都可能加入尺度、转换和临时工作区。数据位数减半只给出特定张量原始字节数的变化，不等于总显存减半或吞吐翻倍。</p>
+<p>实际调优可按“权重固定占用—上下文增长—执行峰值—图与缓冲预留”分解内存，再只改一个精度轴。质量评估除困惑度外，还应包含目标任务、长上下文和结构化输出；低精度只影响一小部分状态也仍可能累积误差。支持某种格式的模型转换器、运行时层与设备 kernel 必须匹配，不能仅靠配置字符串选择。</p>
+<h4 id="cuda-graph-与重叠执行稳定缓冲是前提">CUDA Graph 与重叠执行：稳定缓冲是前提</h4>
+<p>增量解码的一步包含很多小 kernel，CPU 提交和框架开销可能占显著比例。CUDA Graph 将适合的执行段捕获后重放；固定地址缓冲、形状分档和 padding 让动态请求映射到可重用图，分段路线则把某些动态部分留在图外。分页块表并非本质上无法进入图，关键是所选后端和元数据更新是否满足捕获契约。</p>
+<p>vLLM 的 dispatcher／编译路径、SGLang 的 piecewise 后端、TensorRT-LLM 的 graph runner、mini-sglang 的 <code>engine/graph.py</code> 提供不同规模的组织。捕获图会消耗内存与启动时间，padding 又可能浪费计算。实际问题是“小 batch 解码中 GPU 时间不长但 CPU 空档很大”；先做 CPU／GPU 时间线，若真正热点是 KV 读取，图重放不会解决它。</p>
+<p>重叠调度让元数据准备和输出处理避开设备热路径，却增加在途状态。下一步不能覆写上一批仍在读的页表，取消不能提前释放在途 KV，rank 也必须对批组成保持一致。双缓冲、事件与快照分别承担生命周期约束，不能把 <code>non_blocking=True</code> 当成所有数据都安全。</p>
+<h4 id="投机解码减少目标模型步数而非跳过验证">投机解码：减少目标模型步数，而非跳过验证</h4>
+<p>草稿器提出多个候选，目标模型批量验证，按算法接受部分候选并继续生成。候选可以来自小模型、EAGLE／MTP 等额外参数，也可以来自 n-gram 或历史文本。vLLM 的 proposer、SGLang 的 speculative worker、TensorRT-LLM 的 speculative 模块和 llama.cpp 的双 context 流程，分别把同一提议—验证关系接到自身引擎。</p>
+<p>实际问题是“低并发下权重读取代价高，每个词元都触发完整目标前向”。是否有收益取决于接受数量、草稿成本、验证成本、额外 KV 与调度：接受率高也可能因草稿太贵而无收益。大 batch 已经摊薄权重读取时，更多候选又可能增加计算负担。应同时记录净生成词元、目标前向次数、接受分布与总时间。</p>
+<p>随机采样要用相应校正保证目标分布，不能把目标对草稿的贪心判断套到任意采样配置。被拒绝位置的 KV、位置进度和语法状态也须回滚。TP、PP 或 PD 分离下还要同步草稿与接受决定，不能让不同 rank 分别产生不一致的序列。</p>
+<h4 id="结构化输出语法状态与采样批相接">结构化输出：语法状态与采样批相接</h4>
+<p>约束解码维护每请求的语法状态，在采样前过滤不合法候选。vLLM 通过 structured-output 后端，llama.cpp 通过 grammar 和采样链，其他引擎则有相应 guided decoder。请求级状态与批量 logits 相接时，必须保证 mask 行映射正确，并在接受生成词元后才推进状态。</p>
+<p>实际场景是“输出必须可解析为 JSON 或工具参数”。方案应把语法约束接入采样，再做 schema、类型和业务校验；合法 JSON 并不保证字段含义正确。schema 编译、逐步 mask、流式解析和重试各占成本。约束生成器与将自由文本解析成工具调用的 parser 也不是同一种能力。</p>
+<h4 id="并行pd-分离与状态版本">并行、PD 分离与状态版本</h4>
+<p>TP 划分矩阵，PP 划分层，DP 承接不同请求，EP 放置不同专家，上下文并行划分 KV／序列工作。每种方案减少的是不同的单设备压力，也引入不同通信。专家负载随输入分布变化时，EPLB 可调整放置，但重排本身也要成本与一致性。</p>
+<p>长预填充干扰解码时，除分块外还可把 prefill／decode 放到不同实例。两端必须传输并确认 KV 的可用性，维护模型、位置、精度、层布局和版本一致。可行性应把 KV 字节数除以可用传输带宽的时间，与排队、重算及两端执行放在同一时间线上比较，不能只说“中间只传 KV，因此很便宜”。</p>
+<p>当传输延迟超过节省的干扰时间，合并实例或适度分块可能更好。失败、超时、连接器等待、块保护及退化重算都属于协议；缓存仍在路上时不能执行依赖它的 query。分层 KV 存储与 PD 传输可以组合，但多加一层存储也多加一层版本与故障管理。</p>
+<p>RL rollout 与训练交替时，推理引擎的 sleep／wake、权重更新和版本标记解决资源交接；它们不构成训练优化器本身。新权重安装后，旧 KV 一般不再能按新模型复用，必须按版本失效或重算。状态切换还要等待在途批结束，避免同一 rollout 混入不同权重版本。</p>
+<h3 id="精简实现把完整机制压缩为可检查的状态机">精简实现：把完整机制压缩为可检查的状态机</h3>
+<h4 id="nano-vllm分页与请求进度的最小链路">nano-vllm：分页与请求进度的最小链路</h4>
+<p><code>nanovllm/engine/sequence.py</code>、<code>block_manager.py</code>、<code>scheduler.py</code>、<code>llm_engine.py</code> 与 <code>model_runner.py</code> 串起请求、缓存、调度、执行和回写。链式块哈希防止不同前文中的同一片段错误共享；引用计数连接共享与释放；未被重新利用的空闲块仍可保留缓存身份。</p>
+<p>固定版本的调度先尝试 prefill，若有批就返回，再处理 decode。因此已有分块预填充，并不等于已经混合两种工作；它也保留了只允许某些请求在本批继续切块的限制。<code>postprocess</code> 在 prefill 未完成时不产生下一生成词元，这个条件比简单删除调度中的一个 <code>break</code> 更重要。调度器只在本轮计划覆盖预填充尾部时移入 running；真正完成的缓存进度随后由 <code>postprocess</code> 更新。扩展调度时须保持“尚缺预填充片段不能直接进入生成”的不变量。</p>
+<p><strong>源码摘录：仅在本轮计划覆盖预填充尾部时转入运行队列。</strong> 仓库 <code>nano-vllm</code>，固定提交 <code>bb823b3e06983d71485a8e1f23715ebd87d98ef8</code>；文件 <code>nanovllm/engine/scheduler.py</code>，第 46–52 行，符号 <code>Scheduler.schedule</code>。<a href="https://github.com/GeeeekExplorer/nano-vllm/blob/bb823b3e06983d71485a8e1f23715ebd87d98ef8/nanovllm/engine/scheduler.py#L46-L52">对应源码</a>。</p>
+<pre><code class="language-python">            <span class="syn-n">seq</span><span class="syn-o">.</span><span class="syn-n">num_scheduled_tokens</span> <span class="syn-o">=</span> <span class="syn-nb">min</span><span class="syn-p">(</span><span class="syn-n">num_tokens</span><span class="syn-p">,</span> <span class="syn-n">remaining</span><span class="syn-p">)</span>
+            <span class="syn-n">num_batched_tokens</span> <span class="syn-o">+=</span> <span class="syn-n">seq</span><span class="syn-o">.</span><span class="syn-n">num_scheduled_tokens</span>
+            <span class="syn-k">if</span> <span class="syn-n">seq</span><span class="syn-o">.</span><span class="syn-n">num_cached_tokens</span> <span class="syn-o">+</span> <span class="syn-n">seq</span><span class="syn-o">.</span><span class="syn-n">num_scheduled_tokens</span> <span class="syn-o">==</span> <span class="syn-n">seq</span><span class="syn-o">.</span><span class="syn-n">num_tokens</span><span class="syn-p">:</span>
+                <span class="syn-n">seq</span><span class="syn-o">.</span><span class="syn-n">status</span> <span class="syn-o">=</span> <span class="syn-n">SequenceStatus</span><span class="syn-o">.</span><span class="syn-n">RUNNING</span>
+                <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">waiting</span><span class="syn-o">.</span><span class="syn-n">popleft</span><span class="syn-p">()</span>
+                <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">running</span><span class="syn-o">.</span><span class="syn-n">append</span><span class="syn-p">(</span><span class="syn-n">seq</span><span class="syn-p">)</span>
+            <span class="syn-n">scheduled_seqs</span><span class="syn-o">.</span><span class="syn-n">append</span><span class="syn-p">(</span><span class="syn-n">seq</span><span class="syn-p">)</span>
+</code></pre>
+<p>例如输入共 2048 个词元，已计算 1536，本轮预算只能再安排 256，求和得到 1792，请求继续保留在 waiting。下一轮再计划 256，才覆盖输入末尾并转入 running。队列转换表达的是本轮安排后的阶段，而 <code>num_cached_tokens</code> 表达已经回写的进度，两者不能混用。</p>
+<p>若一拿到 KV 块就移入 running，后续单词元路径可能在上下文尚不完整时执行；若仍在每个中间块后追加采样词元，又会把不完整提示的预测混进序列。调度中的覆盖检查与后处理中的未完成检查分工保护这两个边界。相比一口气处理完整输入，分块降低单轮工作量，却增加往返轮次；固定实现仍先处理 prefill，不能因此推断已有解码优先的公平性。</p>
+<p>该版本的 <code>model_runner.py</code> 也有图捕获与重放，精简不意味着省掉所有执行优化。精简实现的局限应从实际异常、取消、命名空间、并行与测试范围判断。它的价值是可以检查一条序列每步计算多少、何时多申请块、何时释放，而不是替代生产框架。</p>
+<h4 id="mini-sglang准入句柄保护与在途元数据">mini-sglang：准入、句柄保护与在途元数据</h4>
+<p>mini-sglang 用 <code>scheduler/prefill.py</code>、<code>decode.py</code>、<code>cache.py</code>、<code>table.py</code> 分开预填充、生成、缓存和页表，<code>kvcache/radix_cache.py</code> 提供树与句柄，<code>engine/graph.py</code> 展示固定缓冲和图执行。匹配前缀后加锁，再检查可用容量，是因为锁定会使部分节点从可驱逐集合转为受保护集合，改变预算；不必先假定存在多线程竞争才能解释第二次检查。</p>
+<p><strong>源码摘录：沿祖先链更新引用与可驱逐容量。</strong> 仓库 <code>mini-sglang</code>，固定提交 <code>9a91cfafe754aa85daee49998176275667eb58f2</code>；文件 <code>python/minisgl/kvcache/radix_cache.py</code>，第 113–130 行，符号 <code>RadixPrefixCache.lock_handle</code>。<a href="https://github.com/sgl-project/mini-sglang/blob/9a91cfafe754aa85daee49998176275667eb58f2/python/minisgl/kvcache/radix_cache.py#L113-L130">对应源码</a>。</p>
+<pre><code class="language-python">    <span class="syn-k">def</span><span class="syn-w"> </span><span class="syn-nf">lock_handle</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-p">,</span> <span class="syn-n">handle</span><span class="syn-p">:</span> <span class="syn-n">BaseCacheHandle</span><span class="syn-p">,</span> <span class="syn-n">unlock</span><span class="syn-p">:</span> <span class="syn-nb">bool</span> <span class="syn-o">=</span> <span class="syn-kc">False</span><span class="syn-p">)</span> <span class="syn-o">-&gt;</span> <span class="syn-kc">None</span><span class="syn-p">:</span>
+        <span class="syn-k">assert</span> <span class="syn-nb">isinstance</span><span class="syn-p">(</span><span class="syn-n">handle</span><span class="syn-p">,</span> <span class="syn-n">RadixCacheHandle</span><span class="syn-p">)</span>
+        <span class="syn-n">node</span> <span class="syn-o">=</span> <span class="syn-n">handle</span><span class="syn-o">.</span><span class="syn-n">node</span>
+        <span class="syn-k">if</span> <span class="syn-n">unlock</span><span class="syn-p">:</span>
+            <span class="syn-k">while</span> <span class="syn-ow">not</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">is_root</span><span class="syn-p">():</span>
+                <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">ref_count</span> <span class="syn-o">-=</span> <span class="syn-mi">1</span>
+                <span class="syn-k">assert</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">ref_count</span> <span class="syn-o">&gt;=</span> <span class="syn-mi">0</span>
+                <span class="syn-k">if</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">ref_count</span> <span class="syn-o">==</span> <span class="syn-mi">0</span><span class="syn-p">:</span>
+                    <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">evictable_size</span> <span class="syn-o">+=</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">length</span>
+                    <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">protected_size</span> <span class="syn-o">-=</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">length</span>
+                <span class="syn-n">node</span> <span class="syn-o">=</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">parent</span>
+        <span class="syn-k">else</span><span class="syn-p">:</span>
+            <span class="syn-k">while</span> <span class="syn-ow">not</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">is_root</span><span class="syn-p">():</span>
+                <span class="syn-k">if</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">ref_count</span> <span class="syn-o">==</span> <span class="syn-mi">0</span><span class="syn-p">:</span>
+                    <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">evictable_size</span> <span class="syn-o">-=</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">length</span>
+                    <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">protected_size</span> <span class="syn-o">+=</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">length</span>
+                <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">ref_count</span> <span class="syn-o">+=</span> <span class="syn-mi">1</span>
+                <span class="syn-n">node</span> <span class="syn-o">=</span> <span class="syn-n">node</span><span class="syn-o">.</span><span class="syn-n">parent</span>
+</code></pre>
+<p>锁定从句柄所在节点一路走向公共祖先，因为一次请求读取的是整条前缀，不是只读取末端片段。若只保护叶节点，两个分支共同依赖的祖先仍可能被驱逐，叶子句柄就不能保证完整上下文可用。每次引用从 0 变为 1，节点长度由可驱逐容量转为受保护容量；从 1 变为 0 时才反向转回。共享祖先若还有另一个使用者，释放一个请求不会把它变回可驱逐状态。</p>
+<p>这个设计也解释了为何匹配前的可用空间不能直接成为最终准入结果：锁定刚刚移走了一部分可回收容量。去掉第二次容量判断，即使没有并发线程，也可能用过时预算接纳请求。代价是每次锁定／解锁沿祖先链更新状态，引用必须成对释放；长期遗失句柄会表现为受保护容量无法回收，而不是一次立即可见的输出错误。</p>
+<p><code>ChunkedReq</code> 不允许进入解码或采样，明确表达“预填充尚未完成”的受限状态。准入还要为在途生成预留空间，页尾补量不能解释成每请求固定额外申请完整一页。严格 FCFS 与跳过放不下的请求，是公平性和预算利用率的不同取舍。</p>
+<p>重叠执行中的 <code>ForwardInput</code> 保存本轮映射与位置，避免下一轮元数据改写破坏在途计算。实际扩展时应分别测试树匹配、页表填入、图缓冲和释放时序，再连接到完整服务。用一个无前缀复用的对照缓存，可以隔离缓存机制的作用；是否更快仍要以工作负载测量。</p>
+<h3 id="按问题选择方案而不是按框架名字选择">按问题选择方案，而不是按框架名字选择</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>主要限制</th>
+<th>优先辨认的对象</th>
+<th>对应方案与入口</th>
+<th>必须一起评估的成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>长序列训练的注意力中间量</td>
+<td>S／P 与反向保存</td>
+<td>FlashAttention 前向融合、反向重算</td>
+<td>其他激活、梯度与优化器仍在</td>
+</tr>
+<tr>
+<td>参数／优化器状态装不下</td>
+<td>数据并行的冗余状态</td>
+<td>DeepSpeed 状态分片／卸载</td>
+<td>集合通信、预取与带宽</td>
+</tr>
+<tr>
+<td>长提示拖慢正在生成的请求</td>
+<td>步内负载与排队</td>
+<td>vLLM／SGLang／FastGen 分块与预算</td>
+<td>TTFT、TPOT、公平性和额外轮次</td>
+</tr>
+<tr>
+<td>多轮／分支重复同一上下文</td>
+<td>前缀身份、路由与驱逐</td>
+<td>块哈希、RadixCache、slot 状态复用</td>
+<td>命名空间、页对齐与失效</td>
+</tr>
+<tr>
+<td>小 batch 解码 CPU 空档多</td>
+<td>启动、输入构造、回传</td>
+<td>图重放与重叠执行</td>
+<td>捕获内存、padding、在途生命周期</td>
+</tr>
+<tr>
+<td>单卡容量有限</td>
+<td>权重、KV 与执行峰值</td>
+<td>LMDeploy／exllamav2／llama.cpp 的匹配量化路径</td>
+<td>转换格式、质量和 kernel 支持</td>
+</tr>
+<tr>
+<td>多种终端都要部署</td>
+<td>平台后端与产物</td>
+<td>llama.cpp 后端或 MLC 编译路线</td>
+<td>构建、驱动、散热与冷启动</td>
+</tr>
+<tr>
+<td>巨型 MoE 总权重超显存</td>
+<td>专家放置与活跃路由</td>
+<td>ktransformers 异构专家计算</td>
+<td>主存、CPU 内核、NUMA 和传输</td>
+</tr>
+<tr>
+<td>新硬件无法使用 CUDA 路径</td>
+<td>平台、布局、算子与通信</td>
+<td>vLLM-Ascend 或其他专用后端</td>
+<td>数值、功能组合与升级耦合</td>
+</tr>
+<tr>
+<td>偶发多模型服务长期占内存</td>
+<td>驻留与卸载策略</td>
+<td>Ollama 生命周期、llama-server sleep／router</td>
+<td>加载抖动、会话和内容版本</td>
+</tr>
+</tbody>
+</table></div>
+<p>这些方案可以组合，但应按对象依次验证。先固定模型、输入／输出长度、精度和质量要求，区分冷启动、预填充、解码、排队与端到端；再改变一个主要变量，保存状态量和时序证据。框架为模型执行提供组织方式，不直接证明某项下游能力，也不替代任务评价协议。</p>
+</section>
+
+<section id="sec-06-downstream">
+<h2 id="6-下游任务">6. 下游任务</h2>
 <h3 id="语言与文本序列任务">语言与文本序列任务</h3>
 <p>BERT 的使用说明同一编码器如何接到不同输出对象：文本分类需要序列级表示，标注需要逐位置表示，抽取式问答需要答案起止位置。对问答预测一个跨度，不等于模型生成了任意自由形式答案；对文本关系作分类，也不等于模型已经建模了完整交互环境。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}]">[1]</a> 下游任务的单位、标签与输出约束决定了怎样读取表示。</p>
 <p>原始 Transformer 的翻译则把源序列编码与目标生成连接起来。目标词元通过因果自注意力读取历史输出，通过交叉注意力读取源序列。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a> 翻译质量指标仍依赖语言对、数据、解码和评价条件，不能因为模型使用同一架构就将某种任务能力无条件推广到其他领域。</p>
