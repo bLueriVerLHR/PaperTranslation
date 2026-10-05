@@ -1,6 +1,10 @@
 {
   "pages": [
     {
+      "path": "gnn-review/index.html",
+      "title": "GNN：图表示、消息传递与金融欺诈检测"
+    },
+    {
       "path": "llvm-optimization-tutorial/index.html",
       "title": "LLVM 优化原理教程：从循环变换到贪心寄存器分配"
     },
@@ -10,26 +14,26 @@
     },
     {
       "path": "transformer-review/index.html",
-      "title": "Transformer：架构、训练、推理与应用综述（预览初稿）"
+      "title": "Transformer：架构、训练、推理与应用综述"
     }
   ],
   "files": {
-    "assets/fonts/fonts.css": "e39bc4fc649b92fefe655a4b023b697d7231795f5411c6b487c4070762c49b50",
-    "assets/fonts/han-bold-00.woff2": "979efe4cedebbbe6d11661fc77d3b80f1da00d4fb930f5eb8f3bfb7b07016f93",
-    "assets/fonts/han-bold-01.woff2": "fc8ddf53eb51a9afb463cb6afd93570c72e2f553a48fff9ad200d9360047eea4",
-    "assets/fonts/han-bold-02.woff2": "412c1b0643af81f38f94f94d8778afe08984276aa53d8d71800b46fdd3a1963a",
+    "assets/fonts/fonts.css": "6a0aaacef7558279dc618468e127a3248a7bdcad17719b87e87dd1d4bb2b9f37",
+    "assets/fonts/han-bold-00.woff2": "7dcd2bcdef2ff5d1fd7939a3f2bea5d1391249ad378ecdbb7b48b74df0b4d719",
+    "assets/fonts/han-bold-01.woff2": "369bc3eaef1563643d10ceba7cbd48420ab32892cd4ec8862b67cdc64a92ce65",
+    "assets/fonts/han-bold-02.woff2": "01e0302912144737c7d98552eeff16d033fea2b776e08f8dbc703e24bae40a81",
     "assets/fonts/han-bold-03.woff2": "86ef6ee50ec246be1b8d85febd405717630ef0d1b6d1d4af22b03f92b0a72538",
     "assets/fonts/han-OFL.txt": "9ff5bb567e1b92c801fc1069e5fbf992ff8efccacb9db94e5959a5b3ba9bb903",
-    "assets/fonts/han-regular-00.woff2": "365b0320b159513a218e88f57c2fdd7000b8f21148e6256fce5da4edb6d61d1d",
-    "assets/fonts/han-regular-01.woff2": "ddc54bb2a87ad804963878dac3a5f0bdea5a5e23102db0d0b1eb5f5fcf937883",
-    "assets/fonts/han-regular-02.woff2": "e1bae0d652cba97a7c7c35b886f55e246477abd4f9720dfd81f66ea5f1a0f0fc",
+    "assets/fonts/han-regular-00.woff2": "c39e031362b6f1067abd7e42169878a5a138103d7dad8310726aaaac31e3fb27",
+    "assets/fonts/han-regular-01.woff2": "d95562912d0e3a9fb726b231f909ea84213ddad719222381da1928db146d9b33",
+    "assets/fonts/han-regular-02.woff2": "955fecb202c3329464a7f2a05ae9fd495f1c3a5709793c93da11fe2284f37e26",
     "assets/fonts/han-regular-03.woff2": "d7ed2f844ccafb5a41b78aabc446f5805092cf3dc8ce6b4c8638b6d93f9a8d30",
     "assets/fonts/maple-bold.woff2": "59f78510638f8a9ddaefcd2eefdba9901a9fa8b660937dca21a9caf53735c7c9",
     "assets/fonts/maple-bolditalic.woff2": "70d54a7abdffcf7405fa3d41a4fc77c30ef6bd8409f2f201053fb82018c883c7",
     "assets/fonts/maple-italic.woff2": "41348ea08d6828057776184243ac2955a8d858a39e64a800387326173d46b8f9",
     "assets/fonts/maple-OFL.txt": "eb2d28d2e565a0757e3d64e34ebb452e75a0cad87c0ab3faf4e08ba7596de902",
     "assets/fonts/maple-regular.woff2": "4dbb5c551716473796e3d12fb8f1d13642126092f6e2f3b2d37c40d57dd9c9fa",
-    "assets/fonts/NOTICE.txt": "de2a8a6df5fabf0d6d1372f5fd6dc4f8becd7cd110bfb96fb43c01b4e9834260",
+    "assets/fonts/NOTICE.txt": "4cb2a9357207032cfca84d662858b9cb511eb88c058ad6c62eec77468327ad08",
     "assets/fonts/ondevice-fonts.css": "5c90be5372c54fcb53227811c403b51a49c9e9872a4d9282704ab59f7ff5605f",
     "assets/fonts/ondevice-han-bold-00.woff2": "bdeaf850011b8e897312147db744580335656324f9dc5a82bd061e7453da4650",
     "assets/fonts/ondevice-han-bold-01.woff2": "615094c98c907993d5a0414e7fe6d61b9db5b435e247c7e75b805a4ed5ee4504",
@@ -45,19 +49,20 @@
     "assets/fonts/ondevice-tinos-bolditalic.woff2": "979054af218ddfe3d1f68d438bff9dea23469731f8363fe33664548063cadf5e",
     "assets/fonts/ondevice-tinos-italic.woff2": "8b7e6a4b2bcc4cbbb57a11d975d076ca8c9694f7a65eda481235792de5514f31",
     "assets/fonts/ondevice-tinos-regular.woff2": "3bfdc443378f73bd7eb1ddd302190bbd97d9950330d12576a3ce8955178c28ec",
-    "assets/fonts/tinos-bold.woff2": "99d964d1f7045ff8cc7484e1aa29ea1b07fe2b3b7fa4dfd23b2dfe9f9483c2c6",
-    "assets/fonts/tinos-bolditalic.woff2": "3ad6c085dcdf5852f877a8ac8a56eb324ad1ae99def10d7b963b4c1d8d7276b0",
-    "assets/fonts/tinos-italic.woff2": "d97f166edd17996b9d35042ce567746dda3de82a27b5e3d838e07a31942303c4",
+    "assets/fonts/tinos-bold.woff2": "f7bb3142a6f6df6cd2b18c1936efe6bcb71c13be9d21170191e28a015d676b5d",
+    "assets/fonts/tinos-bolditalic.woff2": "3b620ca4e36ba9ce0691eccba47031fb6dc7c42dfbc4be96f567e2664da3730d",
+    "assets/fonts/tinos-italic.woff2": "6788baf735427a0a8709e5e1abd386f22bcd327fc3170dedd363ea4a2cafad33",
     "assets/fonts/tinos-OFL.txt": "cb3382d4643e8b02c12e322c220a3c76a5020d667e4fd4e7c75e744cca6caa6b",
-    "assets/fonts/tinos-regular.woff2": "d75b45e0d60fd519e37e7e41b8355653f800b1cbf50769765f119f6e2b4feb07",
-    "assets/scripts/library.js": "e3f42b7eef2529c7298d57c23a19bee8a2501ae927818e22f4321396e498f627",
-    "assets/scripts/reader.js": "5813a73ee7d64970e38b3e605f8cd406bbf45d016576206569bf9cdcd763538b",
-    "assets/styles/library.css": "217025ee9a9b918cd13906c5acef686509a84d8225662920928b3d925a26551f",
-    "assets/styles/reader.css": "41d002232f197973c6049f531eeff35172cb24196e519f7c230128f8e78df611",
-    "assets/styles/survey.css": "5b03636e3b9d5fbbd70611d17cdf0b2f3396c76e25184bf74db046d16a2344ec",
-    "index.html": "96058ac91f16be5d8193d73900d556dce8b076f647df8949f8d41f9a485e4801",
-    "llvm-optimization-tutorial/index.html": "da9f246efb1eb70fb2434d136121071a848619041f98b7dce2d61cfab67fd86e",
-    "redis-source-interview/index.html": "74e048d913e2f43ac17cdaa63985bd689075c4d3621321902172b55cd63be235",
-    "transformer-review/index.html": "9ce605279e9226ce6e34268abdcc8ffa60d8578ac762017de4f9c90e690db53d"
+    "assets/fonts/tinos-regular.woff2": "b0a75c5f09b6e6b2b14a49487b070c1475c046c8a01078d5ac85995f3be311bc",
+    "assets/scripts/library.js": "581e0815be8ea0719856e845943239eb2017dda30c960eaefe334e14c321b0b2",
+    "assets/scripts/reader.js": "1f083e06caa91cfe950308a3d0fc7dcfc679faffc99577a0e5989f8744910eb3",
+    "assets/styles/library.css": "cf39306f219276b22c6b180d7131e30035a4f59f9df4ec8c3bda1378332e3e93",
+    "assets/styles/reader.css": "49b89b8b167c44c934eebcf83e277714eb3e26919229a596766434f60b9075eb",
+    "assets/styles/survey.css": "388b6f1dadfb34848a5b00c1d93c0f4f1794378f28604b94a3bf595691e352e8",
+    "gnn-review/index.html": "af887a7d67a101f11e8746f2963f29f135e9b12804c556b758341835f6fa50e4",
+    "index.html": "a739aa245a7579feca6c59a0a86f5ad0e527a15f01f086bf4541eb93e876b297",
+    "llvm-optimization-tutorial/index.html": "5098ff2b141e1908f1f50629d271dba543a37ae515318cb68bebdbb1b032ae04",
+    "redis-source-interview/index.html": "7b0a56cd9a1b4383cf68e51aa5bf2d1ba5c79c41c6e6bdecd75db8bc542e555b",
+    "transformer-review/index.html": "3ebd03e1c13a9409453735f3a2168a2f57485feb61d4db61080ce7103fa1246f"
   }
 }

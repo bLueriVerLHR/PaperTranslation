@@ -18,29 +18,31 @@
   <button id="top-button" type="button" hidden>顶部</button>
 </div>
 
-<main class="page" id="content" data-content-hash="0584ac4cb0dc"><a class="site-home" href="../index.html">← 文库</a>
+<main class="page" id="content" data-content-hash="1bd7ae994fce"><a class="site-home" href="../index.html">← 文库</a>
   <header class="title-block">
     <h1>Transformer：架构、训练、推理与应用综述</h1>
     <p class="subtitle">通用架构与序列建模</p>
-    <p class="meta"><span class="latin">本地研究与整理</span> · 原创综述 · 更新于 2026-10-05</p>
+    <p class="meta"><span class="latin">原创研读与整理</span> · 原创综述 · 更新于 2026-10-05</p>
     <p class="meta reading-notice">引用文献与图示遵循各自原有许可与权利要求。</p>
 
-<details class="meta source-details"><summary>出处与说明</summary><p><strong>预览初稿</strong>：当前正文仅展开 BERT、ViT、MAE、CLIP 支撑的架构与预训练论述，其他主题仍保留未展开标题。这不是已完成的全领域综述，未覆盖的研究方向与模态不形成结论。</p>
-<p>本篇围绕 Transformer 的架构与通用序列建模展开，分别讨论训练方法、推理计算与不同模态的应用。预训练、后训练与任务训练按具体研究设置区分；指令微调和偏好优化不默认适用于所有领域。引用研究的版本、实验条件与局限在相关论述附近说明。BERT、ViT、MAE、CLIP 的相关解释依据各自实际会议版；论文权利归原作者及出版方，本文不包含其完整译文或原图表。涉及实验表现的陈述属于原作者报告，不代表本地训练复现。</p></details>
+<details class="meta source-details"><summary>出处与说明</summary><p>本篇是围绕输入表示、交互计算、学习目标与应用接口组织的原创综述。主要方法证据来自原始 Transformer、BERT、ViT、MAE 与 CLIP；DSec 作为智能体训练基础设施案例，设备端 LLM 综述与 SalesRLAgent 提供系统和应用线索。语言与视觉之外的领域仅讨论迁移时需要辨认的条件，不作全领域覆盖或性能保证。</p>
+<p>预训练、后训练与 KV 管理按具体任务辨认，不作为所有模态的共同流程。一般容量公式与假设数字是机制解释，不是实测结果；引用实验与生产经验属于原作者报告，未进行训练、系统部署或独立复现。</p>
+<p>引用材料保留各自权利。本篇不包含外部论文的完整译文或原图表。</p></details>
   </header>
 
   <details class="toc" id="toc">
     <summary>目录</summary>
     <nav aria-label="目录">
 <ol>
+<li><a href="#术语对应表">术语对应表</a></li>
 <li><a href="#1-基础原理与架构演进">1. 基础原理与架构演进</a><ol>
 <li><a href="#序列表示输入组织与位置表征">序列表示、输入组织与位置表征</a></li>
 <li><a href="#缩放点积注意力多头注意力与交叉注意力">缩放点积注意力、多头注意力与交叉注意力</a></li>
 <li><a href="#残差连接归一化与前馈网络">残差连接、归一化与前馈网络</a></li>
 <li><a href="#编码器解码器与编码器解码器结构">编码器、解码器与编码器—解码器结构</a></li>
-<li><a href="#稀疏局部及特殊注意力机制">稀疏、局部及特殊注意力机制</a></li>
-<li><a href="#线性注意力与架构变体">线性注意力与架构变体</a></li>
-<li><a href="#混合架构与计算复杂度">混合架构与计算复杂度</a></li>
+<li><a href="#稀疏局部与交互路径">稀疏、局部与交互路径</a></li>
+<li><a href="#线性注意力与低秩压缩的区别">线性注意力与低秩压缩的区别</a></li>
+<li><a href="#输入组织与计算复杂度">输入组织与计算复杂度</a></li>
 </ol></li>
 <li><a href="#2-预训练阶段">2. 预训练阶段</a><ol>
 <li><a href="#目标函数与监督信号">目标函数与监督信号</a><ol>
@@ -53,14 +55,19 @@
 </ol></li>
 <li><a href="#3-后训练阶段">3. 后训练阶段</a><ol>
 <li><a href="#任务微调与领域适配">任务微调与领域适配</a></li>
-<li><a href="#参数高效适配与持续学习">参数高效适配与持续学习</a></li>
-<li><a href="#语言及交互任务中的指令偏好与对齐">语言及交互任务中的指令、偏好与对齐</a></li>
+<li><a href="#参数高效适配与持续使用">参数高效适配与持续使用</a></li>
+<li><a href="#语言及交互任务中的指令偏好与对齐">语言及交互任务中的指令、偏好与对齐</a><ol>
+<li><a href="#deepseek-dsec智能体学习中的环境生命周期">DeepSeek DSec：智能体学习中的环境生命周期</a></li>
+<li><a href="#奖励有效性与环境权限">奖励有效性与环境权限</a></li>
+</ol></li>
 <li><a href="#蒸馏校准与适配效果评估">蒸馏、校准与适配效果评估</a></li>
 </ol></li>
 <li><a href="#4-推理阶段">4. 推理阶段</a><ol>
 <li><a href="#不同任务的推理计算流程">不同任务的推理计算流程</a></li>
 <li><a href="#自回归任务的预填充增量解码与-kv-cache">自回归任务的预填充、增量解码与 KV cache</a></li>
-<li><a href="#算子实现并行与内存管理">算子实现、并行与内存管理</a></li>
+<li><a href="#算子实现并行与内存管理">算子实现、并行与内存管理</a><ol>
+<li><a href="#模型服务与工具执行不是同一条资源路径">模型服务与工具执行不是同一条资源路径</a></li>
+</ol></li>
 <li><a href="#压缩量化及部署条件">压缩、量化及部署条件</a><ol>
 <li><a href="#设备端语言模型的压缩与系统协同">设备端语言模型的压缩与系统协同</a></li>
 <li><a href="#精度时延能耗与内存的评估">精度、时延、能耗与内存的评估</a></li>
@@ -71,15 +78,196 @@
 <li><a href="#销售对话转化预测与结构化决策">销售对话转化预测与结构化决策</a></li>
 </ol></li>
 <li><a href="#视觉与空间表示任务">视觉与空间表示任务</a></li>
-<li><a href="#音频语音与流式处理">音频、语音与流式处理</a></li>
-<li><a href="#时间序列生物序列及其他序列任务">时间序列、生物序列及其他序列任务</a></li>
 <li><a href="#多模态与跨模态任务">多模态与跨模态任务</a></li>
+<li><a href="#跨领域迁移的共通问题">跨领域迁移的共通问题</a></li>
 </ol></li>
 </ol>
     </nav>
   </details>
 
   <article class="body">
+<section id="sec-glossary">
+<h2 id="术语对应表">术语对应表</h2>
+<p>本篇采用下列用词。中文译名不是唯一标准，保留英文用于检索和对照原始论文；例如正文中的“词元”对应 <code>token</code>，不是把 token 默认为完整单词。模型名、API 和代码标识保持原样。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>英文术语</th>
+<th>本篇用语</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>token</td>
+<td>词元（token）</td>
+<td>序列处理单位；文本中可为词、子词或其他离散单位</td>
+</tr>
+<tr>
+<td>tokenization / tokenizer</td>
+<td>词元化／tokenizer</td>
+<td>输入划分过程／相应工具；不默认以单词为边界</td>
+</tr>
+<tr>
+<td>patch</td>
+<td>图块（patch）</td>
+<td>图像的几何划分，不天然是物体或语义区域</td>
+</tr>
+<tr>
+<td>embedding</td>
+<td>嵌入（embedding）</td>
+<td>向量表示；与词元身份或原始像素区分</td>
+</tr>
+<tr>
+<td>hidden state</td>
+<td>隐藏状态</td>
+<td>某层的位置表示，不等于全部程序执行状态</td>
+</tr>
+<tr>
+<td>query / key / value</td>
+<td>查询／键／值（Q／K／V）</td>
+<td>注意力的匹配与汇聚分工，不指数据库字段</td>
+</tr>
+<tr>
+<td>self-attention</td>
+<td>自注意力</td>
+<td>查询、键和值来自同一输入序列的表示</td>
+</tr>
+<tr>
+<td>cross-attention</td>
+<td>交叉注意力</td>
+<td>查询与键／值来自不同表示集合</td>
+</tr>
+<tr>
+<td>multi-head attention</td>
+<td>多头注意力</td>
+<td>多组投影并行计算，之后拼接和投影</td>
+</tr>
+<tr>
+<td>attention mask</td>
+<td>注意力掩码</td>
+<td>限定位置可见性；不等同输入中的 <code>[MASK]</code> 词元</td>
+</tr>
+<tr>
+<td>causal attention</td>
+<td>因果注意力</td>
+<td>禁止访问未来位置，不是因果推断的充分条件</td>
+</tr>
+<tr>
+<td>positional encoding / embedding</td>
+<td>位置编码／位置嵌入</td>
+<td>一般位置表征／具体嵌入参数，按方法区分</td>
+</tr>
+<tr>
+<td>residual connection</td>
+<td>残差连接</td>
+<td>将子块输出与旁路输入相加</td>
+</tr>
+<tr>
+<td>LayerNorm</td>
+<td>层归一化（LayerNorm）</td>
+<td>名称保留；归一化位置依架构而变</td>
+</tr>
+<tr>
+<td>feed-forward network (FFN)</td>
+<td>前馈网络（FFN）</td>
+<td>Transformer 中通常是逐位置子块</td>
+</tr>
+<tr>
+<td>encoder / decoder</td>
+<td>编码器／解码器</td>
+<td>按职责辨认；重建解码器不一定自回归</td>
+</tr>
+<tr>
+<td>pretraining / post-training</td>
+<td>预训练／后训练</td>
+<td>训练安排，不是所有任务的固定生命周期</td>
+</tr>
+<tr>
+<td>fine-tuning</td>
+<td>微调</td>
+<td>在目标任务下更新指定模型参数</td>
+</tr>
+<tr>
+<td>parameter-efficient fine-tuning (PEFT)</td>
+<td>参数高效微调</td>
+<td>少量可训练参数不等于低部署内存</td>
+</tr>
+<tr>
+<td>masking / reconstruction</td>
+<td>遮挡／重建</td>
+<td>交代遮挡对象和预测目标</td>
+</tr>
+<tr>
+<td>contrastive learning</td>
+<td>对比学习</td>
+<td>对相对匹配施加监督，不自动生成文本</td>
+</tr>
+<tr>
+<td>linear probing</td>
+<td>线性探测</td>
+<td>冻结表示模型、训练线性任务头</td>
+</tr>
+<tr>
+<td>zero-shot</td>
+<td>零样本</td>
+<td>限定目标任务适配协议，不否认已有预训练监督</td>
+</tr>
+<tr>
+<td>autoregressive</td>
+<td>自回归</td>
+<td>逐步以前序内容条件化预测</td>
+</tr>
+<tr>
+<td>prefill / incremental decoding</td>
+<td>预填充／增量解码</td>
+<td>首次处理已有上下文／后续逐步生成</td>
+</tr>
+<tr>
+<td>KV cache</td>
+<td>键值缓存（KV cache）</td>
+<td>复用历史注意力状态，保留英文名称</td>
+</tr>
+<tr>
+<td>inference / serving</td>
+<td>推理／模型服务</td>
+<td>模型计算／包含排队和调度等的服务过程</td>
+</tr>
+<tr>
+<td>quantization</td>
+<td>量化</td>
+<td>低精度表示和计算，须说明对象与格式</td>
+</tr>
+<tr>
+<td>distillation</td>
+<td>蒸馏</td>
+<td>用教师信息训练学生，不等于简单复制权重</td>
+</tr>
+<tr>
+<td>rollout / trajectory</td>
+<td>rollout／轨迹</td>
+<td>保留 rollout；指交互展开／产生的数据序列</td>
+</tr>
+<tr>
+<td>sandbox</td>
+<td>沙箱</td>
+<td>工具执行环境，不是模型缓存</td>
+</tr>
+<tr>
+<td>checkpoint / snapshot</td>
+<td>检查点／快照</td>
+<td>保存对象与恢复范围必须分别说明</td>
+</tr>
+<tr>
+<td>reward hacking</td>
+<td>奖励欺骗（reward hacking）</td>
+<td>通过偏离任务本意的途径取得奖励</td>
+</tr>
+</tbody>
+</table></div>
+<p>文中模型报告、工程归纳与原创推导分别标明。预训练、后训练与 KV 管理并不自动成为视觉、音频及其他序列模型的共同流程。</p>
+</section>
+
 <section id="sec-01-architecture">
 <h2 id="1-基础原理与架构演进">1. 基础原理与架构演进</h2>
 <h3 id="序列表示输入组织与位置表征">序列表示、输入组织与位置表征</h3>
@@ -99,17 +287,32 @@ Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 
 
 Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [1, 4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[1, 4]</a></p>
 <p>稠密注意力的成对交互项随序列长度平方增长，但这只描述计算图中的一个部分。投影、前馈网络及硬件实现也影响代价；原 ViT 附录 D.4 特别比较了理论计算量与 TPU 上的速度。因此，不能把注意力矩阵缩小的比例直接解释为端到端加速比例。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[2]</a></p>
+<p>交叉注意力可以使用相同的匹配与汇聚计算，但查询长度和键／值长度不必相同。原始 Transformer 的解码器从自身上一子层取得查询，从编码器输出取得键和值。若输出侧有 <math><mi>T</mi></math> 个位置、输入侧有 <math><mi>S</mi></math> 个位置，其交叉注意力权重为 <math><mi>T</mi><mo>×</mo><mi>S</mi></math>，而不是自注意力的方阵。它让目标位置选择源序列信息，不要求两侧位置一一对齐。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a></p>
 <h3 id="残差连接归一化与前馈网络">残差连接、归一化与前馈网络</h3>
 <p>ViT 的编码器交替使用多头自注意力与逐位置前馈子块，并在每个子块前应用 LayerNorm、在子块后加入残差连接。注意力负责位置之间的信息汇聚，前馈子块则对各位置的隐藏表示作非线性变换；原实现的前馈部分由两层线性变换与 GELU 构成。这种分工解释了为何序列长度的变化既影响注意力交互，也影响逐位置计算，不能只看注意力矩阵。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[2]</a></p>
+<p>原始 Transformer 则在子块残差相加之后使用 LayerNorm，前馈部分采用 ReLU；ViT 的上述设计把归一化移到子块之前，并使用 GELU。两者共享注意力与逐位置变换的分工，但归一化位置和非线性不同，不能把某一模型的子块顺序写成所有 Transformer 的唯一结构。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
+
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [2, 6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[2, 6]</a></p>
 <h3 id="编码器解码器与编码器解码器结构">编码器、解码器与编码器—解码器结构</h3>
 <p>“编码器”和“解码器”需要按计算职责理解，而不能只按模块名称归类。BERT 把文本转成上下文化表示，再为分类、序列标注或答案跨度预测附加相应输出层；ViT 则从图块序列提取图像表征。两者的输入和学习任务不同，但都可将序列编码与任务输出区分开来。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
 
 Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [1, 2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[1, 2]</a></p>
 <p>MAE 在预训练时增加重建模块：较大的编码器只处理可见图块，较轻的解码器接收编码结果及补入的掩码词元，并重建图块像素。下游识别使用编码器，重建解码器被移除。这里的“解码器”指图像重建职责，并不表示它采用自回归词元生成，也不能与翻译模型的解码器不加区分地视为同一种结构。<a class="citation" href="https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html" title="Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009." aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.&quot;, &quot;url&quot;: &quot;https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html&quot;, &quot;fallback&quot;: false}]">[3]</a></p>
 <p>CLIP 的图像塔与文本塔分别编码两种模态，再通过投影后的向量相似度建立联系；其图像塔既有 ResNet 变体，也有 ViT 变体。双塔共享的是对齐后的表征空间，不是两种模态之间逐层交叉注意力。对比学习由此可以发生在独立编码器之间，而不要求先构造一个联合图文序列。<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
-<h3 id="稀疏局部及特殊注意力机制">稀疏、局部及特殊注意力机制</h3>
-<h3 id="线性注意力与架构变体">线性注意力与架构变体</h3>
-<h3 id="混合架构与计算复杂度">混合架构与计算复杂度</h3>
+<p>原始机器翻译 Transformer 使用编码器—解码器结构。编码器可以双向读取源序列；解码器自身的注意力受因果掩码约束，同时通过交叉注意力读取源序列。训练时目标输入向右错位，模型在每个位置预测后续输出；推理时下一个输出必须依赖已生成的内容。训练能并行计算给定目标序列的位置，不意味着未知输出也能一次生成出来。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a></p>
+<h3 id="稀疏局部与交互路径">稀疏、局部与交互路径</h3>
+<p>限制每个查询可访问的位置，可以减少成对交互，也改变远距离信息的传播路径。原始 Transformer 在复杂度讨论中提出只考虑局部邻域的可能性，并指出这会增加最远依赖的路径长度；该文将其列为后续方向，而不是已完成的长序列方法评测。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a></p>
+<p>从机制看，局部窗口、按块选择和全局位置分别改变交互图。若两个远端位置在一层内不能直接相遇，它们可能需要多层中转或特定全局节点。减少连接因此不是无代价删除冗余；哪些连接重要取决于任务。因果掩码也限制可见性，但保留整个历史时仍有随长度增长的成对成本，不能仅因注意力被掩码就称其为线性复杂度。</p>
+<h3 id="线性注意力与低秩压缩的区别">线性注意力与低秩压缩的区别</h3>
+<p>设备端 LLM 综述将低秩参数化、压缩与注意力变体放进同一资源问题中讨论，但它们的作用点不同。<a class="citation" href="https://doi.org/10.1007/s10462-026-11538-1" title="Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1." aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s10462-026-11538-1&quot;, &quot;fallback&quot;: false}]">[7]</a> 对权重矩阵作低秩近似减少的是参数表示及相应投影；限制注意力连接改变的是位置交互；把注意力写成可累计状态则改变历史信息的计算组织。它们不能仅凭“矩阵变小”归为同一种机制。</p>
+<p>普通 softmax 点积注意力还包含按查询归一化的非线性，不能直接利用矩阵乘法结合律，把 <math><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>Q</mi><msup><mi>K</mi><mi mathvariant="normal">T</mi></msup><mo>)</mo><mi>V</mi></math> 改成 <math><mi>Q</mi><mo>(</mo><msup><mi>K</mi><mi mathvariant="normal">T</mi></msup><mi>V</mi><mo>)</mo></math> 并声称等价。线性注意力需要说明核函数、归一化与状态更新；近似方法还要说明误差条件。以下比较以作用点为准，不将设备端综述列出的全部方法视为已独立核验。</p>
+<h3 id="输入组织与计算复杂度">输入组织与计算复杂度</h3>
+<p>对隐藏维度为 <math><mi>d</mi></math>、长度为 <math><mi>S</mi></math> 的稠密自注意力，成对匹配和汇聚的运算项为 <math><mi>O</mi><mo>(</mo><msup><mi>S</mi><mn>2</mn></msup><mi>d</mi><mo>)</mo></math>，输入及输出投影还带有 <math><mi>O</mi><mo>(</mo><mi>S</mi><msup><mi>d</mi><mn>2</mn></msup><mo>)</mo></math> 项。若前馈中间维度为 <math><msub><mi>d</mi><mi mathvariant="normal">ff</mi></msub></math>，其两次线性变换的量级为 <math><mi>O</mi><mo>(</mo><mi>S</mi><mi>d</mi><msub><mi>d</mi><mi mathvariant="normal">ff</mi></msub><mo>)</mo></math>。这些是按常规稠密运算作出的量级分析，不是某设备上的时延公式。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a></p>
+<p>输入粒度与计算组织要一起看。ViT 减小图块会增加位置数；MAE 在预训练编码器前移除大量图块；CLIP 的图文双塔在编码后才计算配对相似度。三者都使用 Transformer，但减少或增加的计算发生在不同位置。模型名称、参数数量或某一算子 FLOPs 都不足以单独预测端到端效率。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
+
+Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.
+
+Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [2–4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.&quot;, &quot;url&quot;: &quot;https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[2–4]</a></p>
 </section>
 
 <section id="sec-02-pretraining">
@@ -162,29 +365,78 @@ Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini
 <section id="sec-03-posttraining">
 <h2 id="3-后训练阶段">3. 后训练阶段</h2>
 <h3 id="任务微调与领域适配">任务微调与领域适配</h3>
-<h3 id="参数高效适配与持续学习">参数高效适配与持续学习</h3>
+<p>预训练参数提供初始化，目标任务再决定输出层、损失和哪些参数被更新。BERT 的文本分类读取 <code>[CLS]</code> 表示，序列标注读取各词元表示，问答则预测答案跨度；因此，“微调 BERT”并非在所有任务上增加同一种分类头。原论文还对比冻结 BERT 表示后接任务网络的特征式使用方式，二者更新的对象不同。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}]">[1]</a></p>
+<p>视觉迁移也需要辨认适配接口。ViT 更换类别输出层并进行目标任务微调；MAE 删除预训练的重建解码器，用编码器服务识别。线性探测只训练一个线性头，部分微调更新编码器的一部分，完整微调则允许更多表征变化。MAE 的原实验表明这些协议可能呈现不同的效果排序，因此冻结表示的线性可分性不是后续可适配能力的完整度量。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
+
+Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009." aria-label="引用 [2, 3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.&quot;, &quot;url&quot;: &quot;https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html&quot;, &quot;fallback&quot;: false}]">[2, 3]</a></p>
+<p>领域适配还包含数据与标签条件的变化。某个表征在通用语料上有效，不能直接推出它理解专业术语、罕见图像或新的标签体系。比较适配方案，需要控制目标数据、训练预算与验证集使用，并与冻结表示、重新训练任务头等接口区分；否则模型容量和评测反馈也可能解释差异。</p>
+<h3 id="参数高效适配与持续使用">参数高效适配与持续使用</h3>
+<p>减少可训练参数主要影响训练时需要维护的梯度、优化器状态及更新内容；部署仍可能需要完整基座模型。设备端 LLM 综述讨论 PEFT、量化与低秩等方案时，也需要把“更新什么”与“存储、计算什么”分开。<a class="citation" href="https://doi.org/10.1007/s10462-026-11538-1" title="Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1." aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s10462-026-11538-1&quot;, &quot;fallback&quot;: false}]">[7]</a> 只更新少量参数不自动等于基座参数少，也不自动减少全部前向计算或 KV cache。</p>
+<p>不同任务可以共享基座而维护独立适配参数，但更换领域仍需要检验旧任务与新任务。适配目标拟合得更好，不意味着校准、安全边界或原任务能力保持不变。这里的持续使用是评估问题，不把未训练过的方案写成已经克服灾难性遗忘。</p>
 <h3 id="语言及交互任务中的指令偏好与对齐">语言及交互任务中的指令、偏好与对齐</h3>
+<h4 id="deepseek-dsec智能体学习中的环境生命周期">DeepSeek DSec：智能体学习中的环境生命周期</h4>
+<p>交互任务的训练数据不仅是一串目标文本，还包含模型动作、工具返回和环境状态。一次代码修改可能改变文件，执行命令可能留下后台进程，后续动作必须接到同一执行状态上。DSec 报告讨论的正是为这类智能体训练提供沙箱的系统，而不是新的注意力结构或 KV 压缩算法。因此，它属于 Transformer 语言模型的交互训练基础设施案例，不应被当作架构改进论文。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
+<p>原报告 §6 将 rollout 执行与可抢占的 GPU 训练作业分离：worker 容器管理控制流程，智能体沙箱保存工具执行环境，两者运行在可抢占 GPU 池之外。GPU 作业恢复后重新连接已有交互状态，而不必把所有命令重放一遍。这里要保留的既有模型侧轨迹，也有环境侧的文件、进程与会话；仅保存生成的文本，不足以恢复一个已经执行过动作的任务。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
+<p>这一设计还说明故障恢复为什么必须考虑副作用。读取文件通常可以再次执行，发送请求、写入数据或启动程序则未必幂等。报告所述早期命令日志方案复用已完成操作的结果，避免重复执行；后续方案把完整 rollout 状态交给独立控制层和沙箱共同维持。生命周期解耦降低训练抢占对交互进度的直接影响，却不等于模型服务永远可用，也不意味着所有外部服务状态都自动进入沙箱快照。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
+<h4 id="奖励有效性与环境权限">奖励有效性与环境权限</h4>
+<p>强化学习优化可观察到的奖励，奖励取得的途径却可能偏离任务本意。DSec 报告的风险包括从运行时日志或内部通信渠道获取答案，以及访问任务预期之外的参考实现。若模型通过这些路径取得成功，最终测试通过不再足以说明它学会了预期能力。环境构建与运行账号的分离、打包前残留数据清理，以及文件、套接字与网络权限控制，因而参与了学习问题本身的定义。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
+<p>报告使用 AppArmor 和按沙箱配置的 eBPF 策略限制部分越界信息访问，但同时指出这些措施不是对所有破坏行为或内核缺陷的通用防御。需要区分三个目标：防止答案泄漏、隔离不可信执行、限制资源影响。三者相互关联，却不能由其中一项控制推导出其余两项已经得到证明。DSec 的生产经验是作者报告，本篇没有部署该平台或独立复现其安全与性能结论。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
 <h3 id="蒸馏校准与适配效果评估">蒸馏、校准与适配效果评估</h3>
+<p>蒸馏把教师的输出或内部信息变成学生的训练信号，其效果取决于目标、数据与学生容量；压缩后是否维持任务表现，应由相同协议下的评估说明。设备端综述同时涉及压缩、精度与系统优化，但不同训练历史和不同模型之间的表格不能孤立证明某一种压缩方法造成了全部差异。<a class="citation" href="https://doi.org/10.1007/s10462-026-11538-1" title="Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1." aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s10462-026-11538-1&quot;, &quot;fallback&quot;: false}]">[7]</a></p>
+<p>分类概率、匹配分数和实际正确率也要分别辨认。CLIP 以归一化表征的相似度及学习尺度构造配对分数，分类时还依赖候选类别和文本提示；一个较高分数并不是跨任务统一的置信度。<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a> 校准需要明确目标分布和评价方式，不能用“输出概率”替代“概率已校准”。</p>
+<p>后训练评估因此至少区分目标任务收益、原任务保持、输出校准和实际部署成本。任务微调、偏好／交互学习、训练后量化虽都可能发生在预训练之后，却处理不同对象；它们不应因为时间顺序相同就被视为同一个算法阶段。</p>
 </section>
 
 <section id="sec-04-inference">
 <h2 id="4-推理阶段">4. 推理阶段</h2>
 <h3 id="不同任务的推理计算流程">不同任务的推理计算流程</h3>
+<p>BERT 或 ViT 在给定完整输入后输出上下文化表示或类别，CLIP 分别编码图像与文本再比较向量；这类任务不必逐词生成。机器翻译的自回归解码器则需要反复预测下一输出，将已选出的内容接入后续步骤。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
+
+Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
+
+Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.
+
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [1, 2, 4, 6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[1, 2, 4, 6]</a> 推理流程由任务接口和可见性共同决定，不是所有 Transformer 都有相同的预填充、解码循环。</p>
 <h3 id="自回归任务的预填充增量解码与-kv-cache">自回归任务的预填充、增量解码与 KV cache</h3>
+<p>预填充处理已知上下文，为后续生成准备各层状态；增量解码只处理新位置。历史位置不能读取未来位置时，在确定的模型参数、前缀、位置和推理设置下，其已有表示不因追加后缀而改变。因而可以保留历史键和值，只计算新位置的投影并让新查询读取缓存。这是从因果可见性推导出的复用条件，不是将全序列重新编码与缓存实现无条件视为等价。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.
+
+Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1." aria-label="引用 [6, 7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s10462-026-11538-1&quot;, &quot;fallback&quot;: false}]">[6, 7]</a></p>
+<p>对普通多头注意力，若层数为 <math><mi>L</mi></math>、批量为 <math><mi>B</mi></math>、当前缓存长度为 <math><mi>S</mi></math>、键／值头数为 <math><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub></math>、每头维度为 <math><msub><mi>d</mi><mi>h</mi></msub></math>，每个元素占 <math><mi>b</mi></math> 字节，则仅计算 K 与 V 数据的容量为：</p>
+<p><math display="block"><msub><mi>M</mi><mi mathvariant="normal">KV</mi></msub><mo>=</mo><mn>2</mn><mi>L</mi><mi>B</mi><mi>S</mi><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mi>b</mi></math></p>
+<p>这是本篇按张量元素数作出的容量估算，忽略分配、对齐、索引、量化尺度与其他状态。以 24 层、批量 1、长度 2048、16 个 KV 头、每头 64 维、每元素 2 字节为假设例，K 与 V 共需 192 MiB。例子不是实测模型；共享 KV 头、压缩状态或不同层配置会改变计算，不能把这一式直接套到任意架构。</p>
+<p>缓存避免重算历史投影，却没有消除新查询读取历史键和值的成本。更长上下文会扩大状态与访问量；实际瓶颈还取决于批量、硬件、数据格式及算子。修改前缀、位置编号或模型参数时，缓存也可能失效。输入级双向注意力不满足上述历史不变条件，因此不能照搬逐位置追加的复用论证。</p>
 <h3 id="算子实现并行与内存管理">算子实现、并行与内存管理</h3>
+<h4 id="模型服务与工具执行不是同一条资源路径">模型服务与工具执行不是同一条资源路径</h4>
+<p>智能体请求可能交替经过模型服务、工具调用和有状态环境。DSec 报告的容器、microVM、完整 VM 与 FnCall 提供不同的功能及隔离条件；它们的沙箱创建速度、内存密度和镜像读取成本，不能换算成 Transformer 的每秒生成 token 数。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a> 模型前向、工具执行、排队与环境恢复应分别计时，才能解释端到端任务为什么受限。</p>
+<p>DSec 把镜像环境分解为独立版本化的层，并从 3FS 按需取数据，以减少先传完整镜像再启动的等待。该优化作用于环境准备和存储访问，不直接减少注意力的运算量。镜像可以迅速启动，也仍可能在执行中等待尚未加载的文件；按需读取把成本分散到实际访问路径上，而不是令数据传输消失。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
+<p>GPU 作业暂停时，长时间存活的沙箱可能仍占用内存。报告通过暂停容器并回收内存，或保存 microVM 内存与执行状态后终止其运行进程，来降低空闲阶段资源占用。后续请求触发恢复，因此节约常驻资源也可能在恢复路径上增加等待。比较这类方案，应同时说明工作集、空闲时间与恢复条件，而不能只比较暂停后的容量。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
+<p>模型侧 KV cache 与环境侧快照保存的是不同对象。前者支持特定自回归模型复用历史注意力状态，后者保留程序执行环境；保存文件并不重建模型注意力，保留 KV 也不保住工具进程。理解状态所在的位置，是讨论长交互系统恢复与资源回收的前提。</p>
 <h3 id="压缩量化及部署条件">压缩、量化及部署条件</h3>
 <h4 id="设备端语言模型的压缩与系统协同">设备端语言模型的压缩与系统协同</h4>
+<p>量化首先要说明压缩对象：模型权重、激活或 KV 状态采用低精度，会改变不同的存储与计算路径。较少位数不自动带来较低时延；设备需要支持相应格式与算子，格式转换、解量化及未覆盖算子也可能占用资源。Chen 等的综述将模型压缩与编译、运行时、缓存及硬件一同讨论，适合作为这些作用点的线索，而不是某个方案在所有设备上的速度保证。<a class="citation" href="https://doi.org/10.1007/s10462-026-11538-1" title="Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1." aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s10462-026-11538-1&quot;, &quot;fallback&quot;: false}]">[7]</a></p>
+<p>同样，权重容量足够小只说明装得下模型的一部分状态。上下文缓存、临时激活、工作区及服务并发仍可能决定峰值内存。服务端分页或通用 GPU 的实验也不能直接推出手机上的收益：算子支持、带宽、散热和操作系统限制都可能不同。压缩目标应接到目标设备的实际执行路径，而不只比较文件大小。</p>
 <h4 id="精度时延能耗与内存的评估">精度、时延、能耗与内存的评估</h4>
+<p>生成质量、首个 token 时延、后续 token 间隔和端到端任务时间回答不同问题。报告这些指标时，需要固定输入／输出长度、批量、模型版本、解码设置及是否包括加载、排队和工具调用。暖缓存与冷启动也应分别说明；否则一项环境准备优化可能被误归因于模型前向加速。</p>
+<p>设备端能耗还需要辨认测量边界。GPU 功率积分、整机功率、平均功率和每任务能量不是同一个量；设备峰值分配与全系统占用也不同。<a class="citation" href="https://doi.org/10.1007/s10462-026-11538-1" title="Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1." aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s10462-026-11538-1&quot;, &quot;fallback&quot;: false}]">[7]</a> 同质量条件下的速度或能量比较，比跨模型任选最高指标更能隔离方案作用。DSec 的沙箱规模和资源利用指标则属于工具执行平台，不与模型生成性能直接拼成排名。<a class="citation" href="https://arxiv.org/abs/2609.22978v1" title="Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Jialiang Huang et al. DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale. arXiv:2609.22978v1 (2026), 31 pages.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2609.22978v1&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
 </section>
 
 <section id="sec-05-downstream">
 <h2 id="5-下游任务">5. 下游任务</h2>
 <h3 id="语言与文本序列任务">语言与文本序列任务</h3>
+<p>BERT 的使用说明同一编码器如何接到不同输出对象：文本分类需要序列级表示，标注需要逐位置表示，抽取式问答需要答案起止位置。对问答预测一个跨度，不等于模型生成了任意自由形式答案；对文本关系作分类，也不等于模型已经建模了完整交互环境。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}]">[1]</a> 下游任务的单位、标签与输出约束决定了怎样读取表示。</p>
+<p>原始 Transformer 的翻译则把源序列编码与目标生成连接起来。目标词元通过因果自注意力读取历史输出，通过交叉注意力读取源序列。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a> 翻译质量指标仍依赖语言对、数据、解码和评价条件，不能因为模型使用同一架构就将某种任务能力无条件推广到其他领域。</p>
 <h4 id="销售对话转化预测与结构化决策">销售对话转化预测与结构化决策</h4>
+<p>业务系统不一定把生成文本作为最终输出。SalesRLAgent 使用对话与业务信息形成状态，并通过专门化预测组件估计转化相关量；原文还涉及合成对话、外部嵌入与强化学习。<a class="citation" href="https://arxiv.org/abs/2503.23303v1" title="Nandakishor M (Deepmost Innovations). SalesRLAgent: A Reinforcement Learning Approach for Real-Time Sales Conversion Prediction and Optimization. arXiv:2503.23303v1 (2025)." aria-label="引用 [8]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;8&quot;, &quot;text&quot;: &quot;Nandakishor M (Deepmost Innovations). SalesRLAgent: A Reinforcement Learning Approach for Real-Time Sales Conversion Prediction and Optimization. arXiv:2503.23303v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2503.23303v1&quot;, &quot;fallback&quot;: false}]">[8]</a> 这类组合说明基础模型可以参与数据生成或表示提取，而真正的任务判断由另一个预测器承担。出现 LLM、嵌入或 RL，不足以证明整个系统是在对 Transformer 主体作销售领域偏好训练。</p>
+<p>预测表现与业务收益也不同。测试集上的转化标签区分能力，不能单独证明模型建议造成了实际销量增长；后者需要因果比较和部署条件。合成对话还可能把生成器的假设写入标签分布。这里以原文作为系统分工案例，不转载其完整算法与结果表，不声称已经独立验证报告的准确率、时延或业务效果。<a class="citation" href="https://arxiv.org/abs/2503.23303v1" title="Nandakishor M (Deepmost Innovations). SalesRLAgent: A Reinforcement Learning Approach for Real-Time Sales Conversion Prediction and Optimization. arXiv:2503.23303v1 (2025)." aria-label="引用 [8]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;8&quot;, &quot;text&quot;: &quot;Nandakishor M (Deepmost Innovations). SalesRLAgent: A Reinforcement Learning Approach for Real-Time Sales Conversion Prediction and Optimization. arXiv:2503.23303v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2503.23303v1&quot;, &quot;fallback&quot;: false}]">[8]</a></p>
 <h3 id="视觉与空间表示任务">视觉与空间表示任务</h3>
-<h3 id="音频语音与流式处理">音频、语音与流式处理</h3>
-<h3 id="时间序列生物序列及其他序列任务">时间序列、生物序列及其他序列任务</h3>
+<p>ViT 展示了把图像识别接到序列编码器的办法：图块向量经全局交互形成图像表征，分类头读取分类位置输出。图块与物体区域没有天然一一对应关系，因此分类成功不等于同时输出了物体位置或像素分割。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021." aria-label="引用 [2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.&quot;, &quot;url&quot;: &quot;https://openreview.net/forum?id=YicbFdNTTy&quot;, &quot;fallback&quot;: false}]">[2]</a> 不同视觉任务仍需相应输出头及空间接口。</p>
+<p>MAE 的下游实验将预训练编码器迁移到识别、检测与分割，重建解码器不作为这些任务的共同终点。<a class="citation" href="https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html" title="Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009." aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.&quot;, &quot;url&quot;: &quot;https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html&quot;, &quot;fallback&quot;: false}]">[3]</a> 这说明预训练目标与应用输出可以不同，但迁移是否有效仍需要目标任务验证。高分辨率增加图块数，还会改变位置参数的使用和注意力成本；不能把低分辨率分类的计算条件直接移到密集预测。</p>
 <h3 id="多模态与跨模态任务">多模态与跨模态任务</h3>
+<p>CLIP 将图像与文本分别编码到可比较的向量空间。图文检索判断配对相似性，零样本分类则将候选类别变成文本描述，与图像比较。<a class="citation" href="https://proceedings.mlr.press/v139/radford21a.html" title="Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[4]</a> 两种使用方式复用表征，但候选集合与文本模板会改变决策；它们不等价于能自由生成正确描述或回答所有视觉问题。</p>
+<p>双塔对齐与跨模态交叉注意力也应分开。前者在独立编码之后比较整体向量，便于复用文本或图像特征；后者在位置级计算中读取另一模态信息，其成本与信息粒度不同。选择哪种接口，应依据检索、匹配或生成任务，而不是只用“多模态 Transformer”概括。</p>
+<h3 id="跨领域迁移的共通问题">跨领域迁移的共通问题</h3>
+<p>词元和图块只是输入组织的两种例子。扩展到音频、时间序列或生物序列时，还需要固定采样单位、长度、位置／时间含义、可见性和输出对象。离线完整序列与流式输入是否允许读取未来，离散类别与连续目标是否采用相同损失，都不能从架构名字直接推断。</p>
+<p>已有语言和视觉证据支持的是输入—交互—目标—适配接口之间的比较，不是对所有新领域的效果保证。一个完整应用还包含数据取得、状态维护、任务输出与评价协议。把这些对象分别说明，才能讨论 Transformer 如何在不同任务中发挥作用，也才能辨认它没有解决的部分。</p>
 </section>
   </article>
 

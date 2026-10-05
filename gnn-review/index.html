@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>GNN：图表示、消息传递与金融欺诈检测</title>
+<meta name="description" content="从关系建模到时序评估">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>顶部</button>
+</div>
+
+<main class="page" id="content" data-content-hash="bba87fde190f"><a class="site-home" href="../index.html">← 文库</a>
+  <header class="title-block">
+    <h1>GNN：图表示、消息传递与金融欺诈检测</h1>
+    <p class="subtitle">从关系建模到时序评估</p>
+    <p class="meta"><span class="latin">原创研读与整理</span> · 原创综述 · 更新于 2026-10-05</p>
+    <p class="meta reading-notice">引用文献与图示遵循各自原有许可与权利要求。</p>
+
+<details class="meta source-details"><summary>出处与说明</summary><p>本篇为原创机制综述。金融应用的分类与来源线索依据 Motie 与 Raahemi（2024），GNN 方法入口引用 GCN、GraphSAGE 与 GAT。一般公式和说明性数字用于解释机制，不是独立实验结果；不将不同论文的指标拼成统一排名。未进行模型训练、金融数据验证或业务部署评测。</p>
+<p>引用材料保留各自权利。本篇不包含外部论文完整译文或裁图。</p></details>
+  </header>
+
+  <details class="toc" id="toc">
+    <summary>目录</summary>
+    <nav aria-label="目录">
+<ol>
+<li><a href="#术语对应表">术语对应表</a></li>
+<li><a href="#1-图表示与任务定义">1. 图表示与任务定义</a><ol>
+<li><a href="#关系决定模型能够看见什么">关系决定模型能够看见什么</a></li>
+<li><a href="#类型方向与时间是不同维度">类型、方向与时间是不同维度</a></li>
+<li><a href="#输出层级与监督对象">输出层级与监督对象</a></li>
+</ol></li>
+<li><a href="#2-消息传递与学习机制">2. 消息传递与学习机制</a><ol>
+<li><a href="#从邻域消息到节点表示">从邻域消息到节点表示</a></li>
+<li><a href="#gcngraphsage-与-gat-的作用点">GCN、GraphSAGE 与 GAT 的作用点</a></li>
+<li><a href="#层数覆盖范围与成本">层数、覆盖范围与成本</a></li>
+<li><a href="#图注意力与-transformer-的联系">图注意力与 Transformer 的联系</a></li>
+</ol></li>
+<li><a href="#3-金融欺诈检测">3. 金融欺诈检测</a><ol>
+<li><a href="#把关系信息接到风险判断上">把关系信息接到风险判断上</a></li>
+<li><a href="#邻居既可能是信号也可能是噪声">邻居既可能是信号，也可能是噪声</a></li>
+<li><a href="#类别不平衡与标签延迟">类别不平衡与标签延迟</a></li>
+<li><a href="#综述证据与原始方法证据">综述证据与原始方法证据</a></li>
+</ol></li>
+<li><a href="#4-评估部署与边界">4. 评估、部署与边界</a><ol>
+<li><a href="#预测时只能使用当时已知的信息">预测时只能使用当时已知的信息</a></li>
+<li><a href="#指标应接到业务动作">指标应接到业务动作</a></li>
+<li><a href="#在线图状态与可扩展性">在线图状态与可扩展性</a></li>
+<li><a href="#比较应保留问题的边界">比较应保留问题的边界</a></li>
+</ol></li>
+</ol>
+    </nav>
+  </details>
+
+  <article class="body">
+<section id="sec-glossary">
+<h2 id="术语对应表">术语对应表</h2>
+<p>下表说明本篇采用的用词，不把译名视为唯一标准。模型名和缩写保留英文，便于对照原始文献。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>英文术语</th>
+<th>本篇用语</th>
+<th>区别与范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>graph neural network (GNN)</td>
+<td>图神经网络（GNN）</td>
+<td>图数据上的神经网络，不仅指 GCN</td>
+</tr>
+<tr>
+<td>node / vertex</td>
+<td>节点</td>
+<td>原有来源译文中的“结点”指同一对象</td>
+</tr>
+<tr>
+<td>edge</td>
+<td>边</td>
+<td>有方向、类型及时间等属性的关系</td>
+</tr>
+<tr>
+<td>node embedding</td>
+<td>节点嵌入</td>
+<td>节点的向量表示，不是其身份编号</td>
+</tr>
+<tr>
+<td>message passing</td>
+<td>消息传递</td>
+<td>沿指定关系计算、聚合信息</td>
+</tr>
+<tr>
+<td>aggregation</td>
+<td>聚合</td>
+<td>合并邻域消息；须说明求和、均值或其他规则</td>
+</tr>
+<tr>
+<td>readout</td>
+<td>读出</td>
+<td>将节点表示汇成图级表示</td>
+</tr>
+<tr>
+<td>homogeneous / heterogeneous graph</td>
+<td>同质图／异质图</td>
+<td>按节点与关系类型区分，不按时间变化区分</td>
+</tr>
+<tr>
+<td>static / dynamic graph</td>
+<td>静态图／动态图</td>
+<td>是否显式建模特征或拓扑的时间变化</td>
+</tr>
+<tr>
+<td>inductive / transductive learning</td>
+<td>归纳式／传导式学习</td>
+<td>是否面向未见节点或图生成表示，仍须结合划分协议</td>
+</tr>
+<tr>
+<td>graph attention</td>
+<td>图注意力</td>
+<td>在图限定的邻域内分配权重</td>
+</tr>
+<tr>
+<td>financial fraud detection</td>
+<td>金融欺诈检测</td>
+<td>标签及预测对象必须按场景定义</td>
+</tr>
+<tr>
+<td>anomaly detection</td>
+<td>异常检测</td>
+<td>偏离参照分布不等于已确认欺诈</td>
+</tr>
+<tr>
+<td>class imbalance</td>
+<td>类别不平衡</td>
+<td>正负样本比例失衡</td>
+</tr>
+<tr>
+<td>data leakage</td>
+<td>数据泄漏</td>
+<td>预测时不可获得的信息进入训练或特征</td>
+</tr>
+<tr>
+<td>precision / recall</td>
+<td>精确率／召回率</td>
+<td>分别关注告警可信度与正类覆盖</td>
+</tr>
+<tr>
+<td>concept drift</td>
+<td>概念漂移</td>
+<td>输入与标签关系随时间变化</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="sec-01-representation">
+<h2 id="1-图表示与任务定义">1. 图表示与任务定义</h2>
+<h3 id="关系决定模型能够看见什么">关系决定模型能够看见什么</h3>
+<p>图神经网络的出发点不是把表格换成一张网络图，而是把预测所需的关系显式放进计算过程。节点可以是账户、交易、商户或设备；边可以是转账、共同使用设备、交易参与关系，也可以是按特征相似度构造的联系。同一批业务记录可以形成不同的图，而不同建图方法决定了信息可以沿哪些路径传播。Motie 与 Raahemi 的综述展示了金融任务中这些定义的多样性：交易既可能作为节点，也可能作为边，欺诈对象因此不能只凭数据集名称判断。<a class="citation" href="https://doi.org/10.1016/j.eswa.2023.122156" title="Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1016/j.eswa.2023.122156&quot;, &quot;fallback&quot;: false}]">[1]</a></p>
+<p>例如，账户图以转账连接两个账户，容易表达资金流；账户—交易—商户图将每次交易单独建成节点，可以保留交易金额、时间与渠道等属性。前者若把多次转账合并成一条边，就必须另外决定如何保留次数、时间顺序和金额分布。后者保留事件身份，却增加节点、边和查询成本。这里的取舍发生在模型之前：网络再深，也不能自动恢复建图时已经丢弃的信息。</p>
+<h3 id="类型方向与时间是不同维度">类型、方向与时间是不同维度</h3>
+<p>同质／异质描述实体与关系的类型，静态／动态描述时间是否进入表示。一个包含账户与商户两类节点的图可以是静态快照；一张只有账户节点的图也可以持续接收新转账。不同文献对 temporal 与 dynamic 的命名并不完全一致，本篇以实际表示为准：节点属性变化、边事件到达、拓扑增删和时间戳特征分别说明，不把一个名称当作完整实现。<a class="citation" href="https://doi.org/10.1016/j.eswa.2023.122156" title="Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1016/j.eswa.2023.122156&quot;, &quot;fallback&quot;: false}]">[1]</a></p>
+<p>转账方向也有业务含义。若把所有入边和出边混在同一聚合中，模型可能难以区分资金汇入与汇出。边类型和方向可以进入消息函数，或由不同邻域分别汇总；但是否采用这些机制、参数是否共享，应由任务信息决定，而不是异质关系越多越好。相似性边尤其需要审查：共享网络出口可能意味着同一家庭、机构或公共网络，并不天然证明协同欺诈。</p>
+<h3 id="输出层级与监督对象">输出层级与监督对象</h3>
+<p>节点分类回答某个账户或交易节点是否可疑，边分类判断某次交互，图分类则对一个完整关系子图作判断。三者可以使用相似的节点编码器，却需要不同的输出接口和标签。对边作判断通常结合两端节点及该事件自身的特征；对图作判断则需要把可变数量的节点表示汇成一个图级表示。<a class="citation" href="https://doi.org/10.1016/j.eswa.2023.122156" title="Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1016/j.eswa.2023.122156&quot;, &quot;fallback&quot;: false}]">[1]</a></p>
+<p>设某系统把交易作为节点。若标签是交易是否欺诈，不能直接把它当成账户终身标签：一个账户可能同时存在正常与异常交易，且处置结论还会延迟到达。预测对象、标签形成时间和业务动作应一同定义，才能判断模型究竟是在识别已知团伙、预测新交易，还是发现未知异常。</p>
+</section>
+
+<section id="sec-02-message-passing">
+<h2 id="2-消息传递与学习机制">2. 消息传递与学习机制</h2>
+<h3 id="从邻域消息到节点表示">从邻域消息到节点表示</h3>
+<p>消息传递把关系表示转成可学习的计算：每条允许传播的边产生消息，目标节点汇总其邻域消息，再更新自身表示。Motie 与 Raahemi 用这一框架解释多种 GNN 的共同结构。<a class="citation" href="https://doi.org/10.1016/j.eswa.2023.122156" title="Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1016/j.eswa.2023.122156&quot;, &quot;fallback&quot;: false}]">[1]</a> 以下是本篇为说明分工采用的一般形式，不是某个模型的逐项复刻。令层数为 <math><mi>l</mi></math>，节点表示为 <math><msubsup><mi>h</mi><mi>v</mi><mi>l</mi></msubsup></math>，边特征为 <math><msub><mi>e</mi><mrow><mi>u</mi><mi>v</mi></mrow></msub></math>，允许向节点 <math><mi>v</mi></math> 传递信息的邻居集合为 <math><mi>N</mi><mo>(</mo><mi>v</mi><mo>)</mo></math>：</p>
+<p><math display="block"><msubsup><mi>m</mi><mi>v</mi><mi>l</mi></msubsup><mo>=</mo><munder><mi mathvariant="normal">AGG</mi><mrow><mi>u</mi><mo>∈</mo><mi>N</mi><mo>(</mo><mi>v</mi><mo>)</mo></mrow></munder><mo>{</mo><msub><mi>M</mi><mi>l</mi></msub><mo>(</mo><msubsup><mi>h</mi><mi>v</mi><mi>l</mi></msubsup><mo>,</mo><msubsup><mi>h</mi><mi>u</mi><mi>l</mi></msubsup><mo>,</mo><msub><mi>e</mi><mrow><mi>u</mi><mi>v</mi></mrow></msub><mo>)</mo><mo>}</mo></math></p>
+<p><math display="block"><msubsup><mi>h</mi><mi>v</mi><mrow><mi>l</mi><mo>+</mo><mn>1</mn></mrow></msubsup><mo>=</mo><msub><mi>U</mi><mi>l</mi></msub><mo>(</mo><msubsup><mi>h</mi><mi>v</mi><mi>l</mi></msubsup><mo>,</mo><msubsup><mi>m</mi><mi>v</mi><mi>l</mi></msubsup><mo>)</mo></math></p>
+<p>聚合不能依赖数据库偶然返回的邻居顺序，除非该顺序本身就是明确建模的信息。求和保留邻域规模影响，均值强调平均特征，最大值强调某个分量是否出现强信号；它们不是可以随意互换的写法。共享消息和更新函数使同一规则能用于不同节点，而节点自身特征仍参与更新，因此节点表示不只是邻居标签的投票结果。</p>
+<h3 id="gcngraphsage-与-gat-的作用点">GCN、GraphSAGE 与 GAT 的作用点</h3>
+<p>GCN 的原始工作把局部的一阶谱卷积近似转成高效的图上学习，联合使用局部结构和节点特征。GraphSAGE 则学习从采样邻域生成表示的函数，而不是为每个训练节点单独保存一个不可迁移的向量。GAT 用邻域内的掩码自注意力为不同邻居分配不同权重。这三个入口分别强调传播算子、邻域采样与归纳接口、可学习的邻域权重，不应合并成“都用了注意力”。<a class="citation" href="https://arxiv.org/abs/1609.02907v4" title="Thomas N. Kipf, Max Welling. Semi-Supervised Classification with Graph Convolutional Networks. ICLR 2017; arXiv:1609.02907v4.
+
+William L. Hamilton, Rex Ying, Jure Leskovec. Inductive Representation Learning on Large Graphs. NIPS 2017; arXiv:1706.02216v4.
+
+Petar Veličković, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Liò, Yoshua Bengio. Graph Attention Networks. ICLR 2018; arXiv:1710.10903v3." aria-label="引用 [2–4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Thomas N. Kipf, Max Welling. Semi-Supervised Classification with Graph Convolutional Networks. ICLR 2017; arXiv:1609.02907v4.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1609.02907v4&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;William L. Hamilton, Rex Ying, Jure Leskovec. Inductive Representation Learning on Large Graphs. NIPS 2017; arXiv:1706.02216v4.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.02216v4&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Petar Veličković, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Liò, Yoshua Bengio. Graph Attention Networks. ICLR 2018; arXiv:1710.10903v3.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1710.10903v3&quot;, &quot;fallback&quot;: false}]">[2–4]</a></p>
+<p>GraphSAGE 的归纳设计适合讨论新节点，但归纳接口不自动解决数据漂移：一个新商户的特征格式可能一致，交易分布却与训练期不同。GAT 的权重可随输入变化，也不保证高权重邻居就是欺诈原因。原始三篇方法论文的基准结果不能直接作为金融系统上的性能承诺。<a class="citation" href="https://arxiv.org/abs/1609.02907v4" title="Thomas N. Kipf, Max Welling. Semi-Supervised Classification with Graph Convolutional Networks. ICLR 2017; arXiv:1609.02907v4.
+
+William L. Hamilton, Rex Ying, Jure Leskovec. Inductive Representation Learning on Large Graphs. NIPS 2017; arXiv:1706.02216v4.
+
+Petar Veličković, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Liò, Yoshua Bengio. Graph Attention Networks. ICLR 2018; arXiv:1710.10903v3." aria-label="引用 [2–4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;Thomas N. Kipf, Max Welling. Semi-Supervised Classification with Graph Convolutional Networks. ICLR 2017; arXiv:1609.02907v4.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1609.02907v4&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;William L. Hamilton, Rex Ying, Jure Leskovec. Inductive Representation Learning on Large Graphs. NIPS 2017; arXiv:1706.02216v4.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.02216v4&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Petar Veličković, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Liò, Yoshua Bengio. Graph Attention Networks. ICLR 2018; arXiv:1710.10903v3.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1710.10903v3&quot;, &quot;fallback&quot;: false}]">[2–4]</a></p>
+<h3 id="层数覆盖范围与成本">层数、覆盖范围与成本</h3>
+<p>在局部消息传递中，一层引入一跳邻域的信息，多层扩大可达范围。扩大范围可以带来更远的关联，也可能把大量正常关系混进局部风险表示。关系是否有用取决于类型、时间与预测目标，不能仅以“看到更多节点”判断效果。</p>
+<p>对一个计算消息成本固定的稀疏图，一层遍历消息的工作量大致随处理的边数增长；若每个目标节点每层采样若干邻居，多层展开仍可能迅速增加参与计算的节点。实际成本还包含特征读取、边索引、去重、内存传输及分类头。采样可以限制规模，但改变可见邻域，应与未采样基线分别比较，不能只报告网络计算时间而忽略取数。</p>
+<h3 id="图注意力与-transformer-的联系">图注意力与 Transformer 的联系</h3>
+<p>二者都可以通过可学习权重汇聚信息，但可见集合和位置／结构输入不同。GAT 的邻域由图关系限定，稠密序列自注意力通常在允许的序列位置间计算匹配。把图展成序列，还要决定节点顺序、边结构及时间如何编码；引入 attention 并不会使原始关系语义自动保留。因此，GNN 与 Transformer 的交叉研究应比较实际交互图，而不是按模型名称判断谁能处理关系。</p>
+</section>
+
+<section id="sec-03-financial-fraud">
+<h2 id="3-金融欺诈检测">3. 金融欺诈检测</h2>
+<h3 id="把关系信息接到风险判断上">把关系信息接到风险判断上</h3>
+<p>单笔交易的金额、渠道与账户历史可以支持表格模型；图建模的价值在于进一步表达交易之间、账户之间以及账户与设备等实体之间的依赖。Motie 与 Raahemi 的系统综述涉及加密货币、信用卡、在线支付、税务与医疗保险，显示这些领域采用的节点、边和异常定义并不统一。<a class="citation" href="https://doi.org/10.1016/j.eswa.2023.122156" title="Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1016/j.eswa.2023.122156&quot;, &quot;fallback&quot;: false}]">[1]</a> 原创综合需要先问关系增加了什么信息，再讨论模型结构，而不能将各场景的最高分拼成一个通用排名。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>建模对象</th>
+<th>关系可能提供的信息</th>
+<th>必须辨认的限制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>账户—账户资金流</td>
+<td>收付路径、共同对手及局部转移模式</td>
+<td>地址不等于真实个人；方向与时间不能任意抹去</td>
+</tr>
+<tr>
+<td>账户—交易—商户</td>
+<td>某次事件如何接到实体及其历史</td>
+<td>同账户的多次交易标签未必一致</td>
+</tr>
+<tr>
+<td>用户—设备／地址等关系</td>
+<td>关联群体和重复基础设施</td>
+<td>公共设备、共享出口可能造成正常关联</td>
+</tr>
+<tr>
+<td>公司及其经济关系</td>
+<td>跨实体的经营、投资或交易联系</td>
+<td>关系记录及处置标签的可得时间不同</td>
+</tr>
+<tr>
+<td>索赔人与医疗服务实体</td>
+<td>申报行为与机构、服务关系</td>
+<td>可疑模式不是法律或医学上的已确认欺诈</td>
+</tr>
+</tbody>
+</table></div>
+<p>表中是基于该综述所列建图差异作出的机制归纳，不是逐篇实验结果或具体模型配方。<a class="citation" href="https://doi.org/10.1016/j.eswa.2023.122156" title="Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1016/j.eswa.2023.122156&quot;, &quot;fallback&quot;: false}]">[1]</a> 各任务首先需要固定标签含义。例如，“非法交易”“钓鱼账户”“高风险信用申请”不是可以互换的正类；低信用等级也不能直接当成欺诈事实。</p>
+<h3 id="邻居既可能是信号也可能是噪声">邻居既可能是信号，也可能是噪声</h3>
+<p>关联账户可以暴露局部协同行为，但欺诈者也可能通过大量正常交易稀释邻域信号。若边仅来自一般交互，直接把邻居平均起来就隐含了这些交互同等有用的假设。边属性、关系分组、时间窗口和可学习权重可以改变信息筛选方式，然而每项改动都需要检验：去掉一类边后性能是否变化，是否仍优于只用单点特征的模型，收益是否来自额外字段而非图传播本身。</p>
+<p>一个说明性的例子是三个账户先后向同一新收款方转账。共同对手提供了关联线索，但工资支付、平台结算也会形成相似结构。要区分两者，还需要金额、时间、对手历史及任务标签。这个例子说明图结构如何参与判断，不声称这些模式在某数据集上已经被验证，更不能把它作为自动封禁规则。</p>
+<h3 id="类别不平衡与标签延迟">类别不平衡与标签延迟</h3>
+<p>金融欺诈检测通常需要区分告警覆盖和调查负担。若正类稀少，仅预测全部正常也可能得到很高的准确率；相反，提高召回率可能扩大误报和人工复核成本。损失加权或采样会改变训练中正负例的影响，但评估仍应回到部署时的真实比例，说明阈值及告警容量。</p>
+<p>标签还可能由拒付、投诉或调查形成，晚于交易发生。训练时把最终标签当成在交易时立即可见，会让历史评测高估在线能力。“未知”也不等于正常：未完成调查的数据既不能自动成为负例，也不能在不说明的情况下排除掉，只留下容易识别的样本。</p>
+<h3 id="综述证据与原始方法证据">综述证据与原始方法证据</h3>
+<p>系统综述可以帮助发现问题分类、建图差异和数据／代码可得性的限制，但其中各研究的指标仍来自不同数据、划分和模型条件。<a class="citation" href="https://doi.org/10.1016/j.eswa.2023.122156" title="Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1016/j.eswa.2023.122156&quot;, &quot;fallback&quot;: false}]">[1]</a> 本篇以该综述组织金融应用的解释，不复刻其全文、图表或统计分布，也不据此断言某个方法已在银行或保险系统获得同等收益。要讨论具体方法的数值优势，应回到原始实验和相应协议；方法的公开代码存在也不是已经独立复现的证明。</p>
+</section>
+
+<section id="sec-04-evaluation">
+<h2 id="4-评估部署与边界">4. 评估、部署与边界</h2>
+<h3 id="预测时只能使用当时已知的信息">预测时只能使用当时已知的信息</h3>
+<p>对交易发生时的风险预测，图应由截至该时刻可获得的节点、边、特征和标签构造。若使用完整历史图，再随机划分交易标签，未来交易可能经邻域传播影响过去的表示。即使测试标签没有直接输入网络，这仍可能改变问题的时间条件。静态传导式实验可以允许共享无标签结构，但必须明确这是该实验的设定，不能直接描述成实时预测能力。</p>
+<p>一个按时间划分的比较应同时限定特征窗口与标签成熟时间。训练集截止日之后出现的关系不能提前进入训练特征；同一账户跨集合出现是否符合业务目标也要说明。评估新账户和评估已知账户的新交易是两个问题，前者更强调归纳生成表示的能力，后者仍需要防止未来关系及处置结果泄漏。</p>
+<h3 id="指标应接到业务动作">指标应接到业务动作</h3>
+<p>令真正例、假正例和假负例分别为 <math><mi mathvariant="normal">TP</mi></math>、<math><mi mathvariant="normal">FP</mi></math>、<math><mi mathvariant="normal">FN</mi></math>，精确率与召回率定义为：</p>
+<p><math display="block"><mi mathvariant="normal">Precision</mi><mo>=</mo><mfrac><mi mathvariant="normal">TP</mi><mrow><mi mathvariant="normal">TP</mi><mo>+</mo><mi mathvariant="normal">FP</mi></mrow></mfrac><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">Recall</mi><mo>=</mo><mfrac><mi mathvariant="normal">TP</mi><mrow><mi mathvariant="normal">TP</mi><mo>+</mo><mi mathvariant="normal">FN</mi></mrow></mfrac></math></p>
+<p>分母为零时须说明采用的报告约定。阈值提高通常会改变告警量和覆盖，曲线面积不代替实际工作点。若每天只能调查固定数量的告警，可以同时报告这一预算下的命中和召回；若后续动作是追加验证而非封禁，误报成本也不同。不同正类比例、时间窗口和标签机制下的指标不应无条件比较。</p>
+<p>例如，假设 10,000 笔交易中有 20 笔欺诈，系统报出 100 笔，其中 15 笔是真欺诈，则精确率为 15%，召回率为 75%。这些是假设数字，只用于展示较高召回如何仍对应很大的复核负担；它们不是本篇实验或某文献结果。欺诈金额的覆盖、账户重复告警及调查延迟还可能需要另行衡量。</p>
+<h3 id="在线图状态与可扩展性">在线图状态与可扩展性</h3>
+<p>部署成本包括关系更新、特征计算、邻域查询、模型执行和结果返回。对高连接度节点，限制邻居数量会影响取数成本及表示；缓存节点表示可以减少重复计算，却可能滞后于新事件。异步更新可以降低关键路径压力，但需要定义什么时刻的状态被用于预测，以及允许多大的陈旧度。</p>
+<p>因此，系统评测应同时说明吞吐、尾时延、内存、图规模及更新负载。只在固定快照上测一批张量前向，不足以说明实时风险服务的性能。数据权限、调查解释及人工复核仍是独立职责：attention 权重不是因果证明，模型分数也不是欺诈裁定。</p>
+<h3 id="比较应保留问题的边界">比较应保留问题的边界</h3>
+<p>有意义的基线包含同特征的非图模型、简单的关系统计，以及去除关系或时间信息的消融。由此才能分辨收益究竟来自消息传递、额外数据、特征工程还是不同监督条件。数据集可公开访问与标签能代表真实业务是两件事；合成数据可以验证管线或控制某个因素，但不能自动证明实际欺诈识别能力。<a class="citation" href="https://doi.org/10.1016/j.eswa.2023.122156" title="Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Soroor Motie, Bijan Raahemi. Financial fraud detection using graph neural networks: A systematic review. Expert Systems with Applications 240 (2024), 122156. DOI: 10.1016/j.eswa.2023.122156.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1016/j.eswa.2023.122156&quot;, &quot;fallback&quot;: false}]">[1]</a></p>
+<p>GNN 的核心贡献是让关系参与可学习表示，而不是把所有风险都解释成网络模式。关系缺失、噪声关联、标签延迟和概念漂移都会限制它。金融案例也反过来提醒一般图学习：建图、计算和评估协议共同定义研究对象，不能只比较网络层名。</p>
+</section>
+  </article>
+
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>
