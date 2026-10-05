@@ -14,7 +14,8 @@ and figure crops retain the original authors' rights. All project content and ou
 and synthetic test fixtures, but no registered paper. Read `NOTICE.md` before redistributing
 any output: the repository's MIT license does not cover other people's paper material.
 Writing conventions are in `docs/chinese-writing.md`; publication boundaries and procedures
-are in `docs/pages.md`.
+are in `docs/pages.md`. [Documentation responsibilities](docs/README.md) distinguish current
+interfaces and procedures from version changes and temporary execution records.
 
 ## Project layout
 
@@ -67,8 +68,8 @@ In each subsequent PowerShell session:
 ```
 
 The helper sets `$Python`, `$ProjectTemp` and external Python/pytest/ruff cache paths.
-The virtual environment and all disposable development state live in system TEMP, in a
-project-specific directory. Use `$ProjectTemp/tasks` for task plans/presets and development
+The virtual environment and all disposable development state live beneath `$env:TEMP`, in a
+project-specific directory. Do not use a separate fixed `C:/tmp` root. Use `$ProjectTemp/tasks` for task plans/presets and development
 inputs, `$ProjectTemp/reports` for audit evidence, and `$ProjectTemp/scratch` for experiments,
 trial outputs and throwaway backups. Do not create temporary folders in the workspace.
 The harness's `.pi/tasks` is only a lightweight junction: its actual task logs live in TEMP too.
@@ -104,8 +105,8 @@ The reader has light/dark mode and A4 print styles. Figures, CSS and scripts rem
 reached by relative paths: no server, base64 payloads or runtime math renderer is needed.
 Offline builds use installed fonts: Times New Roman (with compatible Latin fallbacks),
 Source Han Serif SC for Chinese, and Maple Mono for code. Pages additionally self-hosts
-licensed WOFF2 subsets; see `docs/pages.md`. Pseudocode highlighting uses stylesheet classes
-rather than runtime tooling.
+licensed WOFF2 subsets; see `docs/pages.md`. Explicit-language code fences are highlighted
+with Pygments at build time; pseudocode classes remain supported. Neither needs runtime tooling.
 
 A shared UI change needs no article rebuild or per-project copying:
 
@@ -114,7 +115,8 @@ A shared UI change needs no article rebuild or per-project copying:
 ```
 
 Pages deployments automatically compose that same runtime from main with the approved
-content snapshot. New translations still require separate publication approval.
+content snapshot. New review/analysis content requires separate publication approval;
+paper translations remain local-only.
 
 If a folder is inconvenient, export one file explicitly:
 
@@ -191,6 +193,14 @@ an as-of date and source, and notes distinguish editorial caveats from translate
 Directions and works are data, not tool constants. The anchored `/survey/` ignore rule must
 remain so the tracked `src/survey/` stylesheet is not accidentally ignored.
 
+## Local source checkouts
+
+Owner-approved source checkouts live under ignored `repos/<repository>/`. Each keeps
+its own `.git`, uncommitted files and upstream license; none is part of the pipeline's MIT
+source tree or a Pages export. Canonical analysis metadata records the actual local path and
+inspected commit. Do not create parallel copies when relocating a checkout. Build directories,
+experiments and logs still belong under `$env:TEMP`, not inside these checkouts.
+
 ## Source-code analyses
 
 Original code analyses can use the same offline reader without pretending to be translated
@@ -201,7 +211,13 @@ inspected Redis commit, and `rebuild.py`. It reads no Redis checkout during rebu
 & $Python dist\redis-source-interview\work\rebuild.py
 ```
 
-No external source tree is copied into the pipeline, and no runtime benchmark claims are
-made without measurements. Per-paper supplementary notes live in `dist/<slug>/notes/`.
+Large chapters can compose focused topic/project Markdown files through standalone
+`{{include:relative/path.md}}` directives. Includes are local, bounded and included in the
+content hash; only top-level files become chapters. See `docs/source-analysis.md` for the
+composition interface and requirements for structure, design comparisons and fixed-source
+excerpts with symbols and line ranges.
+
+External checkouts are not committed or published with the pipeline, and no runtime benchmark
+claims are made without measurements. Per-paper supplementary notes live in `dist/<slug>/notes/`.
 
 See `CONTRIBUTING.md` for the development workflow and `AGENTS.md` for operating rules.

@@ -51,14 +51,12 @@ runtime copies exist. `tools/assets.py` refreshes that tree independently of art
 `tools/pages.py --refresh-shared` composes the same runtime into an approved public snapshot.
 Actions performs that composition from main at deployment, without publishing new prose. Adding a paper therefore means
 writing a manifest — no tool changes, no new constants. `tools/paper.py` loads the manifest and
-derives every path (`content_dir`, `figures_dir`, `output_dir`, `output_path`, …), so a slug is
-the only paper-specific argument any tool takes.
+derives every path (`content_dir`, `figures_dir`, `output_dir`, `output_path`, …), so tools
+select registered paper inputs by slug rather than per-paper constants.
 
 Because the slug is also the deliverable folder name, `paper.load` validates it against
-`SLUG_RE = ^[a-z0-9]+(?:-[a-z0-9]+)*$` and raises `PaperError` otherwise. That keeps every
-`dist/<slug>/` path an English, ASCII, path-safe folder name (the user's requirement), and it
-removes the need for the earlier `safe_filename` helper that sanitised Windows-illegal
-characters out of a Chinese title.
+`SLUG_RE = ^[a-z0-9]+(?:-[a-z0-9]+)*$` and raises `PaperError` otherwise. Folder identity is
+ASCII and path-safe; the Chinese title remains a separate metadata field.
 
 The manifest schema:
 
@@ -81,6 +79,28 @@ A null `source.pdf` records a PDF source without keeping a file path. Building u
 retained work materials and needs no PDF. Re-extraction requires
 `tools/extract.py --paper <slug> --pdf C:\path\to\original.pdf`; alternatively, a manifest may
 record the external original's path. Neither extraction nor building copies the PDF.
+
+## Self-authored projects
+
+Original reviews and source-code analyses use canonical `work/meta.json` rather than a
+fictional PDF/web `paper.json`. A local `work/rebuild.py` passes project metadata and its own
+`work/content/` to `tools.build.build`. Reviews use `kind: review`; analyses use
+`kind: analysis` and retain their inspected repository and commit. Presentation profiles
+and header-only reading notes remain in `work/reader.json` and `work/reader-meta.md`. An opt-in `show_glossary` profile renders the
+canonical `work/glossary.md` before manuscript sections; it shares their TOC and content hash
+rather than creating a second terminology source. See [reader.md](reader.md).
+
+Each project has an independent slug, section inventory, source directory and `index.html`.
+Sharing the reader runtime does not merge manuscripts or require an aggregate survey hub.
+Nested source readers can pass an explicit `library_root` to the shared builder; output must
+remain inside that root. Runtime references are derived from the actual page depth, while
+figures stay beside their reader. Canonical translations retained as research sources are
+not original review prose and do not inherit publication approval from their parent project.
+Use explicit local-only flags in the canonical reader profile and generated manifest for
+unapproved drafts; presentation kind does not establish publication approval.
+Evidence organization, source comparison and review procedures for original reviews are
+specified in [review-method.md](review-method.md); these research notes are separate from
+reader prose and do not require installation of an external research agent.
 
 ## Source kinds: PDF or web page
 
@@ -162,16 +182,14 @@ paper or count.
 
 ## The survey
 
-The survey is a second product, `tools/survey.py`, rendered with the same reader styling as a
-translated paper. The difference is shape: `build.py` renders **one paper**, while the survey
-renders **one narrative that places many papers in context**, plus a folded detail page for each
-surveyed work. The plan is six directions — machine-learning systems, long-context
-architectures (including linear attention), on-device, distributed, multimodal (which carries VLA
-as one of its applications) and Agent —
-each carrying a handful of flagship papers selected from production problems.
+The legacy `tools/survey.py` supports a narrative with per-work detail pages, using the shared
+reader styling. Its direction list and reading order come from input metadata, not a fixed
+set of research topics. This schema is distinct from independent self-authored review projects;
+it does not require those projects to share a hub, publish translated abstracts or recreate
+a particular dataset.
 
 ```
-survey/survey.json                    title, subtitle, author, the six declared directions
+survey/survey.json                    title, subtitle, author, declared directions
 survey/hub/NN-direction.md            narrative in reading order; `{{paper:<slug>}}` -> a card
 survey/papers/<slug>/meta.json        identity, venue, year, stage, citations + "as of" date, links, motivation, approach, notes
 survey/papers/<slug>/abstract.md      translated original abstract
@@ -213,23 +231,17 @@ Choices worth recording:
   multiplied, a conference year that differs between preprint and proceedings — live in
   `meta['notes']` and render in a separate 阅读说明与边界 aside, never mixed into the translated
   abstract.
-- **Narrative plus inline cards, not a table.** A table sorts and filters well but explains
-  nothing; the requested value was the background and the motivation behind each paper, which
-  needs sentences. Cards sit inside the argument that motivates them, so the reader meets a
-  paper exactly when they know why it matters. A category tree was rejected as duplicated
-  navigation over the same twelve items.
-- **Every surveyed paper gets a detail page.** The alternative — a card for some, a page for the
-  few — makes which paper earns depth an accident of the browsing path. Uniform depth also means
-  the format is proven on the flagship set before it is replicated across the other directions.
+- **Narrative plus inline cards.** Prose explains the background and mechanism; cards provide
+  the corresponding source identity and detail-page link at the relevant point in the argument.
+- **Every surveyed paper gets a detail page.** Each metadata record has one detail-page target,
+  independent of how often its card appears in the narrative.
 - **Citation counts are date-stamped.** `cites_asof` records when the count was read, because a
   bare citation figure is the part of a survey that rots fastest and silently. The API that
   produced it is named in `cites_source`.
-- **Semantic Scholar for counts, the arXiv API for abstracts.** Semantic Scholar's
-  `paper/search/match` resolves a paper by title and returns merged preprint/published counts;
-  the arXiv API is authoritative and keyless for abstracts. OpenAlex is not used: its `search=`
-  endpoint does full-text rather than title matching — asking for ZeRO returned InstructGPT,
-  LLaMA and concept-drift — and it splits citations across paper versions, undercounting badly
-  (FlashAttention read 475 against a real ~5.3k).
+- **Provenance is explicit.** Acquisition scripts record the service, matched identity, version
+  and retrieval date. Title-search results require identity review; merged and version-specific
+  citation counts are not interchangeable. The builder consumes retained metadata without
+  depending on a particular live bibliographic API.
 - **A 4px accent left border on a card.** Cheap, and it keeps a card visually distinct from the
   prose around it without introducing a second content system.
 
@@ -258,17 +270,11 @@ actually pair (`*`, `_`, `` ` ``, `[`, `]`, `|`, `\`) are written as numeric ref
 math — the same character to MathML, no longer a pattern to the parser. The content files keep
 writing `64*128*2` and `M[i][j]`, and the escaping happens where the parser can see it.
 
-**A translated section does not carry a second table of contents.** When the source kept a
-contents list in its own body, the translation copies it verbatim, and the copy then fights the
-nav: `## 目录` sits at the same depth as `系列简介`, so both become top-level sidebar entries,
-and the fifteen `###` items under it become fifteen more — all of them aimed back into the copy
-instead of at a section, and each of them hiding a real section heading that has no other sidebar
-entry. `_DropBodyToc` recognises the shape rather than any wording: a heading followed by a list
-whose first item is itself a heading. It matches exactly one construct in the corpus (the one
-true body TOC) and leaves the outline-shaped list at `01-part-1.md`'s `## Kernel 列表` alone,
-because that one is a list of plain items. Removing it belongs in the build, not in the content:
-a rule about how a page presents itself should apply to every paper that has this shape, and
-`dist/<slug>/work/` is local-only, so an edit there would not survive publication of the pipeline.
+**One rendered table of contents.** `_DropBodyToc` recognizes a source-body contents list by
+shape: a heading followed by a list whose first item is itself a heading. The rendered reader
+uses its generated TOC instead of duplicating that list. Lists of plain items remain intact.
+This presentation transformation belongs in the shared builder; canonical translated source
+retains the original material.
 
 **A cross-reference to the source's own pages is aimed at this page's sections.** A web-source
 translation keeps the links the original wrote between its parts — 「继续阅读第 1 部分……」,
@@ -281,9 +287,13 @@ has no section URLs — gets an empty map and a no-op. A source-site anchor
 heading anchors; such a link lands at the top of the containing section, which is the closest
 truthful target.
 
-**One Markdown file per section.** Translation is a long-running, interruptible process.
-Per-section files let a session resume exactly where it stopped, and make terminology
-review and diffing tractable. The build concatenates them in filename order.
+**Top-level sections with explicit subdocuments.** Per-section files keep translations
+resumable; larger original reviews and analyses can use standalone `{{include:path.md}}`
+directives to compose focused project/topic subdocuments. Only top-level `content/*.md`
+files become sections, in filename order. `tools/manuscript.py` expands relative Markdown
+includes inside the content root, rejecting escapes, cycles, missing files and excessive
+expansion. Dependencies enter the content hash and manifest. See [source-analysis.md](source-analysis.md)
+for syntax, source excerpt provenance and design-comparison requirements.
 
 **CJK-safe heading anchors.** The stock `toc` slugify in python-markdown strips non-ASCII
 characters, which would collapse every Chinese heading to an empty anchor. `tools/build.py`
@@ -296,17 +306,15 @@ adds self-hosted OFL WOFF2 subsets from hash-pinned sources, including a Times-c
 Tinos fallback for phones. Font binaries never enter main; original licenses accompany the
 renamed subsets on pages-content. See `pages.md` for the publication and subsetting steps.
 
-**Highlighting is declarative.** Highlighted pseudocode is authored with semantic classes
-(`alg-keyword`, `alg-comment`, …) styled by the committed stylesheet, rather than by adding a
-runtime highlighter or a Pygments dependency.
+**Highlighting is offline.** Explicit-language Markdown fences receive Pygments token
+spans at build time while retaining their `pre/code` and language classes. Unknown languages
+remain escaped plaintext; shared CSS uses the reader's light/dark palette. No runtime
+highlighter or network resource is loaded. Existing semantic pseudocode classes
+(`alg-keyword`, `alg-comment`, …) remain supported.
 
-**Glyph substitution for symbols no CJK face covers.** Source Han Sans SC has no glyph
-for `⩽` (U+2A7D) or `⊲` (U+22B2), which the DeepSeek source uses inside pseudocode. Those were
-replaced with the covered near-equivalents `≤` and `◁`, and `ℝ` with plain `R` inside `<pre>`
-blocks. The substitutions stay: a system CJK face is no more likely to carry those code points.
-The monospace stack ends with the CJK families so uncommon symbols resolve
-to a Chinese face instead of a random fallback. MathML keeps the true `⩽` and `ℓ`, because
-math glyphs come from the math font, not the CJK face.
+**Code and mathematics use different font paths.** The monospace stack includes CJK fallbacks
+for code comments. MathML uses a dedicated math font. Glyph availability depends on installed
+fonts; do not silently change mathematical meaning to accommodate a missing code glyph.
 
 **Inline math convention.** Inline MathML is used whenever the expression has structure
 (subscripts, superscripts, fractions, operators); a bare single variable may be written as
@@ -319,15 +327,13 @@ hide a missing figure), every table caption and every numbered equation must app
 paragraph outside math/code blocks may still be English prose. It exits non-zero, so it can gate
 a release.
 
-**A folder, not a base64 blob.** The shipped artifact is a folder per paper, `dist/<slug>/`,
-holding `index.html` beside a real `assets/` tree: `assets/styles/reader.css`,
-`assets/scripts/reader.js` and `assets/figures/*.png`, all reached by relative path. That is a
-reversal of the earlier "one file, not a folder" design, and the reason is cost: base64 inflates
-every embedded byte by about a third, makes the images opaque to diffing and browser caching,
-and turns each small figure edit into a whole-payload rewrite. As files, the figures are
-byte-identical to what `tools/extract.py` produced, the stylesheet and script are readable and
-cacheable, and printing `index.html` to A4 still needs no server. The page opens straight from
-`file://`, so offline reading is unaffected.
+**Real files and one shared runtime.** Each `dist/<slug>/index.html` references its own
+`assets/figures/` and the library-root `dist/assets/{styles,scripts}/` via relative URLs.
+Nested readers use depth-correct URLs to that same root. Figures remain byte-identical to the
+retained crops, while shared CSS/JS are independently cacheable. A complete offline copy
+includes the reader, its figures and the shared runtime; it opens from `file://` without a server.
+Base64 would inflate embedded bytes by about a third and turn a small image change into a
+whole-document rewrite, so it is reserved for the optional packer.
 
 For the case where a folder is genuinely awkward — mailing one attachment, or a device that
 cannot follow relative paths — `tools/pack.py` folds the folder into one file on demand:

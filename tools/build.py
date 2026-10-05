@@ -35,7 +35,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python tools/build.py` to import the package
     sys.path.insert(0, str(ROOT))
 
-from tools import assets, paper, reader  # noqa: E402  (must follow the sys.path bootstrap above)
+from tools import (  # noqa: E402  (must follow the sys.path bootstrap above)
+    assets,
+    manuscript,
+    paper,
+    reader,
+)
 
 TEMPLATE_PATH = ROOT / "src" / "templates" / "page.html"
 STYLES_DIR = ROOT / "src" / "styles"
@@ -50,6 +55,7 @@ class Section:
     identifier: str
     html: str
     tokens: list[dict] = field(default_factory=list)
+    sources: list[Path] = field(default_factory=list)
 
 
 def slugify(value: str, separator: str = "-") -> str:
@@ -226,6 +232,7 @@ def make_markdown() -> markdown.Markdown:
             # Content files carry code as ``` fences; without this extension they would render
             # as inline <code> runs and the source listings would lose their line structure.
             "fenced_code",
+            manuscript.HighlightExtension(),
             _DropBodyTocExtension(),
             _MathProtectionExtension(),
         ],
@@ -236,17 +243,19 @@ def make_markdown() -> markdown.Markdown:
 
 
 def read_sections(content_dir: Path) -> list[Section]:
-    """Render every content file to HTML, in filename order."""
+    """Render top-level chapters with their nested Markdown dependencies."""
     sections: list[Section] = []
     for path in sorted(content_dir.glob("*.md")):
         md = make_markdown()
-        html = md.convert(path.read_text(encoding="utf-8"))
+        text, sources = manuscript.expand(path, content_dir)
+        html = md.convert(text)
         sections.append(
             Section(
                 path=path,
                 identifier=f"sec-{path.stem}",
                 html=html,
                 tokens=list(md.toc_tokens),
+                sources=sources,
             )
         )
     return sections
@@ -340,9 +349,16 @@ def rewrite_source_links(html: str, targets: dict[str, str]) -> str:
 def content_hash(sections: list[Section], extras: list[Path] | None = None) -> str:
     """Return a digest over canonical sections and optional reader notes/citation metadata."""
     digest = hashlib.sha256()
-    for path in [*(section.path for section in sections), *(extras or [])]:
-        digest.update(path.name.encode("utf-8"))
-        digest.update(path.read_bytes())
+    for section in sections:
+        for path in section.sources or [section.path]:
+            name = path.relative_to(section.path.parent).as_posix()
+            digest.update(name.encode("utf-8") + b"\0")
+            data = path.read_bytes()
+            digest.update(len(data).to_bytes(8, "big") + data)
+    for path in extras or []:
+        digest.update(path.name.encode("utf-8") + b"\0")
+        data = path.read_bytes()
+        digest.update(len(data).to_bytes(8, "big") + data)
     return digest.hexdigest()[:12]
 
 
@@ -429,13 +445,20 @@ def build(
     paper_slug: str | None = None,
     build_date: str | None = None,
     source_targets: dict[str, str] | None = None,
+    library_root: Path | None = None,
 ) -> dict[str, object]:
     """Build one reader page and return a manifest of what was produced.
 
     ``source_targets`` says where a cross-reference to the source site should land instead; it
     is derived from the manifest when ``paper_slug`` names one, and given explicitly by a caller
-    that builds a folder with no registered paper behind it.
+    that builds a folder with no registered paper behind it. ``library_root`` lets nested
+    readers use the same runtime as their containing library, defaulting to ``dist.parent``.
     """
+    library_root = (library_root or dist.parent).resolve()
+    try:
+        page_path = dist.resolve().relative_to(library_root) / "index.html"
+    except ValueError as error:
+        raise ValueError("reader output must be inside library_root") from error
     sections = read_sections(content_dir)
     if metadata is None:
         metadata = metadata_for(paper_slug)
@@ -444,6 +467,16 @@ def build(
     template = template_path.read_text(encoding="utf-8")
     work = content_dir.parent
     profile = reader.load_profile(work)
+    show_glossary = profile.get("show_glossary", False)
+    if not isinstance(show_glossary, bool):
+        raise ValueError("show_glossary must be a boolean")
+    if show_glossary:
+        glossary = work / "glossary.md"
+        if any(section.identifier == "sec-glossary" for section in sections):
+            raise ValueError("glossary section identifier is already in use")
+        md = make_markdown()
+        glossary_html = md.convert(glossary.read_text(encoding="utf-8"))
+        sections.insert(0, Section(glossary, "sec-glossary", glossary_html, list(md.toc_tokens)))
     extra_files = [
         path for path in (work / "reader.json", work / "reader-meta.md") if path.exists()
     ]
@@ -488,16 +521,18 @@ def build(
         else ""
     )
     kind = profile.get("kind", metadata.get("kind", "translation"))
-    notice = (
-        "源码与引用材料遵循各自原有许可证。" if kind == "analysis" else "译文与图示的版权归原作者。"
-    )
+    presentations = {
+        "analysis": ("源码研读笔记", "源码与引用材料遵循各自原有许可证。"),
+        "review": ("原创综述", "引用文献与图示遵循各自原有许可与权利要求。"),
+    }
+    label, notice = presentations.get(kind, ("中文译文", "译文与图示的版权归原作者。"))
 
     replacements = {
         "{{ASSET_PREFIX}}": "../",
         "{{TITLE}}": escape(metadata.get("title", "")),
         "{{SUBTITLE}}": escape(metadata.get("subtitle", "")),
         "{{AUTHOR}}": escape(metadata.get("author", "")),
-        "{{READER_KIND}}": "源码研读笔记" if kind == "analysis" else "中文译文",
+        "{{READER_KIND}}": label,
         "{{READER_NOTICE}}": notice,
         "{{SOURCE_LINK}}": source_link,
         "{{SOURCE_NOTES}}": source_notes,
@@ -515,8 +550,8 @@ def build(
         raise ValueError(f"unresolved template placeholders: {sorted(set(leftovers))}")
 
     dist.mkdir(parents=True, exist_ok=True)
-    copied = copy_assets(dist, styles_dir, scripts_dir, figures_dir)
-    page = assets.rewrite(page, Path(dist.name) / "index.html")
+    copied = copy_assets(dist, styles_dir, scripts_dir, figures_dir, shared_root=library_root)
+    page = assets.rewrite(page, page_path)
     (dist / "index.html").write_text(page, encoding="utf-8")
     manifest = {
         "paper": paper_slug,
@@ -524,10 +559,15 @@ def build(
         "content_hash": digest,
         "sections": [s.path.name for s in sections],
         "reader_inputs": [path.name for path in extra_files],
+        "content_dependencies": {
+            s.path.name: [p.relative_to(content_dir).as_posix() for p in s.sources]
+            for s in sections
+            if s.sources
+        },
         "citations_linked": citations.linked,
         "citations_without_records": sorted(citations.unresolved),
         "assets": copied,
-        "shared_asset_root": "../assets",
+        "shared_asset_root": assets.relative_url(page_path, "assets"),
     }
     (dist / "manifest.json").write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"

@@ -5,6 +5,10 @@
 # Local survey prose and translated abstracts; anchored to keep src/survey tracked.
 /survey/
 
+# Owner-approved local source checkouts; independent Git history and licenses.
+# Never stage or publish these external repositories as pipeline source.
+/repos/
+
 # Harness configuration and the system-TEMP task junction.
 /.pi/
 

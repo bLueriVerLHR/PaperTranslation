@@ -2,6 +2,7 @@
 # Runtime pipeline dependencies.
 PyMuPDF==1.26.4
 Markdown==3.9
+Pygments==2.21.0
 
 # Development and QA tooling.
 pytest==9.1.1

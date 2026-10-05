@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Modular source manuscripts
+
+- Compose topic/project Markdown subdocuments through safe, recursive local includes;
+  retain top-level chapter order and record all consumed dependencies in the manifest/hash.
+- Highlight explicit-language fences with pinned Pygments during building, preserving
+  escaped code and existing language classes without network or runtime highlighting.
+- Specify structural source analysis, controlled design comparisons and short fixed-commit
+  excerpts with actual file/symbol/line provenance for framework and project manuscripts.
+
 ### Shared runtime architecture
 
 - Replace per-project CSS/JS copies with one library-root runtime for papers, surveys,
@@ -24,6 +33,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Reader presentation
 
+- Add opt-in visible terminology tables from canonical `work/glossary.md`, included in the
+  TOC, build hash and inventory without duplicating manuscript sources. Reject nonboolean
+  switches, missing glossaries and colliding section identifiers.
+
+- Add an original-review presentation kind to the shared builder, distinct from translated
+  papers and source-code analyses without duplicating reader templates or runtime assets.
+- Let nested source readers explicitly select their containing library root, with depth-correct
+  shared runtime links and an output containment guard.
 - Share centered, internally scrollable cards across the library, article TOC and contextual
   citations, with bidirectional focus containment and exact scroll restoration. Selecting a
   heading closes before jumping/focusing; retain offline and no-JS/no-dialog fallbacks.
@@ -33,6 +50,21 @@ All notable changes to this project are documented here. The format follows
   invented citation identities. Preserve code/MathML and numerical intervals in author-year papers.
 - Apply shared ragged-right typography across readers and analyses; remove local size/font
   overrides so export/rebuild cannot undo mixed Chinese/English spacing fixes.
+
+### Documentation responsibilities
+
+- Add a documentation ownership index separating setup, architecture, reader interfaces,
+  publication procedures, version history and disposable task evidence.
+- Remove task-specific survey decisions and historical implementation comparisons from the
+  architecture specification; correct its shared-runtime layout and the license notice's
+  outdated claim that translations are public exports.
+- Require visible manuscript terminology mappings alongside canonical glossaries.
+
+### Review methodology
+
+- Document question-led evidence organization, source comparison and tiered research review,
+  adapted from fixed-version Feynman guidance while retaining offline sources, project layout,
+  explicit verification limits and separate rights/publication approval.
 
 ### Publication policy and withdrawal
 
@@ -68,6 +100,9 @@ All notable changes to this project are documented here. The format follows
 - Add staged publication validation and a non-force-pushing TEMP content-checkout helper.
 
 ### Storage layout
+
+- Reserve ignored `repos/` for owner-relocated source checkouts with independent Git histories
+  and licenses; keep build experiments in system TEMP and source trees out of Pages snapshots.
 
 - Introduce a folder-based LLM survey deliverable and per-paper supplementary notes under
   `dist/<slug>/notes/`.

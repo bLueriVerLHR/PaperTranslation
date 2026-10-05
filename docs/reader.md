@@ -58,6 +58,20 @@ the hash remains a machine-readable HTML attribute rather than a prominent colop
 
 Source-code analyses pass `kind: analysis` in builder metadata; they are not labeled as
 translations. They retain their real inspected repository, commit and verification limits.
+Self-authored reviews use `kind: review`, labeled 原创综述 rather than a translation or source-code
+analysis. Keep project identity in canonical `work/meta.json`; do not invent a PDF/web source
+manifest or an inspected repository. Publication eligibility is separate from presentation kind;
+see `pages.md` for explicit local-only flags and snapshot approval.
+
+## Visible terminology from one canonical glossary
+
+Set `"show_glossary": true` in `work/reader.json` to render `work/glossary.md` as the first
+body section and include its headings in the TOC. Use a level-two heading such as
+`## 术语对应表`; do not copy the table into `content/`. The glossary contributes to the content
+hash and generated section inventory. The field must be boolean; a missing glossary or a
+colliding `sec-glossary` content section stops the build. Default/false keeps existing readers
+unchanged. English term, manuscript wording and distinctions belong in the table; see
+[chinese-writing.md](chinese-writing.md).
 
 ## Contextual citations, not a full visible bibliography
 

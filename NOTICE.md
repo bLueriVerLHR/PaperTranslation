@@ -27,8 +27,9 @@ source under `/survey/` is ignored for the same derivative-work reason.
 If you intend to read, publish or redistribute a translation or a figure produced with this
 pipeline, ask the rights holder of the original paper first. The MIT grant in this repository
 does not extend to that material. The separately authorized `pages-content` branch and
-GitHub Pages site publish rendered translations, analyses and figure assets for reading.
-They do not publish `work/`, source PDFs, extracted reference data or survey source files.
+GitHub Pages site publish approved self-authored reviews and source-code analyses for reading.
+Paper translations and their extracted figures remain local-only, regardless of export flags.
+Public snapshots do not include `work/`, source PDFs, extracted reference data or survey sources.
 Publication does not transfer or relicense the original authors' rights.
 
 ## Fonts

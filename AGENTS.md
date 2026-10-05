@@ -129,6 +129,17 @@ Always run commands with `$Python`. `$P` is a registered project slug, discovere
   authoring progress and delivery/rebuild chatter do not belong in reader prose. Keep useful
   technical conditions, evidence, attribution and verification limits; do not substitute keyword
   deletion or boilerplate templates for paragraph-level review.
+- For framework and project source analyses, apply `docs/source-analysis.md`: explain
+  module structure and state/data flow, then connect documented business challenges to
+  implemented mechanisms and trade-offs. Ground challenges and design rationale in official
+  docs, source comments, maintainer explanations and verified issue/PR/commit discussions;
+  distinguish community consensus, version-specific reports and explanatory inference.
+  Show relevant short source excerpts with fixed commit, file, symbol and real line ranges,
+  not path-only inventories. Do not compile/run upstream projects, their tests or benchmarks,
+  or perform local ablations for manuscript research without separate explicit authorization.
+  Read-only source checks and documentation-build validation are distinct from upstream execution.
+  Split large manuscripts into focused subdocuments with the shared builder's safe include
+  interface; retain a single canonical copy and keep authoring instructions out of prose.
 - Author math directly as MathML. Do not add LaTeX or runtime math renderers to delivered pages.
 - Keep figures, CSS and scripts as real files referenced by relative paths. Do not introduce
   `data:` image URIs into the default reader. `tools/pack.py` is an opt-in export only.
@@ -155,7 +166,10 @@ Always run commands with `$Python`. `$P` is a registered project slug, discovere
 - Original source-code analyses are not PDF/web translations. They may retain `work/meta.json`
   with the inspected local repository and exact commit, section Markdown, and a local
   `work/rebuild.py` that uses the shared builder. Do not invent a PDF/web manifest merely to
-  register an analysis. Copy no external repository wholesale; keep experiments in TEMP.
+  register an analysis. Do not copy external repositories wholesale by default. Owner-requested
+  relocation may move an existing checkout into ignored `repos/<repository>/`, preserving
+  its independent Git history, uncommitted files and license. Never stage or publish that tree;
+  update canonical path metadata without changing the inspected commit. Keep experiments in TEMP.
 - Keep authored local-only material intact when changing the pipeline. Migration authorization
   permits relocation and path metadata updates, not rewriting translations or figure images.
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,111 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_CONTENT = Path(__file__).resolve().parent / "fixtures" / "sample-content"
 FIXTURE_FIGURES = Path(__file__).resolve().parent / "fixtures" / "assets" / "figures"
 FIXTURE_METADATA = {"title": "样例标题", "subtitle": "样例副标题", "author": "样例作者"}
+
+
+@pytest.mark.parametrize(
+    ("kind", "label", "notice"),
+    [
+        ("translation", "中文译文", "译文与图示的版权归原作者。"),
+        ("analysis", "源码研读笔记", "源码与引用材料遵循各自原有许可证。"),
+        ("review", "原创综述", "引用文献与图示遵循各自原有许可与权利要求。"),
+    ],
+)
+def test_reader_kind_has_accurate_presentation(
+    tmp_path: Path, kind: str, label: str, notice: str
+) -> None:
+    build.build(
+        tmp_path / "output",
+        FIXTURE_CONTENT,
+        metadata={**FIXTURE_METADATA, "kind": kind},
+    )
+    page = (tmp_path / "output/index.html").read_text(encoding="utf-8")
+    assert f" · {label} · " in page
+    assert notice in page
+    if kind == "review":
+        assert "中文译文" not in page
+        assert "源码研读笔记" not in page
+
+
+def test_visible_glossary_uses_canonical_source_and_changes_hash(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    content = work / "content"
+    content.mkdir(parents=True)
+    (content / "01-body.md").write_text("## 正文\n\n词元表示。", encoding="utf-8")
+    (work / "reader.json").write_text('{"show_glossary": true}', encoding="utf-8")
+    glossary = work / "glossary.md"
+    glossary.write_text("## 术语对应表\n\ntoken → 词元", encoding="utf-8")
+    output = tmp_path / "output"
+    first = build.build(output, content, metadata=FIXTURE_METADATA)
+    page = (output / "index.html").read_text(encoding="utf-8")
+    assert 'id="sec-glossary"' in page
+    assert "token → 词元" in page
+    assert page.index('id="sec-glossary"') < page.index('id="sec-01-body"')
+    assert 'href="#术语对应表"' in page
+    glossary.write_text("## 术语对应表\n\ntoken → token（词元）", encoding="utf-8")
+    second = build.build(output, content, metadata=FIXTURE_METADATA)
+    assert first["content_hash"] != second["content_hash"]
+
+
+@pytest.mark.parametrize("value", [False, "true", None, 1])
+def test_glossary_is_opt_in_and_requires_boolean(tmp_path: Path, value: object) -> None:
+    work = tmp_path / "work"
+    content = work / "content"
+    content.mkdir(parents=True)
+    (content / "01-body.md").write_text("## 正文", encoding="utf-8")
+    (work / "reader.json").write_text(json.dumps({"show_glossary": value}), encoding="utf-8")
+    if value is False:
+        build.build(tmp_path / "output", content, metadata=FIXTURE_METADATA)
+        page = (tmp_path / "output/index.html").read_text(encoding="utf-8")
+        assert 'id="sec-glossary"' not in page
+    else:
+        with pytest.raises(ValueError, match="show_glossary must be a boolean"):
+            build.build(tmp_path / "output", content, metadata=FIXTURE_METADATA)
+
+
+def test_glossary_missing_or_duplicate_fails(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    content = work / "content"
+    content.mkdir(parents=True)
+    (work / "reader.json").write_text('{"show_glossary": true}', encoding="utf-8")
+    with pytest.raises(FileNotFoundError):
+        build.build(tmp_path / "output", content, metadata=FIXTURE_METADATA)
+    (content / "glossary.md").write_text("## 重复术语", encoding="utf-8")
+    with pytest.raises(ValueError, match="already in use"):
+        build.build(tmp_path / "output", content, metadata=FIXTURE_METADATA)
+
+
+def test_nested_reader_uses_one_explicit_library_root(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    dist = library / "review/work/reference/source-paper"
+    manifest = build.build(
+        dist,
+        FIXTURE_CONTENT,
+        metadata=FIXTURE_METADATA,
+        library_root=library,
+        figures_dir=FIXTURE_FIGURES,
+    )
+    page = (dist / "index.html").read_text(encoding="utf-8")
+    assert 'href="../../../../assets/styles/reader.css"' in page
+    assert 'src="../../../../assets/scripts/reader.js"' in page
+    assert manifest["shared_asset_root"] == "../../../../assets"
+    assert (library / "assets/scripts/reader.js").is_file()
+    assert (dist / "assets/figures/figure-03.png").is_file()
+    assert not (dist.parent / "assets").exists()
+    assert not (dist / "assets/styles").exists()
+    assert not (dist / "assets/scripts").exists()
+
+
+def test_reader_rejects_output_outside_library_root(tmp_path: Path) -> None:
+    dist = tmp_path / "outside"
+    with pytest.raises(ValueError, match="inside library_root"):
+        build.build(
+            dist,
+            FIXTURE_CONTENT,
+            metadata=FIXTURE_METADATA,
+            library_root=tmp_path / "library",
+        )
+    assert not dist.exists()
 
 
 def test_slugify_ascii() -> None:
