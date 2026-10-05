@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>C++ 后端开发：任务执行、并发与资源生命周期</title>
+<meta name="description" content="从线程池机制到服务边界">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>顶部</button>
+</div>
+
+<main class="page" id="content" data-content-hash="db0627575b43"><a class="site-home" href="../index.html">← 文库</a>
+  <header class="title-block">
+    <h1>C++ 后端开发：任务执行、并发与资源生命周期</h1>
+    <p class="subtitle">从线程池机制到服务边界</p>
+    <p class="meta"><span class="latin">原创源码研读与分析</span> · 原创综述 · 更新于 2026-10-05</p>
+    <p class="meta reading-notice">引用文献与图示遵循各自原有许可与权利要求。</p>
+
+<details class="meta source-details"><summary>出处与说明</summary><p>本篇为原创技术综述，以 Barak Shoshany 的 BS::thread_pool 5.1.0 为执行层案例，固定提交 <code>bd4533f1f70c2b975cbd5769a60d8eaaea1d2233</code>。源码路径与 API 分析限于该版本，不将线程池视为完整后端服务框架。引用源码及其短摘录保留原作者权利；原仓库使用 <a href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/LICENSE.txt">MIT 许可</a>。</p>
+<p>在 Windows x64、已安装的 Clang 23.1.2 下，以 C++17/C++20、<code>-O0</code> 运行了部分接口契约检查；未运行上游完整测试、竞态检测、性能基准或生产服务评测。文中容量数字为说明性假设，不是该库的实测吞吐。</p>
+<details>
+<summary>源码摘录许可：Copyright (c) 2021–2026 Barak Shoshany</summary>
+
+MIT License
+
+Copyright (c) 2021-2026 Barak Shoshany
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+</details></details>
+  </header>
+
+  <details class="toc" id="toc">
+    <summary>目录</summary>
+    <nav aria-label="目录">
+<ol>
+<li><a href="#术语对应表">术语对应表</a></li>
+<li><a href="#1-服务中的执行模型">1. 服务中的执行模型</a><ol>
+<li><a href="#请求任务与线程是三个层次">请求、任务与线程是三个层次</a></li>
+<li><a href="#cpu-工作与阻塞工作需要不同的预算">CPU 工作与阻塞工作需要不同的预算</a></li>
+<li><a href="#接口对应的完成语义">接口对应的完成语义</a></li>
+</ol></li>
+<li><a href="#2-工作队列与同步协议">2. 工作队列与同步协议</a><ol>
+<li><a href="#入队在锁内任务执行在锁外">入队在锁内，任务执行在锁外</a></li>
+<li><a href="#条件变量通知不保存任务">条件变量通知不保存任务</a></li>
+<li><a href="#计数必须覆盖状态转移">计数必须覆盖状态转移</a></li>
+<li><a href="#把锁边界接到对象边界">把锁边界接到对象边界</a></li>
+</ol></li>
+<li><a href="#3-结果异常与对象所有权">3. 结果、异常与对象所有权</a><ol>
+<li><a href="#future-是结果通道不是工作线程">future 是结果通道，不是工作线程</a></li>
+<li><a href="#异常处理的位置改变可观察性">异常处理的位置改变可观察性</a></li>
+<li><a href="#移动闭包与引用捕获">移动闭包与引用捕获</a></li>
+<li><a href="#清除队列之后的结果">清除队列之后的结果</a></li>
+</ol></li>
+<li><a href="#4-等待暂停与退出">4. 等待、暂停与退出</a><ol>
+<li><a href="#等待池空闲不是停止接收请求">等待池空闲不是停止接收请求</a></li>
+<li><a href="#同池等待为什么会死锁">同池等待为什么会死锁</a></li>
+<li><a href="#析构的等待与停止路径">析构的等待与停止路径</a></li>
+<li><a href="#reset-不是请求级取消">reset 不是请求级取消</a></li>
+</ol></li>
+<li><a href="#5-容量控制与验证">5. 容量控制与验证</a><ol>
+<li><a href="#固定线程数不等于有界服务">固定线程数不等于有界服务</a></li>
+<li><a href="#准入背压与优先级各解决一部分问题">准入、背压与优先级各解决一部分问题</a></li>
+<li><a href="#从源码协议到小规模契约检查">从源码协议到小规模契约检查</a></li>
+<li><a href="#性能实验应回答具体问题">性能实验应回答具体问题</a></li>
+</ol></li>
+</ol>
+    </nav>
+  </details>
+
+  <article class="body">
+<section id="sec-glossary">
+<h2 id="术语对应表">术语对应表</h2>
+<p>本篇中文用语与英文术语如下。标准库类名与 API 保持原样，便于对应固定版本源码。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>英文</th>
+<th>本篇用语</th>
+<th>范围与区别</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>backend service</td>
+<td>后端服务</td>
+<td>处理请求、资源与业务状态，不专指编译器后端</td>
+</tr>
+<tr>
+<td>thread pool</td>
+<td>线程池</td>
+<td>复用工作线程执行任务</td>
+</tr>
+<tr>
+<td>task / worker</td>
+<td>任务／工作线程</td>
+<td>任务是工作单元，worker 是执行者</td>
+</tr>
+<tr>
+<td>enqueue / dequeue</td>
+<td>入队／出队</td>
+<td>转移排队中的任务，不表示已完成</td>
+</tr>
+<tr>
+<td>mutex / critical section</td>
+<td>互斥量／临界区</td>
+<td>保护共享状态及不变量</td>
+</tr>
+<tr>
+<td>condition variable</td>
+<td>条件变量</td>
+<td>配合锁与谓词等待状态变化</td>
+</tr>
+<tr>
+<td>predicate / spurious wakeup</td>
+<td>谓词／虚假唤醒</td>
+<td>条件检查／无对应条件变化的唤醒</td>
+</tr>
+<tr>
+<td>future / promise</td>
+<td>future／promise</td>
+<td>消费端结果句柄／生产端结果通道</td>
+</tr>
+<tr>
+<td>move-only</td>
+<td>仅可移动</td>
+<td>可以转移所有权，不允许复制</td>
+</tr>
+<tr>
+<td>lifetime / ownership</td>
+<td>生命周期／所有权</td>
+<td>对象何时有效／谁负责持有与释放</td>
+</tr>
+<tr>
+<td>RAII</td>
+<td>RAII（资源获取即初始化）</td>
+<td>将资源释放接到对象销毁，仍须满足依赖顺序</td>
+</tr>
+<tr>
+<td>deadlock</td>
+<td>死锁</td>
+<td>互相等待或等待无法取得的执行资源</td>
+</tr>
+<tr>
+<td>drain / purge</td>
+<td>排空／清除排队任务</td>
+<td>完成已接收工作／丢弃尚未运行工作</td>
+</tr>
+<tr>
+<td>pause / cancellation</td>
+<td>暂停取任务／取消</td>
+<td>本案例 pause 不终止正在运行的任务</td>
+</tr>
+<tr>
+<td>backpressure / admission control</td>
+<td>背压／准入控制</td>
+<td>调节上游产生速度／限制接收工作</td>
+</tr>
+<tr>
+<td>concurrency / parallelism</td>
+<td>并发／并行</td>
+<td>任务交错推进／同时执行</td>
+</tr>
+<tr>
+<td>throughput / tail latency</td>
+<td>吞吐／尾时延</td>
+<td>完成速率／延迟分布高分位</td>
+</tr>
+<tr>
+<td>work stealing</td>
+<td>工作窃取</td>
+<td>分散任务队列并转移负载；本案例不是此结构</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="sec-01-execution-model">
+<h2 id="1-服务中的执行模型">1. 服务中的执行模型</h2>
+<h3 id="请求任务与线程是三个层次">请求、任务与线程是三个层次</h3>
+<p>后端服务接收请求，但不必为每个请求创建一个新线程。请求可以经过网络读取、业务判断、计算和结果返回，其中某些步骤需要等待外部资源，某些步骤占用 CPU。线程池把可执行工作封装成任务，交给已经存在的工作线程；它提供执行资源复用，不自动定义请求的超时、数据权限或响应顺序。</p>
+<p>以压缩响应为例：网络层接收数据，线程池执行压缩，结果再交回响应通道。一个请求可能产生多个任务，一个任务也可能合并多项小计算。任务边界首先应说明输入所有权、输出取得方式和执行期间依赖的资源，而不是仅把函数包进 lambda。</p>
+<p>BS::thread_pool 在固定提交中以头文件实现线程池。模板选项分别启用优先级、暂停及同池等待死锁检查，默认 <code>tp::none</code> 不启用这些能力。创建池时指定线程数；未指定时按实现提供的硬件线程信息决定，启用原生扩展还可能考虑进程亲和性。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1423-L1513" title="Barak Shoshany. BS::thread_pool v5.1.0, commit bd4533f1f70c2b975cbd5769a60d8eaaea1d2233. include/BS_thread_pool.hpp: thread_pool feature flags and constructors.
+
+BS::thread_pool v5.1.0. create_threads()/destroy_threads()/determine_thread_count(): startup accounting and thread ownership." aria-label="引用 [1, 7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Barak Shoshany. BS::thread_pool v5.1.0, commit bd4533f1f70c2b975cbd5769a60d8eaaea1d2233. include/BS_thread_pool.hpp: thread_pool feature flags and constructors.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1423-L1513&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. create_threads()/destroy_threads()/determine_thread_count(): startup accounting and thread ownership.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2063-L2139&quot;, &quot;fallback&quot;: false}]">[1, 7]</a> 这些是库的默认选择，不是服务的最优容量证明。</p>
+<h3 id="cpu-工作与阻塞工作需要不同的预算">CPU 工作与阻塞工作需要不同的预算</h3>
+<p>固定工作线程数能限制同时运行的任务数量，但线程如果阻塞于数据库或网络，就无法执行队列中的其他工作。CPU 密集任务、长时间阻塞任务和延迟敏感任务共享一个池时，会互相影响。分离执行资源、采用异步 I/O 或限制并发外部调用，是服务设计的选择，不是该线程池已经提供的网络框架功能。</p>
+<p>例如，四个工作线程都在等待远端响应时，排在后面的短计算也无法启动。增大线程数可能缓解这一特定等待，却增加上下文切换、资源竞争和外部服务负载。线程数应与任务耗时、阻塞比例和机器资源一起评估，不能将 <code>hardware_concurrency()</code> 的返回值视为吞吐上限或性能建议。</p>
+<h3 id="接口对应的完成语义">接口对应的完成语义</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>接口</th>
+<th>交给池的工作</th>
+<th>调用方获得什么</th>
+<th>需要另行处理什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>detach_task()</code></td>
+<td>一个无参数任务</td>
+<td>没有结果 future</td>
+<td>任务自身错误报告、外部生命周期</td>
+</tr>
+<tr>
+<td><code>submit_task()</code></td>
+<td>一个无参数可返回值任务</td>
+<td>单任务 future</td>
+<td>结果取得、异常消费与等待位置</td>
+</tr>
+<tr>
+<td><code>submit_loop()</code></td>
+<td>按块封装的索引循环</td>
+<td>一组完成句柄</td>
+<td>各索引数据的独立性、分块粒度</td>
+</tr>
+<tr>
+<td><code>wait()</code></td>
+<td>不提交新工作</td>
+<td>等待池状态满足谓词</td>
+<td>上游是否已经停止提交</td>
+</tr>
+</tbody>
+</table></div>
+<p>提交函数返回只表示任务已被接收，不表示函数已经执行；队列先进先出也不表示结果完成顺序一致。多线程可能同时执行多个任务，耗时不同会改变完成顺序。若业务要求按请求序号提交结果，需要在执行层之外维护相应协议。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1626-L1639" title="BS::thread_pool v5.1.0. detach_task(): queue insertion under tasks_mutex and worker notification.
+
+BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates." aria-label="引用 [2, 5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. detach_task(): queue insertion under tasks_mutex and worker notification.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1626-L1639&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1938-L1984&quot;, &quot;fallback&quot;: false}]">[2, 5]</a></p>
+</section>
+
+<section id="sec-02-queue-and-sync">
+<h2 id="2-工作队列与同步协议">2. 工作队列与同步协议</h2>
+<h3 id="入队在锁内任务执行在锁外">入队在锁内，任务执行在锁外</h3>
+<p><code>detach_task()</code> 使用 <code>tasks_mutex</code> 保护队列插入，然后调用 <code>task_available_cv.notify_one()</code> 唤醒一个工作线程。以下是固定版本的短摘录，省略了优先级分支：<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1626-L1639" title="BS::thread_pool v5.1.0. detach_task(): queue insertion under tasks_mutex and worker notification." aria-label="引用 [2]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. detach_task(): queue insertion under tasks_mutex and worker notification.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1626-L1639&quot;, &quot;fallback&quot;: false}]">[2]</a></p>
+<pre><code class="language-cpp">{
+    const std::scoped_lock tasks_lock(tasks_mutex);
+    tasks.emplace(std::forward&lt;F&gt;(task));
+}
+task_available_cv.notify_one();
+</code></pre>
+<p>锁保护的是队列和关联状态，不是任务的全部执行时间。worker 在锁内等待、出队并增加运行计数，随后解锁再调用任务。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399" title="BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state." aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399&quot;, &quot;fallback&quot;: false}]">[3]</a> 如果用户代码一直在队列锁内运行，其他工作线程和提交者就会等待同一把锁，原本独立的任务也会被串行化。解锁执行还允许任务提交新工作，但不保证这些新工作与父任务之间没有等待环。</p>
+<p>这一结构是集中式队列，不是每个 worker 各自持有双端队列的工作窃取。默认队列为 <code>std::queue&lt;task_t&gt;</code>；启用优先级后改为 <code>std::priority_queue&lt;pr_task&gt;</code>。优先级比较器只比较数值，没有使用提交序号，因此不能据此承诺同优先级稳定顺序。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399" title="BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state.
+
+BS::thread_pool v5.1.0. pr_task priority comparator; task queue selection and pop_task(). Equal-priority stability is not encoded in the comparator." aria-label="引用 [3, 9]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;9&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. pr_task priority comparator; task queue selection and pop_task(). Equal-priority stability is not encoded in the comparator.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L409-L440&quot;, &quot;fallback&quot;: false}]">[3, 9]</a></p>
+<h3 id="条件变量通知不保存任务">条件变量通知不保存任务</h3>
+<p>worker 等待的是“队列非空且没有暂停取任务”，同时考虑停止条件。<code>wait(lock, predicate)</code> 在释放锁进入等待、被唤醒后重新获得锁，并再次检查谓词。通知只是推动等待者重查状态；任务由队列保存，不能用通知次数代替队列中的工作数量。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399" title="BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state." aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399&quot;, &quot;fallback&quot;: false}]">[3]</a></p>
+<p>这解释了两个经常混淆的场景。任务先入队、worker 后进入等待时，worker 会看到非空队列，不需要依赖一条此前通知仍被保存。发生虚假唤醒，或另一个 worker 已经取走最后一个任务时，谓词不成立，当前线程继续等待。正确性来自状态与锁的配合，而不是假设每次唤醒必定对应一个可执行任务。</p>
+<h3 id="计数必须覆盖状态转移">计数必须覆盖状态转移</h3>
+<p>worker 出队时，在同一个临界区内增加 <code>tasks_running</code>；任务执行结束后，下一轮循环重新拿锁并减少计数，再判断是否应通知等待完成的调用者。这样，“排队任务”和“正在执行的任务”之间的转移不会向同一锁下的完成检查暴露一个两者都为空的间隙。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399" title="BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state." aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399&quot;, &quot;fallback&quot;: false}]">[3]</a></p>
+<p>计数还有初始化阶段的用途。<code>create_threads()</code> 在启动 worker 前先把 <code>tasks_running</code> 设为工作线程数，各线程执行初始化函数后进入循环并减少计数。因此这个字段在启动期间并不只表示正在运行的用户任务，也避免 <code>wait()</code> 把尚未完成初始化的池误判为空闲。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2063-L2139" title="BS::thread_pool v5.1.0. create_threads()/destroy_threads()/determine_thread_count(): startup accounting and thread ownership." aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. create_threads()/destroy_threads()/determine_thread_count(): startup accounting and thread ownership.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2063-L2139&quot;, &quot;fallback&quot;: false}]">[7]</a> 解释计数器时必须跟随其写入和读取位置，不能只根据变量名推断含义。</p>
+<h3 id="把锁边界接到对象边界">把锁边界接到对象边界</h3>
+<p>队列同步不替业务对象提供线程安全。两个任务从队列中被正确取出之后，如果同时修改同一个非原子计数器，仍可能发生数据竞争；如果各自使用同一客户端对象，还需要核实该客户端是否允许并发调用。线程池保护自己的不变量，任务则必须维护共享输入、输出和外部资源的不变量。</p>
+<p>细粒度分块可以减少排队和调度成本，但任务粒度过小会放大锁、封装、分配及唤醒开销。粒度过大则可能使某个工作线程长时间占用资源。不同工作负载应比较完成时间和负载分布，不能仅因队列逻辑短就断言它在任意并发度下没有瓶颈。</p>
+</section>
+
+<section id="sec-03-result-and-ownership">
+<h2 id="3-结果异常与对象所有权">3. 结果、异常与对象所有权</h2>
+<h3 id="future-是结果通道不是工作线程">future 是结果通道，不是工作线程</h3>
+<p><code>submit_task()</code> 先创建 <code>task_and_future&lt;R&gt;</code>，将其中的任务移入队列，再把 future 返回给调用者。包装器创建 promise，取得其 future，并把用户函数与 promise 一起移动进任务。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L727-L768" title="BS::thread_pool v5.1.0. task_and_future&lt;R&gt;: promise/future construction and exception transport.
+
+BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates." aria-label="引用 [4, 5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. task_and_future&lt;R&gt;: promise/future construction and exception transport.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L727-L768&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1938-L1984&quot;, &quot;fallback&quot;: false}]">[4, 5]</a> future 与工作线程没有一一对应关系：任意可用 worker 都可以执行该任务，结果仍通过同一共享状态交给调用方。</p>
+<p>返回值为 <code>void</code> 时，包装器执行函数后调用 <code>promise.set_value()</code> 表示完成；有返回值时，函数结果进入 promise。在启用异常处理的构建中，包装器捕获异常并调用 <code>set_exception()</code>，随后调用方的 <code>future.get()</code> 重新抛出异常。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L727-L768" title="BS::thread_pool v5.1.0. task_and_future&lt;R&gt;: promise/future construction and exception transport." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. task_and_future&lt;R&gt;: promise/future construction and exception transport.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L727-L768&quot;, &quot;fallback&quot;: false}]">[4]</a> <code>wait()</code> 或 <code>future.wait()</code> 只等待状态，不代替 <code>get()</code> 消费结果和错误。</p>
+<h3 id="异常处理的位置改变可观察性">异常处理的位置改变可观察性</h3>
+<p>worker 外层也有异常捕获，但其 catch 为空。带 future 的包装器通常已把用户异常放入结果通道；直接 <code>detach_task()</code> 则没有同样的通道，未自行处理的异常可能被 worker 外层捕获后丢弃。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399" title="BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state.
+
+BS::thread_pool v5.1.0. task_and_future&lt;R&gt;: promise/future construction and exception transport." aria-label="引用 [3, 4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. task_and_future&lt;R&gt;: promise/future construction and exception transport.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L727-L768&quot;, &quot;fallback&quot;: false}]">[3, 4]</a> 因而，“工作线程没有因普通任务异常退出”与“错误已经被业务记录”是两个不同结论。</p>
+<p>服务代码可以使用带结果的接口，在明确的完成路径记录错误；也可以让 detached 任务内部自行报告失败。线程初始化与清理函数位于普通任务的 catch 范围之外，库的接口说明要求它们不抛出异常。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1423-L1513" title="Barak Shoshany. BS::thread_pool v5.1.0, commit bd4533f1f70c2b975cbd5769a60d8eaaea1d2233. include/BS_thread_pool.hpp: thread_pool feature flags and constructors.
+
+BS::thread_pool v5.1.0. pause(), purge(), reset() and initialization/cleanup contract." aria-label="引用 [1, 6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Barak Shoshany. BS::thread_pool v5.1.0, commit bd4533f1f70c2b975cbd5769a60d8eaaea1d2233. include/BS_thread_pool.hpp: thread_pool feature flags and constructors.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1423-L1513&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. pause(), purge(), reset() and initialization/cleanup contract.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1725-L1810&quot;, &quot;fallback&quot;: false}]">[1, 6]</a> 不能把任务异常通道推广为对所有线程生命周期异常的统一保护。</p>
+<h3 id="移动闭包与引用捕获">移动闭包与引用捕获</h3>
+<p>移动捕获可以将一个资源的所有权交给任务，而引用捕获只保存外部对象的引用。下面的例子用 <code>unique_ptr</code> 演示所有权转移，代码是本篇构造的用例：<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L727-L768" title="BS::thread_pool v5.1.0. task_and_future&lt;R&gt;: promise/future construction and exception transport." aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. task_and_future&lt;R&gt;: promise/future construction and exception transport.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L727-L768&quot;, &quot;fallback&quot;: false}]">[4]</a></p>
+<pre><code class="language-cpp">BS::thread_pool&lt;&gt; pool(2);
+auto result = pool.submit_task(
+    [p = std::make_unique&lt;int&gt;(21)] { return *p * 2; });
+const int answer = result.get();  // 42
+</code></pre>
+<p>工作函数持有资源直到任务销毁，而不是依赖调用栈上的指针仍然存在。相反，<code>[&amp;request]</code> 不延长 request 的生命周期；请求处理函数提前返回、超时逻辑销毁对象或连接关闭，都可能使后续任务访问失效引用。池的析构等待不能自动修复更早发生的外部对象销毁。</p>
+<p>还要辨认依赖对象的声明顺序：局部变量按构造的逆序销毁。若被任务引用的数据先于线程池析构，池随后等待任务时可能已失去有效输入。稳妥的接口应明确拥有输入，或通过共享生命周期协议保证资源在任务完成前仍然有效。</p>
+<h3 id="清除队列之后的结果">清除队列之后的结果</h3>
+<p><code>purge()</code> 清除尚未出队的任务，不影响已运行任务。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1725-L1810" title="BS::thread_pool v5.1.0. pause(), purge(), reset() and initialization/cleanup contract." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. pause(), purge(), reset() and initialization/cleanup contract.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1725-L1810&quot;, &quot;fallback&quot;: false}]">[6]</a> 对包装器持有的 promise 而言，任务未执行却被销毁，会使尚未满足的共享状态失去生产端，future 因而可能报告 <code>broken_promise</code>。这与任务主动抛出的业务异常不同，也不是“取消后成功完成”。</p>
+<p>任务取消需要另外定义结果、原因和资源回收。清除队列只改变执行机会，不能回滚已经发出的外部请求、撤销已写入的数据，或中断正在运行的函数。把所有取消场景都映射成一个成功值，会掩盖调用方真正需要处理的状态差异。</p>
+</section>
+
+<section id="sec-04-lifecycle">
+<h2 id="4-等待暂停与退出">4. 等待、暂停与退出</h2>
+<h3 id="等待池空闲不是停止接收请求">等待池空闲不是停止接收请求</h3>
+<p>未暂停时，<code>wait()</code> 的完成谓词同时要求运行计数为零、任务队列为空。暂停时则要求运行计数为零，并允许队列仍有未取出的任务。这一差异直接来自实现：<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1938-L1984" title="BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1938-L1984&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
+<pre><code class="language-cpp">if constexpr (pause_enabled)
+    return (tasks_running == 0) &amp;&amp; (paused || tasks.empty());
+else
+    return (tasks_running == 0) &amp;&amp; tasks.empty();
+</code></pre>
+<p><code>pause()</code> 改变的是 worker 是否继续取任务，已运行的函数仍会执行。于是暂停后的 <code>wait()</code> 返回，不能解释为全部提交任务已经完成。若另一条线程还在提交新工作，“此刻池空闲”也不是关闭服务的屏障；上游准入和生产者停止必须由服务自己协调。</p>
+<h3 id="同池等待为什么会死锁">同池等待为什么会死锁</h3>
+<p>一个任务正在执行时，其自身也占用运行计数。若在这个任务中调用同一个池的 <code>wait()</code>，任务等待计数归零，而计数归零又要求该任务先结束，形成循环等待。启用 <code>tp::wait_deadlock_checks</code> 后，等待接口检查当前线程所属的池，并为这种情况抛出 <code>BS::wait_deadlock</code>。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1938-L1984" title="BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates." aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1938-L1984&quot;, &quot;fallback&quot;: false}]">[5]</a></p>
+<p>该检查不是通用死锁检测器。单 worker 池中，父任务提交一个子任务，再等待子任务 future：worker 被父任务占住，子任务仍在队列，future 等不到结果。这个等待绕过了池的 <code>wait()</code>，因此不会被上述检查自动识别。跨池互相等待、持有业务锁等待任务也需要单独分析依赖图。</p>
+<p>服务可把后续工作表达为完成之后的下一步，而不在有限 worker 中同步等待其依赖；也可将有明确隔离需求的执行资源分开。增加线程只能推迟资源耗尽，并不消除循环依赖。</p>
+<h3 id="析构的等待与停止路径">析构的等待与停止路径</h3>
+<p>析构先调用 <code>wait()</code>。在使用 <code>std::thread</code> 的路径上，再将 <code>workers_running</code> 置为 false，通知等待者并逐个 join；具有相应标准库能力时采用 <code>std::jthread</code> 与停止令牌路径。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1423-L1513" title="Barak Shoshany. BS::thread_pool v5.1.0, commit bd4533f1f70c2b975cbd5769a60d8eaaea1d2233. include/BS_thread_pool.hpp: thread_pool feature flags and constructors.
+
+BS::thread_pool v5.1.0. create_threads()/destroy_threads()/determine_thread_count(): startup accounting and thread ownership." aria-label="引用 [1, 7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Barak Shoshany. BS::thread_pool v5.1.0, commit bd4533f1f70c2b975cbd5769a60d8eaaea1d2233. include/BS_thread_pool.hpp: thread_pool feature flags and constructors.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1423-L1513&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. create_threads()/destroy_threads()/determine_thread_count(): startup accounting and thread ownership.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2063-L2139&quot;, &quot;fallback&quot;: false}]">[1, 7]</a> 停止条件使 worker 退出取任务循环，不表示正在执行的用户函数被强制中断。</p>
+<p>暂停状态尤其需要明确退出策略。库的析构说明指出，暂停时仍在队列里的任务不会执行。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1423-L1513" title="Barak Shoshany. BS::thread_pool v5.1.0, commit bd4533f1f70c2b975cbd5769a60d8eaaea1d2233. include/BS_thread_pool.hpp: thread_pool feature flags and constructors." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Barak Shoshany. BS::thread_pool v5.1.0, commit bd4533f1f70c2b975cbd5769a60d8eaaea1d2233. include/BS_thread_pool.hpp: thread_pool feature flags and constructors.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1423-L1513&quot;, &quot;fallback&quot;: false}]">[1]</a> 服务若希望排空已接收工作，应先停止生产者、恢复取任务，再等待并释放资源；若策略是舍弃排队工作，就应向结果消费者表达对应失败或取消。析构也没有为任意长任务提供统一完成期限：用户函数永久阻塞时，退出仍可能被拖住。</p>
+<h3 id="reset-不是请求级取消">reset 不是请求级取消</h3>
+<p>启用暂停能力的 <code>reset()</code> 暂停取任务，等待正在运行的工作，重新创建工作线程，最后恢复原暂停状态。排队任务可以保留并由新线程继续处理；未启用暂停能力的路径则按相应等待语义先等全部工作。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1725-L1810" title="BS::thread_pool v5.1.0. pause(), purge(), reset() and initialization/cleanup contract." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. pause(), purge(), reset() and initialization/cleanup contract.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1725-L1810&quot;, &quot;fallback&quot;: false}]">[6]</a> 重建线程与清除队列是不同操作，不能把 reset 用作无条件取消请求的替代。</p>
+<p>一个可维护的服务关闭协议，应分别说明接收入口、排队工作、运行工作、结果通道和依赖资源如何退出。线程池负责 worker 的生命周期，服务负责这些对象之间的依赖顺序。</p>
+</section>
+
+<section id="sec-05-service-boundaries">
+<h2 id="5-容量控制与验证">5. 容量控制与验证</h2>
+<h3 id="固定线程数不等于有界服务">固定线程数不等于有界服务</h3>
+<p>固定版本的入队路径直接向任务容器插入，没有以队列容量、租户配额或请求期限作准入判断。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1626-L1639" title="BS::thread_pool v5.1.0. detach_task(): queue insertion under tasks_mutex and worker notification.
+
+BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state." aria-label="引用 [2, 3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;2&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. detach_task(): queue insertion under tasks_mutex and worker notification.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1626-L1639&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. worker(): predicate wait, task accounting, unlock-before-execution and cleanup; private synchronization state.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L2283-L2399&quot;, &quot;fallback&quot;: false}]">[2, 3]</a> 工作线程数限制同时执行的工作，却不能限制待执行闭包占用的内存。当请求到达快于完成速度，任务和它们捕获的数据会累积。</p>
+<p>稳定系统中，平均在途数量、到达率和平均停留时间可用 Little 定律联系：<a class="citation" href="https://doi.org/10.1287/opre.9.3.383" title="John D. C. Little. A Proof for the Queuing Formula: L = λW. Operations Research 9(3), 383–387 (1961). DOI: 10.1287/opre.9.3.383." aria-label="引用 [10]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;10&quot;, &quot;text&quot;: &quot;John D. C. Little. A Proof for the Queuing Formula: L = λW. Operations Research 9(3), 383–387 (1961). DOI: 10.1287/opre.9.3.383.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1287/opre.9.3.383&quot;, &quot;fallback&quot;: false}]">[10]</a></p>
+<p><math display="block"><mi>L</mi><mo>=</mo><mi>λ</mi><mi>W</mi></math></p>
+<p>这里 <math><mi>L</mi></math> 是所选边界内平均在途工作数，<math><mi>λ</mi></math> 是同一边界的平均到达率，<math><mi>W</mi></math> 是平均停留时间；边界、统计窗口与稳定条件须一致。这是容量分析关系，不是本线程池的性能模型。队列持续增长时，不能任选瞬时测量值就称系统已稳定。</p>
+<p>假设一个稳定工作流每秒进入 200 项工作，平均停留 0.1 秒，则平均在途工作数为 20。这个例子只解释数量关系，并未测量该库。在途包括排队还是运行，取决于统计边界；每个任务捕获的内存、队列节点和结果通道还会影响实际容量。</p>
+<h3 id="准入背压与优先级各解决一部分问题">准入、背压与优先级各解决一部分问题</h3>
+<p>服务可以在提交之前限制在途数量、单租户工作量及输入大小，并在任务结束或提交失败时可靠归还配额。这个包装层还要定义超时、拒绝原因和结果通道，不能只在压力大时丢弃任务而让调用方永久等待。</p>
+<p>背压把处理能力反馈给生产者，准入控制决定是否接收工作，优先级决定排队工作的选择顺序。三者不是互相替代的功能。优先级队列在持续高优先级到达时可能推迟低优先级任务；它也不能抢占已经运行的长任务。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L409-L440" title="BS::thread_pool v5.1.0. pr_task priority comparator; task queue selection and pop_task(). Equal-priority stability is not encoded in the comparator." aria-label="引用 [9]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;9&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. pr_task priority comparator; task queue selection and pop_task(). Equal-priority stability is not encoded in the comparator.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L409-L440&quot;, &quot;fallback&quot;: false}]">[9]</a> 若服务需要截止期限、公平性或取消，应分别设计和验证。</p>
+<h3 id="从源码协议到小规模契约检查">从源码协议到小规模契约检查</h3>
+<p>本篇构造了一组确定性用例，在 Windows x64、Clang 23.1.2 下以 C++17 和 C++20、<code>-O0</code> 编译运行。检查了返回值与仅可移动捕获、任务异常经 future 传播、分块循环覆盖、暂停时 wait 返回但队列未清空、purge 后 <code>broken_promise</code>、同池等待检查以及未暂停析构排空。这些用例均通过，不是上游完整测试或并发压力测试。</p>
+<p>例如，暂停语义的用例先创建单 worker 池、暂停并提交任务，再调用 <code>wait()</code>。随后检查队列仍有一项且 future 尚未 ready；恢复取任务后取得结果。它区分了“当前运行任务已结束”和“所有已接收任务都完成”，而不是依赖某次调度恰好慢了一点。<a class="citation" href="https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1938-L1984" title="BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates.
+
+BS::thread_pool v5.1.0. pause(), purge(), reset() and initialization/cleanup contract." aria-label="引用 [5, 6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. submit_task(), unpause() and wait(): same-pool deadlock check and completion predicates.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1938-L1984&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;BS::thread_pool v5.1.0. pause(), purge(), reset() and initialization/cleanup contract.&quot;, &quot;url&quot;: &quot;https://github.com/bshoshany/thread-pool/blob/bd4533f1f70c2b975cbd5769a60d8eaaea1d2233/include/BS_thread_pool.hpp#L1725-L1810&quot;, &quot;fallback&quot;: false}]">[5, 6]</a></p>
+<p>这类检查验证明确的接口现象；静态分析则解释现象由哪些状态和调用关系产生。二者结合比只看 API 名称更可靠，但仍不证明所有交错、所有标准库、异常关闭路径或生产负载均安全。</p>
+<h3 id="性能实验应回答具体问题">性能实验应回答具体问题</h3>
+<p>线程池评测可以控制任务粒度、提交者数量、worker 数量、阻塞比例和结果取得方式，分别记录吞吐、排队时延、尾时延与峰值在途数量。测量还应说明是否包含闭包构造、内存分配和 future 消费。只测一组空任务不能直接预测数据库服务或压缩服务的行为。</p>
+<p>本篇未进行吞吐、尾时延、竞态检测或服务部署评测，也未实现工作窃取与网络事件循环。线程池案例说明的是后端执行层的同步、结果和生命周期协议。网络协议、持久化、连接管理与分布式一致性属于不同问题，不能因为任务能够并行执行就视为已经解决。</p>
+</section>
+  </article>
+
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>
