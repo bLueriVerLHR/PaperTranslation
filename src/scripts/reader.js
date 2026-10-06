@@ -210,6 +210,15 @@
     if (!modal) { return; }
     links.forEach(function (link) {
       link.addEventListener("click", function (event) {
+        // Inside an answer card, retain the real source link instead of trying to
+        // stack dialogs (or swallowing the click while another modal is active).
+        if (activeModal) {
+          if (link.closest(".qa-card-content") && /^https?:\/\//i.test(link.href)) {
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+          }
+          return;
+        }
         if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) { return; }
         var records;
         try { records = JSON.parse(link.getAttribute("data-citations")); }
@@ -234,6 +243,108 @@
         });
         modal.open(link);
       });
+    });
+  }
+
+  function initQuestions() {
+    document.querySelectorAll(".body .qa-bank").forEach(function (bank) {
+      var pairs = Array.from(bank.children).filter(function (node) {
+        return node.classList.contains("qa-item");
+      }).map(function (item) {
+        return { item: item, question: item.querySelector(".qa-question"), answer: item.querySelector(".qa-answer") };
+      });
+      if (!pairs.length || pairs.some(function (pair) { return !pair.question || !pair.answer; })) { return; }
+      var content = document.createElement("div");
+      content.className = "body qa-card-content";
+      var modalId = "qa-dialog-" + bank.id;
+      while (document.getElementById(modalId) || document.getElementById(modalId + "-title")) { modalId += "-card"; }
+      var modal = createModal(modalId, "参考回答", content);
+      // No dialog support: do not hide answers or expose non-working controls.
+      if (!modal) { return; }
+      var current = null;
+      function restoreAnswer() {
+        if (current) { current.item.appendChild(current.answer); }
+      }
+      modal.dialog.addEventListener("close", function () {
+        restoreAnswer(); current = null;
+      });
+      content.addEventListener("click", function (event) {
+        var link = event.target.closest("a[href^='#']");
+        if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) { return; }
+        var target;
+        try { target = document.getElementById(decodeURIComponent(link.hash.slice(1))); }
+        catch (err) { return; }
+        if (!target) { return; }
+        event.preventDefault();
+        if (modal.dialog.contains(target)) { target.scrollIntoView({ block: "start", behavior: "instant" }); }
+        else { modal.close(target); }
+      });
+      // Move the one canonical answer, never clone IDs or detach citation handlers.
+      // Print always uses the original inline answer, even with its card still open.
+      window.addEventListener("beforeprint", restoreAnswer);
+      window.addEventListener("afterprint", function () {
+        if (current && modal.dialog.open) { content.replaceChildren(current.answer); updateMathLayout(); }
+      });
+      var controls = document.createElement("div");
+      controls.className = "qa-controls";
+      var toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "qa-mode-toggle";
+      toggle.setAttribute("aria-pressed", "false");
+      var label = document.createElement("label");
+      label.textContent = "搜索问题 ";
+      var search = document.createElement("input");
+      search.type = "search";
+      search.placeholder = "问题关键词";
+      label.appendChild(search);
+      var status = document.createElement("p");
+      status.className = "qa-status";
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      controls.append(toggle, label, status);
+      bank.prepend(controls);
+      bank.dataset.qaMode = "read";
+      function updateStatus() {
+        var visible = pairs.filter(function (pair) { return !pair.item.hidden; }).length;
+        status.textContent = (bank.dataset.qaMode === "test" ? "答题自测 · 点击问题查看回答" : "问答阅读 · 全部回答展开") +
+          " · " + visible + " / " + pairs.length + " 题" + (visible ? "" : " · 没有匹配的问题");
+      }
+      function setMode(test) {
+        bank.dataset.qaMode = test ? "test" : "read";
+        toggle.textContent = test ? "展开全部回答" : "折叠全部回答 · 自测";
+        toggle.setAttribute("aria-pressed", String(test));
+        pairs.forEach(function (pair) {
+          pair.trigger.disabled = !test;
+          if (test) { pair.trigger.setAttribute("aria-haspopup", "dialog"); pair.trigger.setAttribute("aria-controls", modalId); }
+          else { pair.trigger.removeAttribute("aria-haspopup"); pair.trigger.removeAttribute("aria-controls"); }
+        });
+        updateStatus(); updateMathLayout();
+      }
+      pairs.forEach(function (pair) {
+        var trigger = document.createElement("button");
+        trigger.type = "button";
+        trigger.className = "qa-question-button";
+        trigger.append.apply(trigger, Array.from(pair.question.childNodes));
+        pair.question.appendChild(trigger);
+        pair.trigger = trigger;
+        trigger.addEventListener("click", function () {
+          if (bank.dataset.qaMode !== "test" || activeModal) { return; }
+          current = pair;
+          document.getElementById(modalId + "-title").textContent = pair.question.textContent;
+          content.replaceChildren(pair.answer);
+          modal.open(trigger);
+          updateMathLayout();
+        });
+      });
+      toggle.addEventListener("click", function () { setMode(bank.dataset.qaMode !== "test"); });
+      search.addEventListener("input", function () {
+        var query = search.value.trim().toLocaleLowerCase();
+        pairs.forEach(function (pair) {
+          pair.item.hidden = pair.question.textContent.toLocaleLowerCase().indexOf(query) < 0;
+        });
+        updateStatus();
+      });
+      setMode(false);
     });
   }
 
@@ -277,6 +388,7 @@
 
   function updateMathLayout() {
     document.querySelectorAll(".body math").forEach(function (element) {
+      if (!element.getClientRects().length) { return; }
       var block = element.getAttribute("display") === "block" ||
         element.querySelector("mtable") || element.closest(".equation");
       var wrapper = element.parentElement;
@@ -340,6 +452,7 @@
     initReadingTools();
     initToc();
     initCitations();
+    initQuestions();
     initTheme();
     initTopButton();
     initScrollSpy();

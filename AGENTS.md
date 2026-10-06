@@ -117,19 +117,46 @@ Always run commands with `$Python`. `$P` is a registered project slug, discovere
   temporary plans, pauses, approvals and execution logs belong in task state and TEMP reports.
   Do not turn user dialogue or one-off operations into permanent documentation rules.
 
+## Mandatory reading before manuscript work
+
+Before every manuscript task (new writing, expansion, rewriting, translation or polishing),
+read the applicable documents **in full** and follow them throughout drafting and review.
+Do not rely only on summaries, remembered rules or keyword scans:
+
+- All manuscript work: `docs/chinese-writing.md` for genre, mechanism depth, mathematical
+  reasoning, evidence boundaries, terminology, prose and paragraph-level review.
+- Original reviews: also `docs/review-method.md` for source identity, primary-source checks,
+  claim-to-evidence mapping and fair comparisons.
+- Framework/project/source-code analysis, including such passages within reviews: also
+  `docs/source-analysis.md` for structure, state/data flow, documented challenges, design
+  trade-offs, readable fixed-version excerpts and modular manuscript maintenance.
+- Explicit question-bank/revision chapters: also read `docs/questions.md`; Q&A is opt-in
+  for the requested scope, not a reason to convert ordinary book chapters into interview
+  scripts. Preserve evidence-based answers, offline fallbacks and complete printed content.
+- Before changing an existing project manuscript, read its canonical `work/README.md`,
+  glossary, relevant source map/research records and the complete affected sections.
+
+Explain how mechanisms work, how they differ from prior approaches, why their benefits
+can arise and what assumptions and costs constrain them. Include necessary derivations
+with explicit premises; distinguish mathematical properties, explanatory inference and
+reported experiments. Writing requirements and task dialogue are not reader prose.
+Keep document-build checks separate from mathematical or empirical validation, and do
+not execute upstream projects or experiments without separate explicit authorization.
+Detailed requirements belong to the linked specifications, not duplicate project templates.
+
 ## Content and rendering conventions
 
 - Google-style Python: PEP 8 and PEP 257. Run `ruff format` and `ruff check` before committing.
 - Additive changes keep existing reader deliverables buildable. Do not commit generated output
   to main; only approved, validated reader-only exports belong on `pages-content`.
 - Translate one section at a time in source order. Do not translate ahead of the source.
-- Apply `docs/chinese-writing.md` when authoring or polishing Chinese content. Translations
+- Follow the mandatory manuscript reading requirements above. Translations
   and reviews use academic prose; source-code analyses use analysis-centred technical-book
   prose with relevant practical cases. Task prompts, meeting/interview framing, answer scripts,
   authoring progress and delivery/rebuild chatter do not belong in reader prose. Keep useful
   technical conditions, evidence, attribution and verification limits; do not substitute keyword
   deletion or boilerplate templates for paragraph-level review.
-- For framework and project source analyses, apply `docs/source-analysis.md`: explain
+- For framework and project source analyses, read and follow `docs/source-analysis.md`: explain
   module structure and state/data flow, then connect documented business challenges to
   implemented mechanisms and trade-offs. Ground challenges and design rationale in official
   docs, source comments, maintainer explanations and verified issue/PR/commit discussions;

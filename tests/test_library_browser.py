@@ -302,3 +302,153 @@ def test_reader_toc_native_fallback(browser, reader_site: Path, mode: str) -> No
         assert page.locator("#toc a:visible").count() == 41
         page.locator("#toc a[href='#topic-29']").click()
         page.wait_for_url("**#topic-29")
+
+
+@pytest.fixture
+def question_site(tmp_path: Path) -> Path:
+    """Build rich paired answers and ordinary prose without any external resources."""
+    from tools import build
+
+    content = tmp_path / "work/content"
+    content.mkdir(parents=True)
+    rich = (
+        '<p id="answer-probe">答案 <math><mi>x</mi></math> [1]。</p>'
+        + "\n\n```cpp\nint answer = 42;\n```\n\n"
+        + "\n\n".join("内部滚动正文。" * 20 for _ in range(30))
+        + "\n\n[返回普通章节](#ordinary)\n"
+    )
+    pairs = []
+    for index in range(3):
+        answer = rich if index == 0 else f"**回答。** 第 {index} 题的完整答案。"
+        pairs.append(
+            f'<article class="qa-item" id="qa-{index}" markdown="1">\n'
+            f'<p class="qa-question">问题 {index}：资源与生命周期？</p>\n'
+            f'<div class="qa-answer" markdown="1">\n\n{answer}\n\n</div>\n</article>'
+        )
+    (content / "01.md").write_text(
+        '## 普通章节 {#ordinary}\n\n<p id="ordinary-answer">不会折叠的正文。</p>\n\n'
+        '## 问答章节\n\n<div class="qa-bank" id="synthetic-bank" markdown="1">\n\n'
+        + "\n\n".join(pairs)
+        + '\n\n</div>\n\n<div class="qa-bank" id="second-bank" markdown="1">\n\n'
+        '<article class="qa-item" id="qa-second" markdown="1">\n'
+        '<p class="qa-question">独立题库问题</p>\n'
+        '<div class="qa-answer" markdown="1">\n\n独立题库答案。\n\n</div>\n'
+        "</article>\n\n</div>",
+        encoding="utf-8",
+    )
+    (content.parent / "reader.json").write_text(
+        '{"references":{"1":{"text":"Synthetic source","url":"https://example.org/source"}}}',
+        encoding="utf-8",
+    )
+    target = tmp_path / "reader"
+    build.build(target, content, metadata={"title": "Question fixture", "kind": "review"})
+    return target
+
+
+@pytest.mark.parametrize("width", [320, 390, 1280])
+def test_questions_modes_cards_filter_print_and_links(
+    browser, question_site: Path, width: int
+) -> None:
+    """Exercise file:// rich cards, one canonical answer, focus, print and scoped filters."""
+    with browser.new_context(viewport={"width": width, "height": 844}) as context:
+        context.route(
+            "https://example.org/**", lambda route: route.fulfill(body="Synthetic source")
+        )
+        page = context.new_page()
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto((question_site / "index.html").as_uri(), wait_until="load")
+        bank = page.locator("#synthetic-bank")
+        toggle = bank.locator(".qa-mode-toggle")
+        search = bank.locator("input[type=search]")
+        trigger = page.locator("#qa-0 .qa-question-button")
+        modal = page.locator("#qa-dialog-synthetic-bank")
+        assert bank.get_attribute("data-qa-mode") == "read"
+        assert bank.locator(".qa-answer:visible").count() == 3
+        playwright.expect(trigger).to_be_disabled()
+        toggle.click()
+        assert bank.get_attribute("data-qa-mode") == "test"
+        assert bank.locator(".qa-answer:visible").count() == 0
+        assert page.locator("#ordinary-answer").is_visible()
+        assert page.locator("#second-bank .qa-answer").is_visible()
+        assert toggle.get_attribute("aria-pressed") == "true"
+        trigger.scroll_into_view_if_needed()
+        initial_y = page.evaluate("scrollY")
+        for dismissal in ("escape", "button", "backdrop"):
+            trigger.focus()
+            page.keyboard.press("Enter")
+            playwright.expect(modal).to_be_visible()
+            assert modal.locator("#answer-probe").count() == 1
+            assert page.locator("#answer-probe").count() == 1
+            assert modal.locator("code.language-cpp .syn-kt").count() >= 1
+            assert modal.locator("math").count() == 1
+            assert page.locator("body").evaluate("e => e.style.position") == "fixed"
+            page.keyboard.press("Shift+Tab")
+            assert modal.evaluate("e => e.contains(document.activeElement)")
+            modal.locator(".reader-dialog-body").evaluate("e => e.scrollTop = e.scrollHeight")
+            assert modal.locator(".reader-dialog-body").evaluate("e => e.scrollTop > 0")
+            if dismissal == "escape":
+                page.keyboard.press("Escape")
+            elif dismissal == "button":
+                modal.locator(".reader-dialog-close").click()
+            else:
+                page.mouse.click(4, 4)
+            playwright.expect(modal).not_to_be_visible()
+            playwright.expect(trigger).to_be_focused()
+            assert bank.locator("#qa-0 .qa-answer #answer-probe").count() == 1
+            page.wait_for_function("y => Math.abs(scrollY-y) < 1", arg=initial_y)
+        trigger.click()
+        with page.expect_popup() as popup:
+            modal.locator("a.citation").click()
+        popup.value.close()
+        assert modal.is_visible()
+        assert page.locator("#citation-dialog[open]").count() == 0
+        # Browser printing fires these events; emulate media too so CSS is inspected.
+        page.evaluate("dispatchEvent(new Event('beforeprint'))")
+        page.emulate_media(media="print")
+        assert bank.locator("#qa-0 #answer-probe").is_visible()
+        assert bank.locator(".qa-answer:visible").count() == 3
+        assert not toggle.is_visible()
+        page.emulate_media(media="screen")
+        page.evaluate("dispatchEvent(new Event('afterprint'))")
+        assert modal.locator("#answer-probe").count() == 1
+        modal.get_by_role("link", name="返回普通章节").click()
+        page.wait_for_function(
+            "location.hash === '#ordinary' && !document.querySelector('dialog[open]')"
+        )
+        assert page.locator("#ordinary").evaluate("e => document.activeElement === e")
+        search.fill("问题 2")
+        assert bank.locator(".qa-item:visible").count() == 1
+        assert "1 / 3" in bank.locator(".qa-status").inner_text()
+        search.fill("未匹配的词")
+        assert bank.locator(".qa-item:visible").count() == 0
+        assert "没有匹配" in bank.locator(".qa-status").inner_text()
+        page.emulate_media(media="print")
+        assert bank.locator(".qa-item:visible").count() == 3
+        assert bank.locator(".qa-answer:visible").count() == 3
+        page.emulate_media(media="screen")
+        search.fill("")
+        toggle.click()
+        assert bank.locator(".qa-answer:visible").count() == 3
+        playwright.expect(trigger).to_be_disabled()
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert page.evaluate(
+            "(() => { const ids = [...document.querySelectorAll('[id]')].map(e=>e.id); return new Set(ids).size === ids.length; })()"
+        )
+        assert not errors
+
+
+@pytest.mark.parametrize("mode", ["no-js", "no-dialog"])
+def test_questions_fully_readable_without_enhancement(
+    browser, question_site: Path, mode: str
+) -> None:
+    """Neither enhancement failure mode may hide canonical answers."""
+    with browser.new_context(java_script_enabled=mode != "no-js") as context:
+        if mode == "no-dialog":
+            context.add_init_script("HTMLDialogElement.prototype.showModal = undefined")
+        page = context.new_page()
+        page.goto((question_site / "index.html").as_uri(), wait_until="load")
+        assert page.locator(".qa-controls").count() == 0
+        assert page.locator(".qa-answer:visible").count() == 4
+        assert page.locator("#answer-probe").count() == 1
+        assert page.locator(".qa-answer code.language-cpp").count() == 1

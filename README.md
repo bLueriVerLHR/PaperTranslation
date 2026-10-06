@@ -107,6 +107,10 @@ Offline builds use installed fonts: Times New Roman (with compatible Latin fallb
 Source Han Serif SC for Chinese, and Maple Mono for code. Pages additionally self-hosts
 licensed WOFF2 subsets; see `docs/pages.md`. Explicit-language code fences are highlighted
 with Pygments at build time; pseudocode classes remain supported. Neither needs runtime tooling.
+Explicit question banks share the same reader: paired answers are visible by default, with
+reversible self-test mode, question-only search and keyboard-accessible answer cards. Printing
+and no-JavaScript reading retain all answers; ordinary prose is unchanged. The reusable
+manuscript interface is documented in [docs/questions.md](docs/questions.md).
 
 A shared UI change needs no article rebuild or per-project copying:
 

@@ -33,6 +33,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Reader presentation
 
+- Add explicit, validated question/answer banks with paired reading and question-only
+  self-test modes, shared answer cards and question-title search. Preserve canonical
+  nodes, offline/no-dialog fallbacks and complete answers in print; record bank IDs
+  and ordered question inventories without interpreting ordinary prose as questions.
+
 - Add opt-in visible terminology tables from canonical `work/glossary.md`, included in the
   TOC, build hash and inventory without duplicating manuscript sources. Reject nonboolean
   switches, missing glossaries and colliding section identifiers.

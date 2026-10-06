@@ -39,6 +39,7 @@ from tools import (  # noqa: E402  (must follow the sys.path bootstrap above)
     assets,
     manuscript,
     paper,
+    questions,
     reader,
 )
 
@@ -549,6 +550,7 @@ def build(
     if leftovers:
         raise ValueError(f"unresolved template placeholders: {sorted(set(leftovers))}")
 
+    question_banks = questions.validate(page)
     dist.mkdir(parents=True, exist_ok=True)
     copied = copy_assets(dist, styles_dir, scripts_dir, figures_dir, shared_root=library_root)
     page = assets.rewrite(page, page_path)
@@ -566,6 +568,7 @@ def build(
         },
         "citations_linked": citations.linked,
         "citations_without_records": sorted(citations.unresolved),
+        "question_banks": question_banks,
         "assets": copied,
         "shared_asset_root": assets.relative_url(page_path, "assets"),
     }

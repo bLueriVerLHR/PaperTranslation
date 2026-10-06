@@ -23,6 +23,14 @@ Without JavaScript or native dialog support, the original details/TOC tree remai
 The same scripts work with `file://`. Print hides interactive cards and overrides background
 scroll locking so an open modal cannot clip the printed article.
 
+## Opt-in question/answer chapters
+
+Explicit question banks can switch between complete paired reading and question-only
+self-testing with answer cards. They reuse the shared modal, preserve no-JS/no-dialog
+readability and print all canonical answers. Only marked banks are enhanced; ordinary
+chapters are unchanged. See [question-bank authoring and interaction](questions.md) for
+the HTML/Markdown contract, search semantics, manifest inventory and validation scope.
+
 ## Native mathematics
 
 Keep MathML's native `math` layout and text baseline. Inline expressions must not be
