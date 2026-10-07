@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import html
 import json
+import os
 import posixpath
 import re
 import shutil
@@ -148,36 +149,49 @@ def local_only_projects(dist: Path) -> set[str]:
     return excluded
 
 
-def public_files(dist: Path) -> list[Path]:
-    """Stage eligible readers; translations stay local even with an obsolete opt-in."""
+def public_files(dist: Path, *, projects: set[str] | None = None) -> list[Path]:
+    """List eligible files without descending into private or unselected source trees."""
     excluded = local_only_projects(dist)
+    if dist.is_symlink():
+        raise ValueError("source root is a symlink")
+    roots = [dist / slug for slug in sorted(projects)] if projects else [dist]
     files = []
-    for path in sorted(dist.rglob("*")):
-        relative = path.relative_to(dist)
-        if (
-            relative.parts[0] in excluded
-            or (
-                len(relative.parts) == 1
-                and path.suffix.lower() == ".html"
-                and path.stem in excluded
-            )
-            or is_private(relative)
-        ):
+    for root in roots:
+        if projects and root.name in excluded:
             continue
-        if path.is_symlink():
-            raise ValueError(f"symlink is not publishable: {relative}")
-        # Standard UI code is installed once at the site root, never exported per project.
-        if any(
-            relative.as_posix() == name or relative.as_posix().endswith("/" + name)
-            for name in assets.SOURCES
-        ):
-            continue
-        if path.is_file() and (
-            path.suffix.lower() == ".html"
-            or ("assets" in relative.parts and path.suffix.lower() in ASSET_TYPES)
-        ):
-            files.append(path)
-    return files
+        if root.is_symlink():
+            raise ValueError(f"symlink is not publishable: {root}")
+        for directory, dirs, names in os.walk(root, followlinks=False):
+            parent = Path(directory)
+            for name in list(dirs):
+                path = parent / name
+                relative = path.relative_to(dist)
+                if relative.parts[0] in excluded or is_private(relative):
+                    dirs.remove(name)
+                elif path.is_symlink():
+                    raise ValueError(f"symlink is not publishable: {relative}")
+            for name in names:
+                path = parent / name
+                relative = path.relative_to(dist)
+                if is_private(relative) or (
+                    len(relative.parts) == 1
+                    and path.suffix.lower() == ".html"
+                    and path.stem in excluded
+                ):
+                    continue
+                if path.is_symlink():
+                    raise ValueError(f"symlink is not publishable: {relative}")
+                if any(
+                    relative.as_posix() == p or relative.as_posix().endswith("/" + p)
+                    for p in assets.SOURCES
+                ):
+                    continue
+                if path.is_file() and (
+                    path.suffix.lower() == ".html"
+                    or ("assets" in relative.parts and path.suffix.lower() in ASSET_TYPES)
+                ):
+                    files.append(path)
+    return sorted(files)
 
 
 def redact_local_paths(text: str) -> str:
@@ -313,8 +327,16 @@ def check_site(site: Path, *, allow_legacy_assets: bool = False) -> list[str]:
     return errors
 
 
-def export(dist: Path, out: Path) -> list[dict[str, str]]:
+def export(dist: Path, out: Path, *, projects: set[str] | None = None) -> list[dict[str, str]]:
     """Stage the reviewed allowlist without changing any canonical input."""
+    if projects and any(
+        not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", p) or p in PRIVATE | {"assets"}
+        for p in projects
+    ):
+        raise ValueError("--project requires a valid nonreserved lowercase project slug")
+    sources = public_files(dist, projects=projects)
+    if projects and not all(dist / slug / "index.html" in sources for slug in projects):
+        raise ValueError("selected project is missing or not eligible for public export")
     if not out.is_absolute() or not out.resolve().is_relative_to(
         Path(tempfile.gettempdir()).resolve()
     ):
@@ -323,7 +345,7 @@ def export(dist: Path, out: Path) -> list[dict[str, str]]:
         raise ValueError("--out must be empty; never clean dist as an export step")
     out.mkdir(parents=True, exist_ok=True)
     entries = []
-    for source in public_files(dist):
+    for source in sources:
         relative = source.relative_to(dist)
         target = out / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -360,6 +382,47 @@ def export(dist: Path, out: Path) -> list[dict[str, str]]:
     return entries
 
 
+def export_update(dist: Path, out: Path, baseline: Path, projects: set[str]) -> list[dict]:
+    """Replace explicitly selected project trees in a disposable public snapshot."""
+    temp = Path(tempfile.gettempdir()).resolve()
+    if not projects:
+        raise ValueError("--baseline requires explicit --project selections")
+    for path in (baseline, out):
+        if not path.is_absolute() or not path.resolve().is_relative_to(temp):
+            raise ValueError("baseline/output must be absolute system TEMP directories")
+    if baseline.resolve().is_relative_to(out.resolve()) or out.resolve().is_relative_to(
+        baseline.resolve()
+    ):
+        raise ValueError("baseline and output must not overlap")
+    if out.exists() and any(out.iterdir()):
+        raise ValueError("--out must be empty; never clean dist as an export step")
+    if errors := check_site(baseline):
+        raise ValueError("invalid baseline: " + "; ".join(errors[:3]))
+    data = publication_data(baseline / "site-manifest.json")
+    if not isinstance(data.get("pages"), list):
+        raise ValueError("baseline has no page inventory")
+    with tempfile.TemporaryDirectory(prefix="pages-selected-") as directory:
+        selected = Path(directory)
+        entries = export(dist, selected, projects=projects)
+        shutil.copytree(baseline, out, ignore=shutil.ignore_patterns(".git"), dirs_exist_ok=True)
+        for slug in sorted(projects):
+            target = out / slug
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(selected / slug, target)
+    retained = [entry for entry in data["pages"] if Path(entry["path"]).parts[0] not in projects]
+    entries = retained + entries
+    (out / "index.html").write_text(render_home(entries), encoding="utf-8", newline="\n")
+    assets.install(out)
+    workflow = out / ".github/workflows/pages.yml"
+    workflow.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / ".github/workflows/pages.yml", workflow)
+    (out / "site-manifest.json").write_text(
+        json.dumps({"pages": entries}, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n"
+    )
+    return entries
+
+
 def write_inventory(site: Path) -> None:
     """Record exact public file hashes after fonts have been installed."""
     manifest = site / "site-manifest.json"
@@ -383,11 +446,21 @@ def main() -> int:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--check", type=Path)
     parser.add_argument(
+        "--project", action="append", help="export only this approved slug; repeatable"
+    )
+    parser.add_argument(
+        "--baseline", type=Path, help="preserve other projects from this TEMP snapshot"
+    )
+    parser.add_argument(
         "--refresh-shared",
         type=Path,
         help="update shared assets in a TEMP reader-only snapshot, without rebuilding prose",
     )
     args = parser.parse_args()
+    if (args.baseline or args.project) and not args.out:
+        parser.error("--project/--baseline require --out")
+    if args.baseline and not args.project:
+        parser.error("--baseline requires --project")
     if args.refresh_shared:
         site = args.refresh_shared
         if not site.is_absolute() or not site.resolve().is_relative_to(
@@ -413,7 +486,11 @@ def main() -> int:
         write_inventory(args.check)
         print("Reader-only site validated; inventory updated.")
     elif args.out:
-        entries = export(args.dist, args.out)
+        selections = set(args.project) if args.project else None
+        if args.baseline:
+            entries = export_update(args.dist, args.out, args.baseline, selections)
+        else:
+            entries = export(args.dist, args.out, projects=selections)
         print(f"Staged {len(entries)} pages at {args.out}; add fonts then run --check.")
     else:
         parser.error("supply --out or --check")

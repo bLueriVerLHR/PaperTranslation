@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Content-first maintenance
+
+- Route documentation by task, consolidate routine workflows and remove duplicated
+  setup/layout/rights guidance while retaining technical specifications and constraints.
+- Add read-only bounded views of saved HTML: prose, outline, literal search and explicit
+  scope/continuation, with code whitespace and MathML structure retained. Recover common
+  omitted paragraph/list end tags and reject excessive nesting before recursive rendering.
+- Add incremental private SQLite evidence lookup from archived documents and explicitly
+  selected committed source files, plus reusable per-question/shared-phase timing reports.
+  Keep indexes/logs in TEMP and do not infer semantic coverage from retrieval or elapsed time.
+- Stage selected approved readers over a validated TEMP baseline without replacing other
+  project readers/assets; prune private and unselected source trees during file discovery.
+- Verify pushed Git object bytes and selected live HTTPS files through a maintained entry
+  point, with compact default output, explicit newline handling and no automatic retries.
+
 ### Modular source manuscripts
 
 - Compose topic/project Markdown subdocuments through safe, recursive local includes;

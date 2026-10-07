@@ -137,6 +137,43 @@ again, commits and pushes without force. It never adds dist to main. Omitting `-
 a commit for inspection and prints its checkout path. A non-fast-forward push fails safely;
 re-run from the latest remote branch rather than forcing.
 
+## Update selected readers without replacing other projects
+
+Use the existing public branch as the baseline; do not export every local reader when only
+one project is approved. Both baseline and output are disposable absolute TEMP directories.
+The selected project must still pass the normal source/rights eligibility filters.
+
+```powershell
+$Baseline = Join-Path $ProjectTemp ('scratch\baseline-' + [guid]::NewGuid().ToString('N'))
+$Site = Join-Path $ProjectTemp ('scratch\pages-' + [guid]::NewGuid().ToString('N'))
+$Remote = git remote get-url origin
+git clone --depth 1 --single-branch --branch pages-content $Remote $Baseline
+& $Python tools\pages.py --project my-review --baseline $Baseline --out $Site
+& $Python tools\pages_fonts.py --site $Site --cache "$ProjectTemp\scratch\font-originals"
+& $Python tools\pages.py --check $Site
+```
+
+`--project` can be repeated. The exporter replaces only those project trees in the TEMP
+snapshot, updates its homepage/inventory and installs the shared runtime; other project
+readers and assets are preserved. It never deletes canonical work or grants publication rights.
+
+## Verify push and selected live files
+
+After `publish-pages.ps1 -Push`, the helper verifies the remote content commit against the
+approved site automatically. Its printed `$Checkout` can be reused; do not clone again just
+to check the same push. For live verification, inspect only the requested paths:
+
+```powershell
+& $Python tools\pages_verify.py --checkout $Checkout --site $Site `
+    --base-url "https://example.github.io/library/" --path "my-review/index.html"
+```
+
+The verifier checks Git object bytes, allowing only text CRLF/LF normalization, and requires
+binary assets to match exactly. Live verification uses normal TLS and exact HTTP body hashes;
+it is one-shot, without an Actions API dependency or retry loop. A mismatch after a verified
+push may indicate pending deployment: do not repush automatically. Optional detailed evidence
+uses `--report` with an absolute TEMP path; default output is a compact summary.
+
 ## Updates and limitations
 
 Content changes: rebuild locally, repeat the export/font subsetting, review and push.

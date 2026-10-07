@@ -17,34 +17,11 @@ even with `public_export: true`. Public content consists of approved self-author
 and source-code books. Do not default to translating online surveys. Withdrawal, history
 rewriting and publishing local revisions require their own explicit authorization.
 
-## Layout
+## Canonical layout
 
-```
-dist/<slug>/index.html                Offline reader page
-dist/<slug>/assets/figures/           Page-specific published figures
-dist/assets/{styles,scripts}/         One shared reader/library/survey runtime
-dist/<slug>/manifest.json             Generated page/asset inventory
-dist/<slug>/work/paper.json           Project identity, source kind, sections, expectations
-dist/<slug>/work/content/*.md         Translation source of truth, one file per section
-dist/<slug>/work/glossary.md          Binding terminology
-dist/<slug>/work/reader.json          Optional citation/presentation metadata
-dist/<slug>/work/reader-meta.md       Header-only source/rights/reading notes
-dist/<slug>/work/assets/figures/      Figure crops used to rebuild the page
-dist/<slug>/work/reference/           Useful extracted source text, page rasters and inventory
-dist/<slug>/notes/                    Supplementary analysis and reading notes
-src/templates/                       Shared page and survey templates
-src/styles/                          Shared reader theme and print/A4 styles
-src/scripts/                         Progressive-enhancement reader script
-src/survey/                          Tracked survey stylesheet
-tools/                               Python pipeline and development environment helper
-tests/                               pytest suite and committed synthetic test fixtures
-docs/                                Architecture and design notes
-survey/survey.json                   Local-only survey identity and directions
-survey/hub/NN-*.md                    Local-only survey narrative
-survey/papers/<slug>/                 Local-only survey metadata and abstract translations
-dist/llm-survey/                     Generated LLM survey hub, detail pages and assets
-System TEMP/<project>/               Disposable environment, caches, tasks, reports, experiments
-```
+The maintained directory map and routine commands are in `README.md`; schemas are in
+`docs/architecture.md`. Select the task through `docs/workflow.md`, not by reading every
+schema, inventory or archived HTML file. Do not recreate historical paths from CHANGELOG.
 
 `work` is the directory name, not an underscore-prefixed variant. Keep one canonical copy of
 translation source and metadata there, not a second parallel project-source tree. Reading needs the project HTML/figures plus the sibling library-root `dist/assets/` runtime;
@@ -68,16 +45,9 @@ PowerShell session, initialize the external environment:
 Always run commands with `$Python`. `$P` is a registered project slug, discovered from
 `dist/*/work/paper.json`. If several projects exist, `--paper` is required.
 
-| Task | Command |
-|---|---|
-| Extract external PDF | `& $Python tools\extract.py --paper $P --pdf C:\path\to\original.pdf` |
-| Build reader | `& $Python tools\build.py --paper $P` |
-| Optional single-file export | `& $Python tools\pack.py --paper $P --out dist\$P.html` |
-| Tests | `& $Python -m pytest` |
-| Lint | `& $Python -m ruff check .` |
-| Format | `& $Python -m ruff format .` |
-| Coverage | `& $Python tools\coverage.py --paper $P` |
-| Build survey | `& $Python tools\survey.py` |
+Routine commands belong to `README.md`; code contribution gates belong to
+`CONTRIBUTING.md`. Publication uses `tools/pages.py`, `tools/pages_fonts.py` and
+`tools/publish-pages.ps1`; remote/live verification uses `tools/pages_verify.py`.
 
 ## Source and intermediate-data policy
 
@@ -143,6 +113,11 @@ reported experiments. Writing requirements and task dialogue are not reader pros
 Keep document-build checks separate from mathematical or empirical validation, and do
 not execute upstream projects or experiments without separate explicit authorization.
 Detailed requirements belong to the linked specifications, not duplicate project templates.
+Prepare once per manuscript task and reuse unchanged preparation across its batches; do not
+restart full preparation for each question. Use bounded readable HTML views and selected
+metadata fields. Read raw markup only for a specific extraction/math/rendering issue. Search
+only an identified evidence gap; time-box unresolved points and keep them pending rather
+than expanding the task or declaring them checked. Never auto-promote coverage by title match.
 
 ## Content and rendering conventions
 
@@ -156,17 +131,10 @@ Detailed requirements belong to the linked specifications, not duplicate project
   authoring progress and delivery/rebuild chatter do not belong in reader prose. Keep useful
   technical conditions, evidence, attribution and verification limits; do not substitute keyword
   deletion or boilerplate templates for paragraph-level review.
-- For framework and project source analyses, read and follow `docs/source-analysis.md`: explain
-  module structure and state/data flow, then connect documented business challenges to
-  implemented mechanisms and trade-offs. Ground challenges and design rationale in official
-  docs, source comments, maintainer explanations and verified issue/PR/commit discussions;
-  distinguish community consensus, version-specific reports and explanatory inference.
-  Show relevant short source excerpts with fixed commit, file, symbol and real line ranges,
-  not path-only inventories. Do not compile/run upstream projects, their tests or benchmarks,
-  or perform local ablations for manuscript research without separate explicit authorization.
-  Read-only source checks and documentation-build validation are distinct from upstream execution.
-  Split large manuscripts into focused subdocuments with the shared builder's safe include
-  interface; retain a single canonical copy and keep authoring instructions out of prose.
+- Implementation analysis follows `docs/source-analysis.md`, including fixed-version
+  excerpts, documented challenges, evidence limits and safe Markdown composition.
+  Never compile/run upstream projects, tests, benchmarks or ablations for research without
+  separate explicit authorization. Read-only source checks and reader tests are distinct.
 - Author math directly as MathML. Do not add LaTeX or runtime math renderers to delivered pages.
 - Keep figures, CSS and scripts as real files referenced by relative paths. Do not introduce
   `data:` image URIs into the default reader. `tools/pack.py` is an opt-in export only.
@@ -219,15 +187,3 @@ Detailed requirements belong to the linked specifications, not duplicate project
 - Keep the survey ignore rule anchored (`/survey/`), so tracked `src/survey/` is not swallowed.
   `git ls-files survey` stays empty. Keep translations and extracted material out of all
   future commits; never relax ignore rules or use `git add -f` to publish them.
-
-## Source selection and publication review
-
-Before translating a rights-restricted published article, first seek its corresponding
-arXiv preprint. Verify identity, authors, fixed version and an adaptation-permitting license;
-arXiv availability alone is not permission. Translate that version in full, and use the
-published edition only for cited revisions rather than reproducing its complete content.
-
-Do not maintain `.pagesignore` as a substitute for this review. Public snapshots still
-require explicit owner approval and contain only readers/assets, not source PDFs, complete
-English papers, extraction data or canonical work. Personal-learning and translation-only
-publication do not grant additional rights. Preserve actual attribution and licensing.

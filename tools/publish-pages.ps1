@@ -49,6 +49,10 @@ if ($LASTEXITCODE -eq 1) {
 if ($Push) {
     git -C $Checkout push origin HEAD:pages-content
     if ($LASTEXITCODE -ne 0) { throw 'Push rejected; do not force. Re-run against the latest branch.' }
+    & $Python (Join-Path $PSScriptRoot 'pages_verify.py') --checkout $Checkout --site $Site
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Push succeeded but verification failed. Inspect the remote; do not repush automatically.'
+    }
 }
 Write-Host "Content checkout: $Checkout"
 Write-Host 'Main branch and canonical work trees were not changed by this command.'
