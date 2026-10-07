@@ -24,7 +24,7 @@ def exported(source: Path, target: Path) -> None:
     assert not pages.check_site(target)
 
 
-def test_export_uses_pinned_rest_deployment_with_scoped_permissions(tmp_path: Path) -> None:
+def test_export_deploys_exact_upload_with_scoped_permissions(tmp_path: Path) -> None:
     source, target = tmp_path / "source", tmp_path / "site"
     write(source / "a/index.html", "<title>A</title><p>Approved</p>")
     exported(source, target)
@@ -33,8 +33,10 @@ def test_export_uses_pinned_rest_deployment_with_scoped_permissions(tmp_path: Pa
         encoding="utf-8"
     )
     assert workflow == maintained
-    assert "actions/deploy-pages@f33f41b675f0ab2dc5a6863c9a170fe83af3571e" in workflow
-    assert "actions/deploy-pages@v4\n" not in workflow
+    assert 'python pipeline/tools/pages_deploy.py --artifact-id "$ARTIFACT_ID"' in workflow
+    assert "ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}" in workflow
+    assert "GH_TOKEN: ${{ github.token }}" in workflow
+    assert "actions/deploy-pages@" not in workflow
     assert "      actions: read\n" in workflow
     assert "      pages: write\n      id-token: write\n" in workflow
     assert "ref: main\n          path: pipeline\n" in workflow

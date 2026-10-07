@@ -8,10 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Pages deployment compatibility
 
-- Pin the official Pages deployment action to its run-scoped REST artifact lookup and
-  grant only artifact-read permission in addition to the existing Pages/OIDC permissions.
-  Avoid a Twirp discovery path that can return an empty list for successfully uploaded
-  artifacts; regression-check the exported workflow and retain public-boundary validation.
+- Deploy the uploader's exact Pages artifact ID instead of relying on inconsistent
+  artifact-list discovery/counts. Validate artifact/run identity, expiry and size; tolerate
+  briefly missing read-only metadata but never automatically replay deployment creation.
+  Keep normal job-token/OIDC permissions, bounded status observation and public-boundary
+  validation; regression-test failure paths without live services or credentials.
 
 ### Content-first maintenance
 
