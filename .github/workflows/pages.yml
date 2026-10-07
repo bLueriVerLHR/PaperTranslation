@@ -51,9 +51,12 @@ jobs:
         run: python pipeline/tools/pages.py --refresh-shared "$RUNNER_TEMP/pages"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
+        id: upload
         with:
           path: ${{ runner.temp }}/pages
-      - name: Deploy
+      - name: Deploy the exact uploaded artifact
         id: deployment
-        # v4.0.0: run-scoped REST lookup; the newer Twirp lookup can miss uploaded artifacts.
-        uses: actions/deploy-pages@f33f41b675f0ab2dc5a6863c9a170fe83af3571e
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
+        run: python pipeline/tools/pages_deploy.py --artifact-id "$ARTIFACT_ID"
