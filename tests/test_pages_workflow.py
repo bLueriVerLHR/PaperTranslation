@@ -24,6 +24,26 @@ def exported(source: Path, target: Path) -> None:
     assert not pages.check_site(target)
 
 
+def test_export_uses_pinned_rest_deployment_with_scoped_permissions(tmp_path: Path) -> None:
+    source, target = tmp_path / "source", tmp_path / "site"
+    write(source / "a/index.html", "<title>A</title><p>Approved</p>")
+    exported(source, target)
+    workflow = (target / ".github/workflows/pages.yml").read_text(encoding="utf-8")
+    maintained = (Path(__file__).resolve().parents[1] / ".github/workflows/pages.yml").read_text(
+        encoding="utf-8"
+    )
+    assert workflow == maintained
+    assert "actions/deploy-pages@f33f41b675f0ab2dc5a6863c9a170fe83af3571e" in workflow
+    assert "actions/deploy-pages@v4\n" not in workflow
+    assert "      actions: read\n" in workflow
+    assert "      pages: write\n      id-token: write\n" in workflow
+    assert "ref: main\n          path: pipeline\n" in workflow
+    assert "ref: pages-content\n          path: public\n" in workflow
+    assert "run: python pipeline/tools/pages.py --refresh-shared" in workflow
+    assert "actions/upload-pages-artifact@v3" in workflow
+    assert "write-all" not in workflow and "contents: write" not in workflow
+
+
 def test_update_only_selected_project_and_preserve_sources(tmp_path: Path) -> None:
     source, baseline, output = [tmp_path / p for p in ("source", "baseline", "output")]
     write(source / "a/index.html", "<title>A old</title><p>Old</p>")

@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Pages deployment compatibility
+
+- Pin the official Pages deployment action to its run-scoped REST artifact lookup and
+  grant only artifact-read permission in addition to the existing Pages/OIDC permissions.
+  Avoid a Twirp discovery path that can return an empty list for successfully uploaded
+  artifacts; regression-check the exported workflow and retain public-boundary validation.
+
 ### Content-first maintenance
 
 - Route documentation by task, consolidate routine workflows and remove duplicated

@@ -9,7 +9,12 @@
   local paths from paper manifests, or survey source tree.
 - **Actions**: checks out the pipeline from main, validates the separate content branch,
   stages it without `.git` or `.github`, uploads the Pages artifact, and deploys with Pages/OIDC permissions.
-  No PAT, third-party hosting or external runtime asset CDN is required. The same workflow
+  Artifact lookup uses the pinned official `deploy-pages` v4.0.0 commit and its run-scoped
+  REST endpoint rather than Twirp discovery; the job grants `actions: read` for this lookup,
+  while Pages/OIDC write permissions remain scoped to deployment. Validate upload-to-lookup
+  compatibility before updating this pin; upload success alone does not prove visibility to
+  a different artifact API. No PAT, third-party hosting or external runtime asset CDN is
+  required. The same workflow
   bootstrap is copied to pages-content because GitHub push events load workflows from the
   pushed branch; the bootstrap always checks out trusted pipeline code from main.
 - **Home**: project cards, progressive title search and centered modal cards for detail-page
