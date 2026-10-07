@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 570" role="img" aria-labelledby="title desc">
+<title id="title">二项树：逐轮扩大传播集合</title>
+<desc id="desc">八rank的一种广播调度，反向可归约。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="570" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">二项树：逐轮扩大传播集合</text>
+<rect x="40" y="105" width="810" height="92" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="141.0" font-size="22">第 1 轮：0 → 4</text>
+<text x="54" y="173.0" font-size="22">轮末持有完整消息的 rank：2</text>
+<line x1="445" y1="199" x2="445" y2="225" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="40" y="228" width="810" height="92" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="264.0" font-size="22">第 2 轮：0 → 2；4 → 6</text>
+<text x="54" y="296.0" font-size="22">轮末持有完整消息的 rank：4</text>
+<line x1="445" y1="322" x2="445" y2="348" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="40" y="351" width="810" height="92" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="387.0" font-size="22">第 3 轮：0 → 1；2 → 3；4 → 5；6 → 7</text>
+<text x="54" y="419.0" font-size="22">轮末持有完整消息的 rank：8</text>
+<text x="40" y="516" font-size="23">每条边搬完整 n 字节；归约时方向反转并合并贡献。</text>
+</svg>

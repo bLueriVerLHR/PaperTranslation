@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 490" role="img" aria-labelledby="title desc">
+<title id="title">GPU 网络搬移：暂存与直达</title>
+<desc id="desc">直达路径需要平台、驱动、注册与同步支持。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="490" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">GPU 网络搬移：暂存与直达</text>
+<text x="35" y="95" font-size="23" font-weight="bold">Host staging</text>
+<rect x="35" y="125" width="220" height="90" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="176.0" font-size="22">GPU 内存</text>
+<rect x="335" y="125" width="220" height="90" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="349" y="176.0" font-size="22">Host pinned</text>
+<rect x="635" y="125" width="220" height="90" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="649" y="176.0" font-size="22">NIC</text>
+<line x1="255" y1="170" x2="330" y2="170" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="555" y1="170" x2="630" y2="170" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="35" y="292" font-size="23" font-weight="bold">受支持的 GPUDirect RDMA</text>
+<rect x="35" y="322" width="270" height="90" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="49" y="373.0" font-size="22">注册的 GPU 内存</text>
+<rect x="635" y="322" width="220" height="90" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="649" y="373.0" font-size="22">支持的 NIC</text>
+<line x1="305" y1="366" x2="630" y2="366" stroke="#243244" stroke-width="2.2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="365" y="348" font-size="22">设备 DMA</text>
+<text x="35" y="461" font-size="22">省去 Host 暂存 ≠ 无控制面 ≠ GPU 消费者已完成同步。</text>
+</svg>

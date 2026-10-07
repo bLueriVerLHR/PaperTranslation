@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-labelledby="title desc">
+<title id="title">RDMA 资源：权限、工作与完成</title>
+<desc id="desc">QP传输关系不等于远端业务完成。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="620" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">RDMA 资源：权限、工作与完成</text>
+<rect x="35" y="90" width="385" height="150" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="138.5" font-size="23">本地 PD</text>
+<text x="49" y="171.5" font-size="23">MR：地址／权限／lkey</text>
+<text x="49" y="204.5" font-size="23">QP：SQ + RQ</text>
+<rect x="480" y="90" width="385" height="150" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="494" y="138.5" font-size="23">远端 PD</text>
+<text x="494" y="171.5" font-size="23">MR：远端地址／rkey</text>
+<text x="494" y="204.5" font-size="23">远端 QP</text>
+<line x1="420" y1="165" x2="475" y2="165" stroke="#243244" stroke-width="2.2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<text x="35" y="75" font-size="21" font-weight="bold">应用：WR + SGE → 投递 → NIC 执行</text>
+<rect x="35" y="325" width="385" height="115" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="372.5" font-size="22">本地 CQ / CQE</text>
+<text x="49" y="404.5" font-size="22">状态、wr_id、完成语义</text>
+<rect x="480" y="325" width="385" height="115" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="494" y="372.5" font-size="22">远端消费者</text>
+<text x="494" y="404.5" font-size="22">通知＋顺序＋可见性</text>
+<line x1="215" y1="240" x2="215" y2="320" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="675" y1="240" x2="675" y2="320" stroke="#243244" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<text x="35" y="504" font-size="23">一般 Write 不自动生成普通远端接收 CQE。</text>
+<text x="35" y="550" font-size="23">本地工作完成 ≠ 远端已归约／解析／持久化。</text>
+</svg>

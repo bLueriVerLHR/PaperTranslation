@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 495" role="img" aria-labelledby="title desc">
+<title id="title">DCQCN：CP、NP、RP</title>
+<desc id="desc">数据与拥塞反馈方向不同，CNP不是逐包ACK。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="495" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">DCQCN：CP、NP、RP</text>
+<rect x="35" y="100" width="230" height="150" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="149.0" font-size="22">RP：发送 NIC</text>
+<text x="49" y="181.0" font-size="22">当前／目标速率</text>
+<text x="49" y="213.0" font-size="22">α、timer、counter</text>
+<rect x="335" y="100" width="230" height="150" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="349" y="149.0" font-size="22">CP：交换机</text>
+<text x="349" y="181.0" font-size="22">出口队列</text>
+<text x="349" y="213.0" font-size="22">ECN 概率标记</text>
+<rect x="635" y="100" width="230" height="150" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="649" y="149.0" font-size="22">NP：接收 NIC</text>
+<text x="649" y="181.0" font-size="22">观察 CE 标记</text>
+<text x="649" y="213.0" font-size="22">每流压缩 CNP</text>
+<line x1="265" y1="175" x2="330" y2="175" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="565" y1="175" x2="630" y2="175" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="745" y1="255" x2="745" y2="340" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="740" y1="340" x2="150" y2="340" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="150" y1="340" x2="150" y2="255" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="300" y="327" font-size="24">CNP 返回：驱动发送端控制</text>
+<text x="35" y="412" font-size="22">数据 →；反馈 ←。原论文 NP 窗口 50 μs，非通用默认。</text>
+<text x="35" y="452" font-size="22">PFC 另在相邻链路工作，保护端到端反馈生效前的缓冲。</text>
+</svg>

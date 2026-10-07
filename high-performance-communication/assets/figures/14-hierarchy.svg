@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 630" role="img" aria-labelledby="title desc">
+<title id="title">分层 AllReduce：两机各四 rank</title>
+<desc id="desc">局部归约、跨机同片归约、局部全汇集。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="630" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">分层 AllReduce：两机各四 rank</text>
+<rect x="35" y="90" width="385" height="185" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="156.0" font-size="23">Server A</text>
+<text x="49" y="189.0" font-size="23">本地 ReduceScatter</text>
+<text x="49" y="222.0" font-size="23">每卡持有 n/4 的局部结果</text>
+<rect x="35" y="435" width="385" height="115" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="49" y="482.5" font-size="23">本地 AllGather</text>
+<text x="49" y="515.5" font-size="23">每卡恢复完整全局结果</text>
+<line x1="227" y1="275" x2="227" y2="313" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="227" y1="398" x2="227" y2="433" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="480" y="90" width="385" height="185" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="494" y="156.0" font-size="23">Server B</text>
+<text x="494" y="189.0" font-size="23">本地 ReduceScatter</text>
+<text x="494" y="222.0" font-size="23">每卡持有 n/4 的局部结果</text>
+<rect x="480" y="435" width="385" height="115" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="494" y="482.5" font-size="23">本地 AllGather</text>
+<text x="494" y="515.5" font-size="23">每卡恢复完整全局结果</text>
+<line x1="672" y1="275" x2="672" y2="313" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="672" y1="398" x2="672" y2="433" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="35" y="318" width="830" height="76" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="362.0" font-size="22">四个跨机代表组：对应片段分别执行 AllReduce</text>
+<text x="35" y="597" font-size="22">四个逻辑组 ≠ 四个独立 NIC；共享出口不能自动除以四。</text>
+</svg>

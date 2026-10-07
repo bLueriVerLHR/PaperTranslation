@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 665" role="img" aria-labelledby="title desc">
+<title id="title">DCQCN 恢复状态：两计数器判定</title>
+<desc id="desc">按论文图7整理的教学状态关系。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="665" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">DCQCN 恢复状态：两计数器判定</text>
+<rect x="35" y="85" width="825" height="105" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="49" y="127.5" font-size="23">新 CNP：保存旧 RC 为 RT，按旧 α 减速</text>
+<text x="49" y="160.5" font-size="23">重置恢复计数 u、v 与相关计时状态</text>
+<line x1="450" y1="190" x2="450" y2="240" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="35" y="245" width="825" height="85" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="293.5" font-size="22">等待 timer 或 byte 触发事件；相应计数增加</text>
+<rect x="35" y="405" width="250" height="120" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="49" y="455.0" font-size="22">max(u,v) &lt; F</text>
+<text x="49" y="487.0" font-size="22">快速恢复</text>
+<line x1="450" y1="334" x2="160" y2="398" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="325" y="405" width="250" height="120" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="339" y="455.0" font-size="22">其余区域</text>
+<text x="339" y="487.0" font-size="22">加性增加</text>
+<line x1="450" y1="334" x2="450" y2="398" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="615" y="405" width="250" height="120" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="629" y="455.0" font-size="22">min(u,v) &gt; F</text>
+<text x="629" y="487.0" font-size="22">Hyper increase</text>
+<line x1="450" y1="334" x2="740" y2="398" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="35" y="578" font-size="22">u：timer 次数；v：byte 次数；不是收到数据包的个数。</text>
+<text x="35" y="622" font-size="22">固定目标恢复：RC ← (RT + RC)/2；新反馈可再次减速。</text>
+</svg>

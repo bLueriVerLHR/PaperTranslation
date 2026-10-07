@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" role="img" aria-labelledby="title desc">
+<title id="title">Gather：汇集</title>
+<desc id="desc">rank 0、1、2的输入为[&#x27;A&#x27;, &#x27;B&#x27;, &#x27;C&#x27;]；规定输出为[&#x27;A | B | C&#x27;, &#x27;无规定结果&#x27;, &#x27;无规定结果&#x27;]。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="540" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">Gather：汇集</text>
+<text x="140" y="94" font-size="24" font-weight="bold">输入</text>
+<text x="535" y="94" font-size="24" font-weight="bold">规定输出</text>
+<text x="28" y="167" font-size="22">rank 0</text>
+<rect x="130" y="125" width="285" height="86" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="144" y="175.5" font-size="25">A</text>
+<rect x="530" y="125" width="335" height="86" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="544" y="175.5" font-size="25">A | B | C</text>
+<text x="28" y="282" font-size="22">rank 1</text>
+<rect x="130" y="240" width="285" height="86" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="144" y="290.5" font-size="25">B</text>
+<rect x="530" y="240" width="335" height="86" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="544" y="290.5" font-size="25">无规定结果</text>
+<text x="28" y="397" font-size="22">rank 2</text>
+<rect x="130" y="355" width="285" height="86" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="144" y="405.5" font-size="25">C</text>
+<rect x="530" y="355" width="335" height="86" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="544" y="405.5" font-size="25">无规定结果</text>
+<line x1="435" y1="280" x2="505" y2="280" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="440" y="258" font-size="20">语义</text>
+<text x="28" y="505" font-size="22">root = 0（有根算子）；输出图不表示输入已被擦除。</text>
+</svg>

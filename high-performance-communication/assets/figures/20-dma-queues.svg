@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 550" role="img" aria-labelledby="title desc">
+<title id="title">描述符与 DMA：CPU 控制，设备搬移</title>
+<desc id="desc">doorbell是工作通知，不承载完整有效载荷。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="550" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">描述符与 DMA：CPU 控制，设备搬移</text>
+<rect x="35" y="90" width="220" height="115" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="137.5" font-size="22">CPU / 应用</text>
+<text x="49" y="169.5" font-size="22">填写工作参数</text>
+<rect x="335" y="90" width="220" height="115" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="349" y="137.5" font-size="22">描述符／队列</text>
+<text x="349" y="169.5" font-size="22">地址·长度·操作</text>
+<rect x="635" y="90" width="220" height="115" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="649" y="137.5" font-size="22">NIC</text>
+<text x="649" y="169.5" font-size="22">读取描述符</text>
+<line x1="255" y1="146" x2="330" y2="146" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="555" y1="146" x2="630" y2="146" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="35" y="310" width="220" height="120" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="49" y="360.0" font-size="22">应用缓冲区</text>
+<text x="49" y="392.0" font-size="22">有效载荷</text>
+<rect x="335" y="310" width="220" height="120" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="349" y="360.0" font-size="22">DMA 引擎</text>
+<text x="349" y="392.0" font-size="22">设备读／写</text>
+<rect x="635" y="310" width="220" height="120" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="649" y="360.0" font-size="22">网络链路</text>
+<text x="649" y="392.0" font-size="22">分包与传输</text>
+<line x1="255" y1="370" x2="330" y2="370" stroke="#243244" stroke-width="2.2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="555" y1="370" x2="630" y2="370" stroke="#243244" stroke-width="2.2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<line x1="745" y1="205" x2="445" y2="305" stroke="#243244" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<text x="35" y="491" font-size="22">完成记录另回队列；发布顺序与缓冲区生命周期必须正确。</text>
+</svg>

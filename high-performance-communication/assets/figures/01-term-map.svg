@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 750" role="img" aria-labelledby="title desc">
+<title id="title">通信层次与术语</title>
+<desc id="desc">职责依赖，不是包头封装顺序。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="750" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">通信层次与术语</text>
+<rect x="30" y="78" width="670" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="44" y="108.0" font-size="22">应用依赖</text>
+<text x="44" y="140.0" font-size="22">梯度、参数、激活、专家路由</text>
+<line x1="365" y1="160" x2="365" y2="188" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="30" y="190" width="670" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="44" y="220.0" font-size="22">集合语义</text>
+<text x="44" y="252.0" font-size="22">Broadcast / AllReduce / AlltoAll</text>
+<line x1="365" y1="272" x2="365" y2="300" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="30" y="302" width="670" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="44" y="332.0" font-size="22">算法与库</text>
+<text x="44" y="364.0" font-size="22">Ring / Tree / 分层 / 设备任务调度</text>
+<line x1="365" y1="384" x2="365" y2="412" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="30" y="414" width="670" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="44" y="444.0" font-size="22">传输与驱动</text>
+<text x="44" y="476.0" font-size="22">Socket / RDMA verbs / 内存与队列</text>
+<line x1="365" y1="496" x2="365" y2="524" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="30" y="526" width="670" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="44" y="556.0" font-size="22">硬件与网络</text>
+<text x="44" y="588.0" font-size="22">GPU·NPU / DMA / NIC / 交换机</text>
+<rect x="730" y="415" width="145" height="170" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="744" y="475.5" font-size="19">拥塞反馈</text>
+<text x="744" y="504.5" font-size="19">ECN / CNP</text>
+<text x="744" y="533.5" font-size="19">DCQCN</text>
+<line x1="730" y1="535" x2="700" y2="535" stroke="#243244" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<text x="30" y="700" font-size="23">rank：通信域中的逻辑身份；不是一张物理网卡。</text>
+</svg>
