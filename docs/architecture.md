@@ -277,8 +277,8 @@ This presentation transformation belongs in the shared builder; canonical transl
 retains the original material.
 
 **A cross-reference to the source's own pages is aimed at this page's sections.** A web-source
-translation keeps the links the original wrote between its parts — 「继续阅读第 1 部分……」,
-「上一部分」, 「术语表」 — and those URLs leave a page built to open from `file://` without a
+translation keeps the links the original wrote between its parts — “继续阅读第 1 部分……”,
+“上一部分”, “术语表” — and those URLs leave a page built to open from `file://` without a
 server. `build.rewrite_source_links` maps every section's source URL (from `paper.json`, via
 `source_web.absolute`) to `#sec-<name>` and rewrites only links whose URL names one of those
 pages, so a link to the paper's repository or a citation is untouched and a PDF paper — which
