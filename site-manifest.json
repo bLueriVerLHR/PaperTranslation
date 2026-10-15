@@ -13,34 +13,34 @@
       "title": "Redis 源码面试指南：从数据结构到性能与一致性"
     },
     {
-      "path": "transformer-review/index.html",
-      "title": "Transformer：架构、训练、推理与应用综述"
-    },
-    {
       "path": "high-performance-communication/index.html",
       "title": "高性能通信：从集合算子到 RDMA 拥塞控制"
     },
     {
       "path": "cpp-backend-review/index.html",
       "title": "C++ 后端开发：任务执行、系统基础与八股文"
+    },
+    {
+      "path": "transformer-review/index.html",
+      "title": "Transformer：架构、训练、推理与应用综述"
     }
   ],
   "files": {
-    "assets/fonts/fonts.css": "21b8ecbf8f98243709ba01b68218c76bf2179b3af277e2363f21950efb425de6",
-    "assets/fonts/han-bold-00.woff2": "278f35483047c2b31324e230c06443d88d235c66b7b4aa92046b75b7f26a723a",
-    "assets/fonts/han-bold-01.woff2": "31eaabb3cf82a53ba0a03f14173e2eb497e308ae9fdd40157c8af342823397b7",
-    "assets/fonts/han-bold-02.woff2": "d5d41ef8840006dde677e62a083e0c0f304ced58d3815531952d99686d734a06",
+    "assets/fonts/fonts.css": "990f0c0b39717d2ff2ce4c67f83216a5dfd3b3e487487c2ad0ad15c495361aac",
+    "assets/fonts/han-bold-00.woff2": "f4a8bfc901b110efd8389a84373ee85b90066cbbe90af03a32badf669ef82243",
+    "assets/fonts/han-bold-01.woff2": "25d3cce85080f06d3e331f31b139f1aa1f4ad11fc8f90e4cf6009f8deb6672dd",
+    "assets/fonts/han-bold-02.woff2": "75a5f734c9a0186e04307751e821ff4b821296d9c8b05f24951f25fb19db7c8c",
     "assets/fonts/han-bold-03.woff2": "86ef6ee50ec246be1b8d85febd405717630ef0d1b6d1d4af22b03f92b0a72538",
     "assets/fonts/han-OFL.txt": "9ff5bb567e1b92c801fc1069e5fbf992ff8efccacb9db94e5959a5b3ba9bb903",
-    "assets/fonts/han-regular-00.woff2": "64141a1715bf5ac954e7822c61c72aa754f365121315fa42a9ebf3e1a56048b2",
-    "assets/fonts/han-regular-01.woff2": "996001e73aa932f03199c6900d73aae67a08c3f066c5b7d46485da2f1d2308f3",
-    "assets/fonts/han-regular-02.woff2": "f397b8c3b27e726ffae11882d3ca6bd513fba9b51dd516ae46a47d8b29216ea2",
+    "assets/fonts/han-regular-00.woff2": "37e0fa4146b3d808e1f742b61fdb82ab0f845e05baf71cb038295f9ce49faf06",
+    "assets/fonts/han-regular-01.woff2": "a873dcdc559c7921ae90f5c993fafc0b91af7c5ab6e113915118c7118b02ae28",
+    "assets/fonts/han-regular-02.woff2": "a04999573b2ebc794710a9c1dbf36da74fa4b96468aa02b9f5ddb8767f44d721",
     "assets/fonts/han-regular-03.woff2": "d7ed2f844ccafb5a41b78aabc446f5805092cf3dc8ce6b4c8638b6d93f9a8d30",
-    "assets/fonts/maple-bold.woff2": "044dadfd6ebb4e471ba56a5afe54fa727644c65ffe6d618a0f38e52c8a4d7221",
-    "assets/fonts/maple-bolditalic.woff2": "c7930d85c7f1f44a2fa822b0548daec2990be9b1ed59aba944d8201b089cf22c",
-    "assets/fonts/maple-italic.woff2": "d70d5cf24d46fab3418c99a5e1d2d4f2fa9004cc4b1de761d45bcf7b0bc7e510",
+    "assets/fonts/maple-bold.woff2": "758e1436ed484cb6aade312a176fedf29940014b2644bff47c22deba571839c5",
+    "assets/fonts/maple-bolditalic.woff2": "1c975b8a623972f4a147a00c96c5b2b772a758e773d936b15372b4a20d4c5c8a",
+    "assets/fonts/maple-italic.woff2": "f3a4f4306162456f7541d322a1e5070f657548cb24e25eca88f1dcef773aeb3c",
     "assets/fonts/maple-OFL.txt": "eb2d28d2e565a0757e3d64e34ebb452e75a0cad87c0ab3faf4e08ba7596de902",
-    "assets/fonts/maple-regular.woff2": "135c1a63fadbbc05432b4c342b9bae7e818bd71ece56dca301e1038216861ec1",
+    "assets/fonts/maple-regular.woff2": "4ed8090d704bfb562756e96e3faad85edda424688a3963e1644ec3117694d5f1",
     "assets/fonts/NOTICE.txt": "4cb2a9357207032cfca84d662858b9cb511eb88c058ad6c62eec77468327ad08",
     "assets/fonts/ondevice-fonts.css": "5c90be5372c54fcb53227811c403b51a49c9e9872a4d9282704ab59f7ff5605f",
     "assets/fonts/ondevice-han-bold-00.woff2": "bdeaf850011b8e897312147db744580335656324f9dc5a82bd061e7453da4650",
@@ -57,11 +57,11 @@
     "assets/fonts/ondevice-tinos-bolditalic.woff2": "979054af218ddfe3d1f68d438bff9dea23469731f8363fe33664548063cadf5e",
     "assets/fonts/ondevice-tinos-italic.woff2": "8b7e6a4b2bcc4cbbb57a11d975d076ca8c9694f7a65eda481235792de5514f31",
     "assets/fonts/ondevice-tinos-regular.woff2": "3bfdc443378f73bd7eb1ddd302190bbd97d9950330d12576a3ce8955178c28ec",
-    "assets/fonts/tinos-bold.woff2": "64503605abe9407430a3f430d726ed903a038fd454e1480be7ef2420002385c2",
-    "assets/fonts/tinos-bolditalic.woff2": "e9eff4fe8970bf6af9ff041f101d1d6109f6deb4df2ac23a94f7f5c0720bde36",
-    "assets/fonts/tinos-italic.woff2": "0327ee177ab8a10694073e334f7be1c1a612c179d784c244fd722d9443f39a68",
+    "assets/fonts/tinos-bold.woff2": "0591fefda0866822aca187e6dee85ae1079031c38e12adc86d34b02f6c65c729",
+    "assets/fonts/tinos-bolditalic.woff2": "03e2aaadb28605909c9d43d2e21ceb8762b8414fb09ac1851104cf774fc12d79",
+    "assets/fonts/tinos-italic.woff2": "89a2d9d3df9994b860045e53b57eb2b8c20c30517a89e7c64a13ae84e30e82c2",
     "assets/fonts/tinos-OFL.txt": "cb3382d4643e8b02c12e322c220a3c76a5020d667e4fd4e7c75e744cca6caa6b",
-    "assets/fonts/tinos-regular.woff2": "89c355bbfdb259719c8fcf1aa710292c13fec42a9dfb7e10bdf900b74ac56c7c",
+    "assets/fonts/tinos-regular.woff2": "8cb9582f3d7b56379dbb964ed5daa02b4f77c877a769dec66c1a5e5a16300e5a",
     "assets/scripts/library.js": "e3f42b7eef2529c7298d57c23a19bee8a2501ae927818e22f4321396e498f627",
     "assets/scripts/reader.js": "bed054b2caa919e7f682bc0e36a60ae99d8a88a966c0e7ad5159a4b3a3c30f7c",
     "assets/styles/library.css": "217025ee9a9b918cd13906c5acef686509a84d8225662920928b3d925a26551f",
@@ -96,10 +96,10 @@
     "high-performance-communication/assets/figures/25-dcqcn-loop.svg": "98bc6267ed2a7f6a9b751a56fda7b39c6076757475709276010eec503016e109",
     "high-performance-communication/assets/figures/26-dcqcn-recovery.svg": "75b43f3accb8f34d52273e2345b328b9df66df9e9700754e5836738e7a90f7dc",
     "high-performance-communication/index.html": "9e1e7684c76767ed13841dbd736d95c5d9aea2c1a63a0e464e7623f7d1a69d3e",
-    "index.html": "b4dcc99088543c741a6c97a8c7f7bd38b5b234616fa369d1b763195ca33e0927",
+    "index.html": "25370bc1bd6f18d577b172b4c55cde7720883810b4537024c0d02310e308a55b",
     "llvm-optimization-tutorial/index.html": "7b9762c99161a5f0a96cb4bab6ac19669967ead32b8263b2e45b53567398af4d",
     "redis-source-interview/index.html": "7b0a56cd9a1b4383cf68e51aa5bf2d1ba5c79c41c6e6bdecd75db8bc542e555b",
     "transformer-review/assets/licenses/index.html": "1c1e4cd26b7bffdffe0c793ccd713c5e65763c93022a147a7ec3d7379a1d3d92",
-    "transformer-review/index.html": "b91fc665f521588e0d348867a9f1f1dfbaaa043dd29e9168b9ba0b88b2604f31"
+    "transformer-review/index.html": "c2f82e9d64f78fee829fa25fce3b1cf1836f53beca94789aeaff58d00370c432"
   }
 }
