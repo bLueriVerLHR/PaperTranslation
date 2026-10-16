@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>深度学习编译栈：TVM、Triton、CuTe、PyTorch 与昇腾的源码分析</title>
+<meta name="description" content="从图变换到指令选择：五条实现路径与一条贯穿算子的对照">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>顶部</button>
+</div>
+
+<main class="page" id="content" data-content-hash="2ab9381f2dd6"><a class="site-home" href="../index.html">← 文库</a>
+  <header class="title-block">
+    <h1>深度学习编译栈：TVM、Triton、CuTe、PyTorch 与昇腾的源码分析</h1>
+    <p class="subtitle">从图变换到指令选择：五条实现路径与一条贯穿算子的对照</p>
+    <p class="meta"><span class="latin">本地源码研读与分析</span> · 源码研读笔记 · 更新于 2026-10-16</p>
+    <p class="meta reading-notice">源码与引用材料遵循各自原有许可证。</p>
+
+<details class="meta source-details"><summary>出处与说明</summary><p>源码版本：<code>tvm</code> <code>main</code> 提交 <code>2bb1a553be19c0c9907bd186f7ce42e412c8f223</code>（2026-10-05）；<code>triton</code> <code>main</code> 提交 <code>ebdd5b6b485600bdd62fb3becab87e0f6bf15b6f</code>（2026-10-02）；<code>cutlass</code> <code>main</code> 提交 <code>0b55a2f691d69981583568fd9eb69687b1f0de8a</code>（2026-09-23）；<code>pytorch</code> <code>main</code> 提交 <code>92f43bbed42c61d2553a49cbd85bc8b5078b1cf0</code>（2026-10-16）；<code>torch-npu</code>（<code>Ascend/pytorch</code>）<code>main</code> 提交 <code>f38351b66d9edcb32ac71b372d68d18baa797106</code>（2026-10-16）；<code>mindspore</code> <code>master</code> 提交 <code>c91ca93fd5b37e4f61b0db00994573da86127c5e</code>（2026-10-16）；<code>vllm-ascend</code> <code>main</code> 提交 <code>4ebb3090fc3c13c26557dcaae353882e70246649</code>（2026-10-02）。检出于上述提交，工作树无改动；实现细节以此为准，不代表任何发行版或后续版本。</p>
+<p>MindSpore 的上游有过迁移：GitHub 上的镜像停在 v2.3.0（2024 年），Gitee 上的 <code>master</code> 停在 2026-01-24，本文采用的是迁移后的正式上游 AtomGit（<code>atomgit.com/mindspore/mindspore</code>）。按其它镜像核对行号会得到不同结果，核对前先确认远端与提交。</p>
+<p>本文为静态源码分析：没有编译、启动或部署这些项目，没有运行它们的测试、benchmark 或消融，正文不含实测数据。机制推导、源码摘录与仓库自身记录的故障或实验结果分别标注。源码定位使用仓库相对路径与符号名，行号只对上述固定提交成立。</p>
+<p>昇腾硬件侧（CANN）的编译器内部实现不在开源范围内；相关章节只依据公开可见的适配层、接口与仓库自身文档说明边界，不推测其内部机制。</p>
+<p>源码许可：<code>tvm</code> 为 <a href="https://github.com/apache/tvm/blob/2bb1a553be19c0c9907bd186f7ce42e412c8f223/LICENSE">Apache-2.0</a>；<code>triton</code> 为 <a href="https://github.com/triton-lang/triton/blob/ebdd5b6b485600bdd62fb3becab87e0f6bf15b6f/LICENSE">MIT</a>；<code>cutlass</code> 为 <a href="https://github.com/NVIDIA/cutlass/blob/0b55a2f691d69981583568fd9eb69687b1f0de8a/LICENSE.txt">BSD-3-Clause</a>；<code>pytorch</code> 为 <a href="https://github.com/pytorch/pytorch/blob/92f43bbed42c61d2553a49cbd85bc8b5078b1cf0/LICENSE">BSD-3-Clause</a>；<code>torch-npu</code>（<code>Ascend/pytorch</code>）沿用与 PyTorch 同源的 <a href="https://github.com/Ascend/pytorch/blob/f38351b66d9edcb32ac71b372d68d18baa797106/LICENSE">BSD-3-Clause 复合许可文本</a>；<code>mindspore</code> 为 <a href="https://atomgit.com/mindspore/mindspore/blob/c91ca93fd5b37e4f61b0db00994573da86127c5e/LICENSE">Apache-2.0</a>；<code>vllm-ascend</code> 为 <a href="https://github.com/vllm-project/vllm-ascend/blob/4ebb3090fc3c13c26557dcaae353882e70246649/LICENSE">Apache-2.0</a>。摘录用于说明实现，不改变各仓库的许可与归属。</p></details>
+  </header>
+
+  <details class="toc" id="toc">
+    <summary>目录</summary>
+    <nav aria-label="目录">
+<ol>
+<li><a href="#术语对应表">术语对应表</a></li>
+<li><a href="#stack-layers">编译栈的分层与研究对象</a><ol>
+<li><a href="#what-a-compiler-decides">编译这一层要决定什么</a></li>
+<li><a href="#five-pathways">五条路径的位置</a></li>
+<li><a href="#comparison-axes">比较用到的问题</a></li>
+</ol></li>
+<li><a href="#tvm">TVM：计算与调度分离之后</a><ol>
+<li><a href="#tvm-ir-stack">表示层：一个 IRModule，两类函数</a></li>
+<li><a href="#tvm-schedule">调度：把「怎么算」写成可检查的决策</a></li>
+<li><a href="#tvm-autotuning">自动调优：把调度选择变成可测量的搜索</a></li>
+<li><a href="#tvm-lowering">降低与代码生成：查表分派与主机／设备分离</a></li>
+</ol></li>
+<li><a href="#triton">Triton：块级程序与布局驱动的后端</a><ol>
+<li><a href="#triton-pipeline">分阶段的编译与后端固定的顺序</a></li>
+<li><a href="#triton-layout">布局：编译器替使用者做出的那个关键决定</a></li>
+<li><a href="#triton-schedule">流水、线程分工与新一代存储层次</a></li>
+<li><a href="#triton-autotune">自动调优：几个旋钮与一份缓存</a></li>
+</ol></li>
+<li><a href="#cute">CuTe：布局代数与模板实例化</a><ol>
+<li><a href="#cute-layout-algebra">布局是映射，代数是对映射做运算</a></li>
+<li><a href="#cute-atoms">指令知识如何按架构组织</a></li>
+<li><a href="#cute-static-knowledge">静态知识与被放弃的检查</a></li>
+<li><a href="#cute-dsl">Python 前端与第二套编译入口</a></li>
+</ol></li>
+<li><a href="#pytorch">PyTorch：从字节码捕获到算子生成</a><ol>
+<li><a href="#pytorch-dispatch">分发：编译要接在哪一层</a></li>
+<li><a href="#pytorch-capture">捕获：把执行记录成图，再用守卫守住假设</a></li>
+<li><a href="#pytorch-aotautograd">反向图与重算分区</a></li>
+<li><a href="#pytorch-inductor">生成：从图到循环，再到设备代码</a></li>
+<li><a href="#pytorch-cache">缓存与动态性：把复用条件写进键里</a></li>
+</ol></li>
+<li><a href="#ascend">昇腾：适配层、图编译与算子生成</a><ol>
+<li><a href="#ascend-torch-npu">适配层：注册、算子生成与回退清单</a></li>
+<li><a href="#ascend-compile">编译路径：既有编译链接到新设备</a></li>
+<li><a href="#ascend-graph">图模式与惰性融合</a></li>
+</ol></li>
+<li><a href="#operator-path">贯穿对照：一次融合注意力在五个栈里的落点</a><ol>
+<li><a href="#online-softmax">先把算法的代价算清楚</a></li>
+<li><a href="#operator-path-per-stack">五个栈各自交出了什么</a><ol>
+<li><a href="#op-triton">Triton：使用者写出整条递推</a></li>
+<li><a href="#op-cute">CuTe：从示例里选一套模板</a></li>
+<li><a href="#op-pytorch">PyTorch：先在图上认出模式，再选择模板</a></li>
+<li><a href="#op-tvm">TVM：图上的算子加两条外部出路</a></li>
+<li><a href="#op-ascend">昇腾：把模式融合成一个算子，再交给设备侧</a></li>
+</ol></li>
+<li><a href="#operator-path-comparison">对照：决策位置与代价的分配</a></li>
+</ol></li>
+<li><a href="#boundaries">代价、退化与选择边界</a><ol>
+<li><a href="#boundary-costs">编译要花掉的三种资源</a></li>
+<li><a href="#boundary-degradation">退化路径：编译器如何保持不变错</a></li>
+<li><a href="#boundary-selection">选择边界：按条件对齐，而不是排名</a></li>
+</ol></li>
+</ol>
+    </nav>
+  </details>
+
+  <article class="body">
+<section id="sec-glossary">
+<h2 id="术语对应表">术语对应表</h2>
+<p>本书采用以下中文用语。IR 名称、类名、pass 名称、指令名与仓库路径保留原名，便于与固定提交的源码对照。同一个词在不同栈里的含义可能不同，下表按栈分别注明。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>英文术语</th>
+<th>本书用语</th>
+<th>区别与范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IR (intermediate representation)</td>
+<td>中间表示</td>
+<td>一层可检查、可变换的程序表示，层次由所处阶段决定</td>
+</tr>
+<tr>
+<td>lowering</td>
+<td>降低（lowering）</td>
+<td>把较高层表示改写为更接近执行目标的形式，与“质量下降”无关</td>
+</tr>
+<tr>
+<td>pass / pass pipeline</td>
+<td>变换／变换管线</td>
+<td>单个改写步骤／步骤的固定次序；次序本身影响结果</td>
+</tr>
+<tr>
+<td>dialect</td>
+<td>方言</td>
+<td>同一 IR 框架内针对某层次定义的操作与类型集合</td>
+</tr>
+<tr>
+<td>kernel</td>
+<td>内核</td>
+<td>一次设备端启动所执行的完整计算</td>
+</tr>
+<tr>
+<td>tile / tiling</td>
+<td>分块</td>
+<td>把张量计算切成可放入片上存储或寄存器的小块</td>
+</tr>
+<tr>
+<td>layout</td>
+<td>布局</td>
+<td>逻辑坐标到物理位置的映射，决定线程访问与合并方式</td>
+</tr>
+<tr>
+<td>layout conversion</td>
+<td>布局转换</td>
+<td>改变映射；跨内存层次时通常要经过共享内存或寄存器重排</td>
+</tr>
+<tr>
+<td>coalescing</td>
+<td>合并访问</td>
+<td>相邻线程访问相邻地址，使一次内存事务覆盖多元素</td>
+</tr>
+<tr>
+<td>predication / masking</td>
+<td>谓词化／掩码</td>
+<td>用条件决定哪些线程或元素参与读写</td>
+</tr>
+<tr>
+<td>thread–value mapping</td>
+<td>线程—元素映射</td>
+<td>哪个线程负责哪些逻辑元素</td>
+</tr>
+<tr>
+<td>pipeline / multibuffering</td>
+<td>流水／多缓冲</td>
+<td>重叠搬运与计算，代价是额外缓冲与同步</td>
+</tr>
+<tr>
+<td>autotuning / search space</td>
+<td>自动调优／搜索空间</td>
+<td>由调度参数构成的候选集合及其评测方式</td>
+</tr>
+<tr>
+<td>cost model</td>
+<td>代价模型</td>
+<td>预测候选方案好坏；可解析、可测量或两者结合</td>
+</tr>
+<tr>
+<td>tensorization</td>
+<td>张量化</td>
+<td>把细粒度运算组合成一条矩阵或向量指令</td>
+</tr>
+<tr>
+<td>quantization</td>
+<td>量化</td>
+<td>用低位宽表示数值；与调度层次无关</td>
+</tr>
+<tr>
+<td>dispatch / operator registration</td>
+<td>分发／算子注册</td>
+<td>依据输入类型选择具体实现</td>
+</tr>
+<tr>
+<td>graph capture</td>
+<td>图捕获</td>
+<td>把执行过程中的算子序列记录成可变换的图</td>
+</tr>
+<tr>
+<td>guard</td>
+<td>守卫</td>
+<td>运行前检查假设是否仍成立，不成立则回退</td>
+</tr>
+<tr>
+<td>backend / target</td>
+<td>后端／目标</td>
+<td>针对具体硬件生成代码的部分</td>
+</tr>
+<tr>
+<td>shared memory</td>
+<td>共享内存</td>
+<td>片上、块内可见的存储</td>
+</tr>
+<tr>
+<td>compile-time vs runtime</td>
+<td>编译期／运行期</td>
+<td>决定信息在哪一阶段已知；多数代价由此划分</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+
+<section id="sec-01-overview">
+<h1 id="stack-layers">编译栈的分层与研究对象</h1>
+<p>一个模型从 Python 源码走到硬件指令，中间要经过若干次表示变更：算子集合与图形状被改写，张量计算被切成适合片上存储的块，块的读写模式被绑定到线程与寄存器，最后落成目标指令。不同项目把这些变更放在不同位置——有的做成可检查的中间表示与变换管线，有的压进模板实例化，有的藏在一个装饰器后面。本书关心这条链上每一层各自负责什么、代价落在哪里，以及真实负载里哪些约束会先暴露。</p>
+<h2 id="what-a-compiler-decides">编译这一层要决定什么</h2>
+<p>把一次矩阵乘法或一个注意力块交给设备执行，最终必须落下四个决定：计算切成多大的块、块之间按什么次序执行、每个元素由哪个线程负责、数据在存储层次之间怎么搬。这四个决定互相牵制。块切得大，片上存储放不下中间结果，必须回到显存往返；块切得小，每次搬运的有效载荷不足，带宽花在开销上。线程映射只要和数据的物理排布错开一拍，一次内存事务就要拆成多次。搬运与计算的次序安排不当，硬件只能在读数和算数之间空转。</p>
+<p>四个决定之上还有一个更基本的问题：哪些信息在编译期已知。形状固定、步长可推导、对齐满足、缩放因子是常量，编译器就能把偏移、边界判断和缓冲区大小全部静态算出来。任何一项推迟到运行期，同一段计算要么生成两条路径并在入口处选择，要么退化为通用循环，要么在运行时补齐元数据。深度学习负载里形状经常来自上游算子的输出，批大小随请求变化，这使得“编译期已知”成为一个需要主动争取、而不是天然成立的前提。</p>
+<p>本书选取的五条路径，差别首先落在它们把这条决策链切成几段、每段的输入输出用什么表示，以及谁有权修改已经做出的决定。</p>
+<h2 id="five-pathways">五条路径的位置</h2>
+<p>TVM 把整条链放进一个编译器：算子用张量表达式描述，调度用一组原语增量地表达，中间表示逐层降低到循环与语句，自动调优负责在调度参数空间里搜索。它的边界压在框架与编译器之间，进入 TVM 的图要先变成它自己的表示。</p>
+<p>Triton 保留一个固定的编译管线，把表达权交给块级程序：作者写出每个程序实例覆盖的块形状与计算，剩下的布局选择、共享内存分配、流水线排布由后端的变换决定。它把一部分调度决策收回报编译器，用受限的表达换取后端优化的自由度。</p>
+<p>CuTe 把布局写成可以代数运算的类型，分块、线程映射、指令选择通过模板实例化完成。编译发生在 C++ 模板展开与 MLIR 降低两处，调度决策被编码成类型关系，正确性由编译期断言约束。它不提供搜索，提供的是让人能手工写下确定方案、并让编译器证明方案合法的语言。</p>
+<p>PyTorch 的编译器挂在框架的捕获能力上：先让执行过程可记录，再把记录下来的图交给后端生成设备代码。它的难点集中在捕获的完整性与正确性上——哪些 Python 语义能被安全地记录、记录下来的假设什么时候失效、失效之后怎么退回原始执行。</p>
+<p>昇腾一侧的公开代码主要是适配层与图编译入口：把框架算子接到昇腾的运行库上，把图交给它的图编译与算子编译流程。硬件侧编译器的内部机制不在开源范围内，本书对这一部分只按公开可见的接口与仓库自身文档说明边界。</p>
+<h2 id="comparison-axes">比较用到的问题</h2>
+<p>对照五个栈时，本书反复追问同一组问题：</p>
+<ol>
+<li><strong>切分点在哪里。</strong> 编译器从这里接管程序，也在这里承担“已知信息不足”的后果。</li>
+<li><strong>中间表示是否可检查。</strong> 能否打印、匹配、写自定义变换，决定了调试成本落在人身上还是落在管线里。</li>
+<li><strong>调度决策由谁做出。</strong> 由使用者显式写出、由搜索挑选、由后端固定策略决定，还是由类型系统在编译期推导。</li>
+<li><strong>目标绑定发生在什么时候。</strong> 同一份源码换一个设备，需要改动的是调度、是布局、还是整段程序。</li>
+<li><strong>内存与同步是否可见。</strong> 共享内存、寄存器、流水缓冲和栅栏是否出现在源码层面，决定了性能问题的可诊断性。</li>
+<li><strong>动态信息如何处理。</strong> 形状变化时是重新编译、走通用路径，还是在入口处判断后选择。</li>
+<li><strong>代价由什么承担。</strong> 编译时间、模板展开深度、搜索开销、需要的静态知识，都要与运行期收益一起计入。</li>
+</ol>
+<p>后续各章按这组问题展开，最后一章把同一条算子路径放进五个栈，看它在每一处被改写成了什么。</p>
+</section>
+
+<section id="sec-02-tvm">
+<h1 id="tvm">TVM：计算与调度分离之后</h1>
+<p>TVM 把「算什么」和「怎么算」当作两件可以分开处理的事，并围绕这个分离搭出一整套基础设施（<a class="citation" href="https://www.usenix.org/conference/osdi18/presentation/chen" title="Tianqi Chen, Thierry Moreau, Ziheng Jiang, Lianmin Zheng, Eddie Yan, Haichen Shen, Meghan Cowan, Leyuan Wang, Yuwei Hu, Luis Ceze, Carlos Guestrin, Arvind Krishnamurthy. 2018. TVM: An Automated End-to-End Optimizing Compiler for Deep Learning. 13th USENIX Symposium on Operating Systems Design and Implementation (OSDI 18), 578–594. arXiv:1802.04799." aria-label="引用 Chen et al. 2018，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;tvm2018&quot;, &quot;text&quot;: &quot;Tianqi Chen, Thierry Moreau, Ziheng Jiang, Lianmin Zheng, Eddie Yan, Haichen Shen, Meghan Cowan, Leyuan Wang, Yuwei Hu, Luis Ceze, Carlos Guestrin, Arvind Krishnamurthy. 2018. TVM: An Automated End-to-End Optimizing Compiler for Deep Learning. 13th USENIX Symposium on Operating Systems Design and Implementation (OSDI 18), 578–594. arXiv:1802.04799.&quot;, &quot;url&quot;: &quot;https://www.usenix.org/conference/osdi18/presentation/chen&quot;, &quot;fallback&quot;: false}]">Chen et al. 2018</a>）：一套图级 IR、一套张量层 IR 与调度体系、一个自动调优框架，以及一列把表示逐级推向目标代码的变换。本章按这条链的顺序走，重点放在每个环节各自承担什么、检查在什么时候发生，以及分离带来的代价落在哪里。</p>
+<h2 id="tvm-ir-stack">表示层：一个 IRModule，两类函数</h2>
+<p>TVM 把整条编译链的输入输出压在同一个容器上。仓库自带的架构文档用两句话交代了容器里装什么：<code>IRModule</code> 含 <code>relax.Function</code> 与 <code>tirx::PrimFunc</code>（<code>docs/arch/index.rst:187</code>）。前者是高层函数式表示，对应整个模型或其子图，支持控制流与复杂数据结构；后者是低层程序表示，含循环嵌套选择、多维访存、线程绑定以及向量与张量指令，通常对应模型中一个层。</p>
+<p>两类函数的连接方式决定了图级优化能做什么。relax 算子被降为 <code>tirx::PrimFunc</code> 或 <code>TVM PackedFunc</code>，调用点在图上表现为 <code>R.call_tir</code> 与 <code>R.call_dps_packed</code>（<code>docs/arch/index.rst:70-72</code>）。图级函数保留对低层函数的调用，自身不展开成循环。于是算子边界同时承担两件事：融合决策的落点是它，后端分派（例如把整个算子交给外部库）的落点也是它。把边界留在图上，图级变换才有东西可以搬动。</p>
+<p>在这个提交上，张量层有两套表示并存：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>目录</th>
+<th>承载</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/s_tir</code></td>
+<td>调度体系（<code>schedule</code>）、变换（<code>transform</code>）、自动调优（<code>meta_schedule</code>）</td>
+</tr>
+<tr>
+<td><code>src/tirx</code></td>
+<td>正在成形的张量 IR：<code>ir</code>、<code>op</code>、<code>analysis</code>、<code>script</code>、<code>transform</code>，含 <code>RegionStmt</code>、tile 原语与执行作用域（<code>include/tvm/tirx/{stmt.h,exec_scope.h,exec_context.h,tile_primitive.h}</code>）</td>
+</tr>
+<tr>
+<td><code>src/te</code>、<code>src/topi</code></td>
+<td>张量表达式层与算子库</td>
+</tr>
+</tbody>
+</table></div>
+<p>这个提交的信息写着 <code>[REFACTOR][TIRx] Add RegionStmt and migrate thread launches (#20555)</code>，迁移尚在进行：仓库根下已经没有 <code>src/tir</code> 与 <code>src/meta_schedule</code>，调度与自动调优现在位于 <code>src/s_tir/meta_schedule</code>。按旧文档或旧教程里 <code>src/tir/...</code> 的路径检索，在这个提交上会落空，路径要改成 <code>s_tir</code>。</p>
+<p>文档里还留了一条区分（<code>docs/arch/index.rst:192</code>）：<code>relax/transform</code> 与 <code>tirx/transform</code> 是确定性的规则式变换。把这句话与旁边的自动调优放在一起看，TVM 对两类决策的分工就清楚了——保序改写交给固定管线，性能选择交给可测量、可重复的搜索。下一节从调度开始，说明搜索在搜什么。</p>
+<h2 id="tvm-schedule">调度：把「怎么算」写成可检查的决策</h2>
+<p>张量表达式这一层描述值怎么算出来，调度描述这份计算落到设备上以后怎么组织。同一份表达式配上不同调度，生成的代码可以差出数倍，因为调度决定了三个互相牵制的量：计算切成多大的块、块与块按什么次序执行、每个元素由哪个线程负责。</p>
+<p>调度在实现上是一串按序施加的原语，每个原语改写块结构与循环结构。<code>src/s_tir/schedule/primitive/</code> 下的目录名就是这份清单：<code>compute_at</code>、<code>compute_inline</code>、<code>cache_read_write</code>、<code>loop_transformation</code>、<code>layout_transformation</code>、<code>reduction</code>、<code>blockize_tensorize</code>、<code>for_kind</code>、<code>rolling_buffer</code> 等。原语施加的顺序会影响后续哪些原语仍然可用，这一点在后面讲自动调优时还会出现。</p>
+<p>每个原语在改写之前检查前提是否成立，不成立就抛出带上下文的调度错误。<code>compute_at</code> 要求被搬动的块的全部生产者或消费者都位于目标循环之下，否则构造 <code>NotAllRequiredBlocksAreVisitedError</code>：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/tvm · 2bb1a553be19 · src/s_tir/schedule/primitive/compute_at.cc:51-61</span>
+<span class="syn-c1">// 类 NotAllRequiredBlocksAreVisitedError 的 FastErrorString 与 DetailRenderTemplate</span>
+<span class="syn-w">  </span><span class="syn-n">ffi</span><span class="syn-o">::</span><span class="syn-n">String</span><span class="syn-w"> </span><span class="syn-nf">FastErrorString</span><span class="syn-p">()</span><span class="syn-w"> </span><span class="syn-k">const</span><span class="syn-w"> </span><span class="syn-k">final</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">    </span><span class="syn-k">return</span><span class="syn-w"> </span><span class="syn-s">"ScheduleError: Not all required blocks are under the loop scope"</span><span class="syn-p">;</span>
+<span class="syn-w">  </span><span class="syn-p">}</span>
+
+<span class="syn-w">  </span><span class="syn-n">ffi</span><span class="syn-o">::</span><span class="syn-n">String</span><span class="syn-w"> </span><span class="syn-nf">DetailRenderTemplate</span><span class="syn-p">()</span><span class="syn-w"> </span><span class="syn-k">const</span><span class="syn-w"> </span><span class="syn-k">final</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">    </span><span class="syn-n">ffi</span><span class="syn-o">::</span><span class="syn-n">String</span><span class="syn-w"> </span><span class="syn-n">relation</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-n">is_consumer</span><span class="syn-w"> </span><span class="syn-o">?</span><span class="syn-w"> </span><span class="syn-s">"consumer(s)"</span><span class="syn-w"> </span><span class="syn-o">:</span><span class="syn-w"> </span><span class="syn-s">"producer(s)"</span><span class="syn-p">;</span>
+<span class="syn-w">    </span><span class="syn-n">std</span><span class="syn-o">::</span><span class="syn-n">ostringstream</span><span class="syn-w"> </span><span class="syn-n">os</span><span class="syn-p">;</span>
+<span class="syn-w">    </span><span class="syn-n">os</span><span class="syn-w"> </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-s">"The primitive requires all the "</span><span class="syn-w"> </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-n">relation</span>
+<span class="syn-w">       </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-s">" of the given block to be present under the target loop. However, there are "</span>
+<span class="syn-w">       </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-n">num_not_visited_</span><span class="syn-w"> </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-s">" "</span><span class="syn-w"> </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-n">relation</span><span class="syn-w"> </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-s">" not satisfying the constraint. List of the "</span>
+<span class="syn-w">       </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-n">relation</span><span class="syn-w"> </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-s">":"</span><span class="syn-p">;</span>
+</code></pre>
+<p>这段错误文本把约束讲得很具体：把生产者搬进使用者的循环体，等于要求这次移动在依赖结构上自洽。检查点是调度阶段而不是代码生成阶段，所以报错时能指出是哪一类块、缺了几个。同一目录下 <code>compute_inline.cc:129</code> 的 <code>BodyAnalysisError</code> 也是同样形态，它的 <code>FastErrorString</code>（同文件 <code>:133</code>）说明内联要求循环体形态满足条件。</p>
+<p>调度的必要性随目标变化。架构文档写得很直白：CPU 目标不做调度也能生成合法代码并执行，只是性能很低；GPU 目标若没有调度，就无法生成合法的线程绑定（<code>docs/arch/index.rst:90</code>）。原因在线程绑定的性质——它规定哪个线程负责哪些元素，而没有调度之前，生成的循环里没有任何可依附的结构来表达这件事。</p>
+<p>代价也随之固定下来。原语各有前置条件，意味着一个调度方案是一串必须逐条自洽的决策，顺序不同，可行集合就不同。手工写出好调度需要同时懂算法、懂硬件、懂这些原语的副作用，这正是下一节那套基础设施要接管的工作。</p>
+<h2 id="tvm-autotuning">自动调优：把调度选择变成可测量的搜索</h2>
+<p>手工调度需要同时掌握算法、硬件与一长串原语的副作用，于是 TVM 把这部分变成搜索：生成候选调度、编译并测量、按测量结果决定下一步试什么。入口 <code>tune_tasks</code> 的签名就是这套分工的清单（<code>python/tvm/s_tir/meta_schedule/tune.py:29</code>）：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/tvm · 2bb1a553be19 · python/tvm/s_tir/meta_schedule/tune.py:29-45（签名节选）</span>
+<span class="syn-k">def</span><span class="syn-w"> </span><span class="syn-nf">tune_tasks</span><span class="syn-p">(</span>
+    <span class="syn-o">*</span><span class="syn-p">,</span>
+    <span class="syn-n">tasks</span><span class="syn-p">:</span> <span class="syn-nb">list</span><span class="syn-p">[</span><span class="syn-n">TuneContext</span><span class="syn-p">],</span>
+    <span class="syn-n">task_weights</span><span class="syn-p">:</span> <span class="syn-nb">list</span><span class="syn-p">[</span><span class="syn-nb">float</span><span class="syn-p">],</span>
+    <span class="syn-n">work_dir</span><span class="syn-p">:</span> <span class="syn-nb">str</span><span class="syn-p">,</span>
+    <span class="syn-n">max_trials_global</span><span class="syn-p">:</span> <span class="syn-nb">int</span><span class="syn-p">,</span>
+    <span class="syn-n">max_trials_per_task</span><span class="syn-p">:</span> <span class="syn-nb">int</span> <span class="syn-o">|</span> <span class="syn-kc">None</span> <span class="syn-o">=</span> <span class="syn-kc">None</span><span class="syn-p">,</span>
+    <span class="syn-n">num_trials_per_iter</span><span class="syn-p">:</span> <span class="syn-nb">int</span> <span class="syn-o">=</span> <span class="syn-mi">64</span><span class="syn-p">,</span>
+    <span class="syn-n">builder</span><span class="syn-p">:</span> <span class="syn-n">Builder</span><span class="syn-o">.</span><span class="syn-n">BuilderType</span> <span class="syn-o">=</span> <span class="syn-s2">"local"</span><span class="syn-p">,</span>
+    <span class="syn-n">runner</span><span class="syn-p">:</span> <span class="syn-n">Runner</span><span class="syn-o">.</span><span class="syn-n">RunnerType</span> <span class="syn-o">=</span> <span class="syn-s2">"local"</span><span class="syn-p">,</span>
+    <span class="syn-n">database</span><span class="syn-p">:</span> <span class="syn-n">Database</span><span class="syn-o">.</span><span class="syn-n">DatabaseType</span> <span class="syn-o">=</span> <span class="syn-s2">"json"</span><span class="syn-p">,</span>
+    <span class="syn-n">cost_model</span><span class="syn-p">:</span> <span class="syn-n">CostModel</span><span class="syn-o">.</span><span class="syn-n">CostModelType</span> <span class="syn-o">=</span> <span class="syn-s2">"xgb"</span><span class="syn-p">,</span>
+    <span class="syn-n">measure_callbacks</span><span class="syn-p">:</span> <span class="syn-n">MeasureCallback</span><span class="syn-o">.</span><span class="syn-n">CallbackListType</span> <span class="syn-o">=</span> <span class="syn-s2">"default"</span><span class="syn-p">,</span>
+    <span class="syn-n">task_scheduler</span><span class="syn-p">:</span> <span class="syn-n">TaskScheduler</span><span class="syn-o">.</span><span class="syn-n">TaskSchedulerType</span> <span class="syn-o">=</span> <span class="syn-s2">"gradient"</span><span class="syn-p">,</span>
+    <span class="syn-n">module_equality</span><span class="syn-p">:</span> <span class="syn-nb">str</span> <span class="syn-o">=</span> <span class="syn-s2">"structural"</span><span class="syn-p">,</span>
+    <span class="syn-n">post_optimization</span><span class="syn-p">:</span> <span class="syn-nb">bool</span> <span class="syn-o">|</span> <span class="syn-kc">None</span> <span class="syn-o">=</span> <span class="syn-kc">False</span><span class="syn-p">,</span>
+<span class="syn-p">)</span> <span class="syn-o">-&gt;</span> <span class="syn-n">Database</span><span class="syn-p">:</span>
+</code></pre>
+<p>四类角色在这里直接可见。<code>builder</code> 与 <code>runner</code> 负责把候选调度编译出来并真实运行，默认都在本机按核数并行；<code>database</code> 存放测量记录；<code>cost_model</code> 默认取 <code>"xgb"</code>，用提取出的特征训练一个梯度提升模型，预测尚未测量的候选值多少代价，从而把真实测量留给更值得试的那部分候选；<code>measure_callbacks</code> 决定一次测量结束后要做什么。</p>
+<p>生成候选、真实测量、再用学到的模型筛选，这套组合在 Ansor 中提出并评估（<a class="citation" href="https://www.usenix.org/conference/osdi20/presentation/zheng" title="Lianmin Zheng, Chengfan Jia, Minmin Sun, Zhao Wu, Cody Hao Yu, Ameer Haj-Ali, Yida Wang, Jun Yang, Danyang Zhuo, Koushik Sen, Joseph E. Gonzalez, Ion Stoica. 2020. Ansor: Generating High-Performance Tensor Programs for Deep Learning. 14th USENIX Symposium on Operating Systems Design and Implementation (OSDI 20), 863–879. arXiv:2006.06762." aria-label="引用 Zheng et al. 2020，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;ansor2020&quot;, &quot;text&quot;: &quot;Lianmin Zheng, Chengfan Jia, Minmin Sun, Zhao Wu, Cody Hao Yu, Ameer Haj-Ali, Yida Wang, Jun Yang, Danyang Zhuo, Koushik Sen, Joseph E. Gonzalez, Ion Stoica. 2020. Ansor: Generating High-Performance Tensor Programs for Deep Learning. 14th USENIX Symposium on Operating Systems Design and Implementation (OSDI 20), 863–879. arXiv:2006.06762.&quot;, &quot;url&quot;: &quot;https://www.usenix.org/conference/osdi20/presentation/zheng&quot;, &quot;fallback&quot;: false}]">Zheng et al. 2020</a>）；本节说明的是这个提交里各角色如何分工。</p>
+<p>搜索空间与搜索策略各自有实现清单。空间生成器位于 <code>src/s_tir/meta_schedule/space_generator/</code>（<code>post_order_apply.cc</code>、<code>schedule_fn.cc</code>、<code>space_generator_union.cc</code>），搜索策略位于 <code>search_strategy/</code>（<code>evolutionary_search.cc</code>、<code>replay_func.cc</code>、<code>replay_trace.cc</code>）。这些实现的内部算法本章不做推测；能确定的是分工本身——空间负责「有哪些候选」，策略负责「下一批试哪些」。</p>
+<p>把有限的试验次数分给多个任务，是另一层决策。<code>max_trials_global</code>、<code>max_trials_per_task</code> 与 <code>num_trials_per_iter</code> 给出预算与批大小，<code>task_scheduler</code> 决定这些批次落在哪个任务上，其默认实现名为 <code>"gradient"</code>，同目录下另有 <code>round_robin.cc</code>。参数 <code>task_weights</code> 是调用方给出的权重，与预算一起决定搜索的注意力分配。</p>
+<p><code>module_equality</code> 这个参数容易被忽略，它决定一条测量记录能否被另一个模块复用，因此直接决定调优投入的可复用范围。默认 <code>"structural"</code> 用结构等价与哈希；<code>"ignore-tensor"</code> 在等价与哈希时忽略张量原始数据；<code>"anchor-block"</code> 只在从模块中抽出的锚块上做等价与哈希（<code>python/tvm/s_tir/meta_schedule/tune.py:74-84</code>）。判定过松会把不适用的记录当成可用，判定过严则同一个算子换一个上游形状就要重测一遍。<code>post_optimization</code> 打开后在已选出的方案附近再做一轮开发式搜索，文档把它称为 Droplet Search（同文件 <code>:86</code>）。</p>
+<p>这套框架的代价不在生成的代码里，而在编译与测量的次数上：每个候选都要编译、装载、运行、计时，因此调优时间与硬件占用是实打实的开支；代价模型只能减少测量次数，不能免除测量。搜索产物存放在数据库里，同一目标与同类模块可以复用，这也是 <code>module_equality</code> 值得单独说明的原因。</p>
+<h2 id="tvm-lowering">降低与代码生成：查表分派与主机／设备分离</h2>
+<p>张量层表示走向目标代码的过程分为两段。仓库架构文档把它画成一张流程图：先跑 TIR 管线把 <code>PrimFunc</code> 降低（展平缓冲、展开内建等），再用 <code>split_host_device_mods()</code> 把函数按所在设备分开，然后对主机与设备模块分别调用 <code>codegen_build()</code>，最后把设备模块 <code>import_module()</code> 回主机模块（<code>docs/arch/codegen.rst:39-68</code>）。整段过程由 <code>tirx.build()</code> 完成，而它本身由 <code>relax.build()</code> 调用——图级编译的主流程负责把两部分结果拼到一起。</p>
+<p>按新的张量 IR 看，这一步的管线短得出奇：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/tvm · 2bb1a553be19 · src/tirx/transform/lower_tirx.cc:36-43</span>
+<span class="syn-n">Pass</span><span class="syn-w"> </span><span class="syn-nf">LowerTIRx</span><span class="syn-p">()</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">  </span><span class="syn-n">std</span><span class="syn-o">::</span><span class="syn-n">vector</span><span class="syn-o">&lt;</span><span class="syn-n">tvm</span><span class="syn-o">::</span><span class="syn-n">transform</span><span class="syn-o">::</span><span class="syn-n">Pass</span><span class="syn-o">&gt;</span><span class="syn-w"> </span><span class="syn-n">passes</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-p">{</span><span class="syn-n">TilePrimitiveDispatch</span><span class="syn-p">()};</span>
+<span class="syn-w">  </span><span class="syn-k">if</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-n">std</span><span class="syn-o">::</span><span class="syn-n">getenv</span><span class="syn-p">(</span><span class="syn-s">"TVM_PRINT_AFTER_TIRX_DISPATCH_OPS"</span><span class="syn-p">))</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">    </span><span class="syn-n">passes</span><span class="syn-p">.</span><span class="syn-n">push_back</span><span class="syn-p">(</span><span class="syn-n">tvm</span><span class="syn-o">::</span><span class="syn-n">transform</span><span class="syn-o">::</span><span class="syn-n">PrintIR</span><span class="syn-p">());</span>
+<span class="syn-w">  </span><span class="syn-p">}</span>
+<span class="syn-w">  </span><span class="syn-n">passes</span><span class="syn-p">.</span><span class="syn-n">push_back</span><span class="syn-p">(</span><span class="syn-n">LowerTIRxCleanup</span><span class="syn-p">());</span>
+<span class="syn-w">  </span><span class="syn-k">return</span><span class="syn-w"> </span><span class="syn-n">tvm</span><span class="syn-o">::</span><span class="syn-n">transform</span><span class="syn-o">::</span><span class="syn-n">Sequential</span><span class="syn-p">(</span><span class="syn-n">passes</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-s">"tirx.LowerTIRx"</span><span class="syn-p">);</span>
+<span class="syn-p">}</span>
+</code></pre>
+<p>两件事：把 tile 原语调用分派成具体实现，然后清理。<code>TilePrimitiveDispatch</code> 的职责写在文件头注释里——通过已注册的分派器降低 <code>TilePrimitiveCall</code> 结点，同时解析作用域声明并给出启动参数（<code>src/tirx/transform/tile_primitive_dispatch.cc:20-23</code>）。把「块级搬运与计算」提到原语层再统一分派，意味着后端只需注册自己支持的实现；调度的重活在别处——同一目录下还有向量化、展开、线程轴重映射、存储重写等逐个 pass（<code>src/tirx/transform/</code>）。</p>
+<p>最后一跳是一次名字查表：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/tvm · 2bb1a553be19 · src/target/codegen.cc:49-59</span>
+<span class="syn-n">ffi</span><span class="syn-o">::</span><span class="syn-n">Module</span><span class="syn-w"> </span><span class="syn-nf">Build</span><span class="syn-p">(</span><span class="syn-n">IRModule</span><span class="syn-w"> </span><span class="syn-n">mod</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-n">Target</span><span class="syn-w"> </span><span class="syn-n">target</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">  </span><span class="syn-k">if</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-n">transform</span><span class="syn-o">::</span><span class="syn-n">PassContext</span><span class="syn-o">::</span><span class="syn-n">Current</span><span class="syn-p">()</span><span class="syn-o">-&gt;</span><span class="syn-n">GetConfig</span><span class="syn-o">&lt;</span><span class="syn-kt">bool</span><span class="syn-o">&gt;</span><span class="syn-p">(</span><span class="syn-s">"tirx.disable_assert"</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-nb">false</span><span class="syn-p">).</span><span class="syn-n">value</span><span class="syn-p">())</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">    </span><span class="syn-n">mod</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-n">tirx</span><span class="syn-o">::</span><span class="syn-n">transform</span><span class="syn-o">::</span><span class="syn-n">SkipAssert</span><span class="syn-p">()(</span><span class="syn-n">mod</span><span class="syn-p">);</span>
+<span class="syn-w">  </span><span class="syn-p">}</span>
+
+<span class="syn-w">  </span><span class="syn-c1">// the build function.</span>
+<span class="syn-w">  </span><span class="syn-n">std</span><span class="syn-o">::</span><span class="syn-n">string</span><span class="syn-w"> </span><span class="syn-n">build_f_name</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-s">"target.build."</span><span class="syn-w"> </span><span class="syn-o">+</span><span class="syn-w"> </span><span class="syn-n">target</span><span class="syn-o">-&gt;</span><span class="syn-n">kind</span><span class="syn-o">-&gt;</span><span class="syn-n">name</span><span class="syn-p">;</span>
+<span class="syn-w">  </span><span class="syn-k">const</span><span class="syn-w"> </span><span class="syn-k">auto</span><span class="syn-w"> </span><span class="syn-n">bf</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-n">tvm</span><span class="syn-o">::</span><span class="syn-n">ffi</span><span class="syn-o">::</span><span class="syn-n">Function</span><span class="syn-o">::</span><span class="syn-n">GetGlobal</span><span class="syn-p">(</span><span class="syn-n">build_f_name</span><span class="syn-p">);</span>
+<span class="syn-w">  </span><span class="syn-n">TVM_FFI_ICHECK</span><span class="syn-p">(</span><span class="syn-n">bf</span><span class="syn-p">.</span><span class="syn-n">has_value</span><span class="syn-p">())</span><span class="syn-w"> </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-n">build_f_name</span><span class="syn-w"> </span><span class="syn-o">&lt;&lt;</span><span class="syn-w"> </span><span class="syn-s">" is not enabled"</span><span class="syn-p">;</span>
+<span class="syn-w">  </span><span class="syn-k">return</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-o">*</span><span class="syn-n">bf</span><span class="syn-p">)(</span><span class="syn-n">mod</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-n">target</span><span class="syn-p">).</span><span class="syn-n">cast</span><span class="syn-o">&lt;</span><span class="syn-n">ffi</span><span class="syn-o">::</span><span class="syn-n">Module</span><span class="syn-o">&gt;</span><span class="syn-p">();</span>
+<span class="syn-p">}</span>
+</code></pre>
+<p>代码生成因此是一个注册式接口：每种目标把自己的模块构建函数注册到全局函数表里，名为 <code>target.build.&lt;kind&gt;</code>，入口按目标名查出对应实现；查不到时给出的信息是「该目标的构建函数未启用」，调用方由此知道问题在目标支持上，而不必在生成器内部找。入口顺带处理了一件事：配置 <code>tirx.disable_assert</code> 打开时先跑一遍 <code>SkipAssert()</code>，把断言从生成的代码里去掉。</p>
+<p>TVM 对这条链的下界有明确取舍。架构文档写道，许多低层优化可以交给目标阶段已有的 LLVM、CUDA C 与其他目标编译器处理，因此寄存器分配一类工作留给下游编译器，TVM 只做下游不覆盖的优化（<code>docs/arch/index.rst:97-100</code>）。这句话解释了整章的分工：调度负责决定数据怎么移动、线程怎么映射，寄存器分配与指令选择交给成熟的编译器后端，两边交界处的产物就是上面那个 <code>ffi::Module</code>。</p>
+</section>
+
+<section id="sec-03-triton">
+<h1 id="triton">Triton：块级程序与布局驱动的后端</h1>
+<p>Triton 把表达权收窄到一个块级程序：写代码的人给出每个程序实例覆盖的块形状与块上做什么计算，布局、共享内存分配、循环流水与线程分工留给后端。收窄表达换来的东西是可分析性——后端能对一份受限的程序做较强的推理，并在推理结果上做优化。这套以块为单位编程、把布局选择交给编译器的模型来自 Triton 的原始设计（<a class="citation" href="https://doi.org/10.1145/3315508.3329973" title="Philippe Tillet, H. T. Kung, David Cox. 2019. Triton: An Intermediate Language and Compiler for Tiled Neural Network Computations. Proceedings of the 3rd ACM SIGPLAN International Workshop on Machine Learning and Programming Languages (MAPL 2019), 10–19. DOI: 10.1145/3315508.3329973." aria-label="引用 Tillet et al. 2019，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;triton2019&quot;, &quot;text&quot;: &quot;Philippe Tillet, H. T. Kung, David Cox. 2019. Triton: An Intermediate Language and Compiler for Tiled Neural Network Computations. Proceedings of the 3rd ACM SIGPLAN International Workshop on Machine Learning and Programming Languages (MAPL 2019), 10–19. DOI: 10.1145/3315508.3329973.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3315508.3329973&quot;, &quot;fallback&quot;: false}]">Tillet et al. 2019</a>）。本章沿着编译的每个阶段看这件交换具体落在哪里，代价又出现在哪里。</p>
+<h2 id="triton-pipeline">分阶段的编译与后端固定的顺序</h2>
+<p>Triton 的编译按表示分阶段推进，每个阶段对应后端里的一个函数。以 NVIDIA 后端为例，<code>third_party/nvidia/backend/compiler.py</code> 依次定义 <code>make_ttir</code>（<code>:286</code>）、<code>make_ttgir</code>（<code>:302</code>）、<code>make_llir</code>（<code>:417</code>）、<code>make_ptx</code>（<code>:541</code>）与 <code>make_cubin</code>（<code>:575</code>）。前端先把 Python 源码翻成 TTIR，后端再把 TTIR 变成 TritonGPU 方言、降低到 LLVM、生成 PTX，最后交给 ptxas 得到 cubin。每两个阶段之间是完整的中间表示，可以打印、可以 dump：<code>make_ttgir</code> 开头就打开调试输出（<code>pm.enable_debug()</code>）。</p>
+<p>TTIR 阶段的变换保持保守，<code>make_ttir</code> 里只有内联、规范化、算子合并、广播重排、公共子表达式消除、符号死代码消除与循环展开（<code>:289-297</code>）。真正决定性能的决策全部发生在 TTGIR 阶段，因为它一开始就把具体的执行配置写进程序：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/triton · ebdd5b6b4856 · third_party/nvidia/backend/compiler.py:310-323</span>
+<span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttir</span><span class="syn-o">.</span><span class="syn-n">add_convert_to_ttgpuir</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">,</span> <span class="syn-sa">f</span><span class="syn-s2">"cuda:</span><span class="syn-si">{</span><span class="syn-n">capability</span><span class="syn-si">}</span><span class="syn-s2">"</span><span class="syn-p">,</span> <span class="syn-n">opt</span><span class="syn-o">.</span><span class="syn-n">num_warps</span><span class="syn-p">,</span> <span class="syn-mi">32</span><span class="syn-p">,</span> <span class="syn-n">opt</span><span class="syn-o">.</span><span class="syn-n">num_ctas</span><span class="syn-p">)</span>
+<span class="syn-k">if</span> <span class="syn-n">opt</span><span class="syn-o">.</span><span class="syn-n">clc</span><span class="syn-p">:</span>
+    <span class="syn-n">nvidia</span><span class="syn-o">.</span><span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttnvgpuir</span><span class="syn-o">.</span><span class="syn-n">add_to_clc</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-c1"># optimize TTGIR</span>
+<span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_coalesce</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_f32_dot_tc</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">,</span> <span class="syn-n">emuTF32</span><span class="syn-p">)</span>
+<span class="syn-n">nvidia</span><span class="syn-o">.</span><span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttnvgpuir</span><span class="syn-o">.</span><span class="syn-n">add_assign_cga_layouts</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_remove_layout_conversions</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-n">nvidia</span><span class="syn-o">.</span><span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttnvgpuir</span><span class="syn-o">.</span><span class="syn-n">add_optimize_cta_locality</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_remove_layout_conversions</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_optimize_thread_locality</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_accelerate_matmul</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-n">nvidia</span><span class="syn-o">.</span><span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttnvgpuir</span><span class="syn-o">.</span><span class="syn-n">add_check_matmul_two_cta</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+<span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_remove_layout_conversions</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+</code></pre>
+<p><code>add_convert_to_ttgpuir</code> 把线程数、每 warp 的线程数与 CTA 数固定下来，从此张量带有布局。接下来这一小段里，<code>add_remove_layout_conversions</code> 出现了三次，中间夹着合并访问、CTA 内局部性、线程局部性与矩阵乘加速。清理动作被反复执行，原因在后面的布局一节：<code>accelerate_matmul</code> 一类 pass 会把张量改成矩阵指令要求的布局，从而制造出新的转换需求。</p>
+<p>管线不是一条直线，它按目标算力分支。同一文件里，算力 8.x 与 9.x 会走 <code>add_hopper_warpspec</code>，10.x 走另一组 pass——<code>add_optimize_accumulator_init</code>、<code>add_hoist_tmem_alloc</code>、<code>add_promote_lhs_to_tmem</code>、<code>add_warp_specialize</code>、<code>add_optimize_partition_warps</code>，末尾还有一次允许移出条件分支的 <code>add_hoist_tmem_alloc</code> 与 <code>add_remove_tmem_tokens</code>（<code>:337-352</code>）。同一份 Triton 源码在两代硬件上由不同的 pass 序列处理，这正是布局编译器把自己绑到目标上的一种表现：管线本身携带着目标知识。</p>
+<p>这套结构的代价是可见性。使用者在源码里看不到 loop 流水与线程分工，能调整的只有少量旋钮，出问题时也只能从 TTGIR 起读；反过来说，正因为后端掌握了完整顺序，它才能在中间插入针对矩阵指令与新一代存储层次的改写。</p>
+<h2 id="triton-layout">布局：编译器替使用者做出的那个关键决定</h2>
+<p>块级编程模型把张量当作整体来写：<code>tl.load</code> 一个块，逐元素算，<code>tl.store</code> 回去。数据在物理上落在哪个线程的哪个寄存器、在共享内存里按什么顺序摆放，源码里没有对应写法。这些决定由布局承担，它是一张从逻辑坐标到物理位置的映射，决定了访问是否连续、矩阵指令能否直接用寄存器里的值。</p>
+<p>布局在 TTIR 转 TTGIR 时被分配下去（<code>lib/Conversion/TritonToTritonGPU/</code>），此后每次改变布局都会在程序里留下一个转换操作。转换的代价并不相同。有些转换能在 warp 内部的寄存器之间经由 shuffle 完成，另一些必须绕经共享内存。判断这件事的谓词直接写在分配分析里：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/triton · ebdd5b6b4856 · lib/Analysis/Allocation.cpp:124-132</span>
+<span class="syn-w">  </span><span class="syn-k">if</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-k">auto</span><span class="syn-w"> </span><span class="syn-n">cvtLayout</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-n">dyn_cast</span><span class="syn-o">&lt;</span><span class="syn-n">gpu</span><span class="syn-o">::</span><span class="syn-n">ConvertLayoutOp</span><span class="syn-o">&gt;</span><span class="syn-p">(</span><span class="syn-n">op</span><span class="syn-p">))</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">    </span><span class="syn-k">auto</span><span class="syn-w"> </span><span class="syn-n">srcTy</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-n">cvtLayout</span><span class="syn-p">.</span><span class="syn-n">getSrc</span><span class="syn-p">().</span><span class="syn-n">getType</span><span class="syn-p">();</span>
+<span class="syn-w">    </span><span class="syn-k">auto</span><span class="syn-w"> </span><span class="syn-n">dstTy</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-n">cvtLayout</span><span class="syn-p">.</span><span class="syn-n">getType</span><span class="syn-p">();</span>
+<span class="syn-w">    </span><span class="syn-k">if</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-o">!</span><span class="syn-n">cvtNeedsSharedMemory</span><span class="syn-p">(</span><span class="syn-n">cvtLayout</span><span class="syn-p">))</span>
+<span class="syn-w">      </span><span class="syn-k">return</span><span class="syn-w"> </span><span class="syn-mi">0</span><span class="syn-p">;</span>
+<span class="syn-w">    </span><span class="syn-c1">// The generic pass uses swizzling</span>
+<span class="syn-w">    </span><span class="syn-k">auto</span><span class="syn-w"> </span><span class="syn-n">elems</span><span class="syn-w"> </span><span class="syn-o">=</span><span class="syn-w"> </span><span class="syn-n">getNumScratchElemsSwizzledCvt</span><span class="syn-p">(</span><span class="syn-n">srcTy</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-n">dstTy</span><span class="syn-p">);</span>
+<span class="syn-w">    </span><span class="syn-k">return</span><span class="syn-w"> </span><span class="syn-n">elems</span><span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-w"> </span><span class="syn-n">getBitwidth</span><span class="syn-p">(</span><span class="syn-n">srcTy</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-o">/</span><span class="syn-w"> </span><span class="syn-mi">8</span><span class="syn-p">;</span>
+<span class="syn-w">  </span><span class="syn-p">}</span>
+</code></pre>
+<p><code>cvtNeedsSharedMemory</code> 为假的转换不申请暂存空间，为真则按 swizzle 后的元素数算出所需字节数。这段代码同时说明了两件事：转换的代价在编译期就能估出来，而且是按共享内存用量计的——共享内存正是决定占用率与并行度的资源。</p>
+<p>既然转换有代价，管线就要减少它们的数量，于是有了反复出现的 <code>add_remove_layout_conversions</code>（<code>third_party/nvidia/backend/compiler.py:317</code>、<code>:319</code>、<code>:323</code>、<code>:375</code>）。清理之所以要做多轮，是因为后续 pass 会提出新的布局要求：<code>accelerate_matmul</code> 把点积换成矩阵指令，而矩阵指令对操作数的布局有固定要求，于是新转换被引入，需要再清一次。整套 TTGIR 阶段因此呈现出「优化—引入转换—消除转换」的交替形态，而不是一次成型的顺序。</p>
+<p>还有一类分析专门服务于访存效率。合并访问（coalescing）判断相邻线程是否访问相邻地址，其依据是对张量各维取值规律的推导，实现在 <code>lib/Analysis/AxisInfo.cpp</code>，由 <code>add_coalesce</code> 施加到布局选择上。这条推理链决定了为读写的张量挑选哪种布局：让一个 warp 的一次访存覆盖尽可能多的连续元素。</p>
+<p>概括这一层的分工：使用者给出块形状与计算，编译器选择布局，并把布局不一致的成本落在共享内存流量与占用率上。源码层面的可读性由块级语义保证，性能的可解释性则要求读者进到 TTGIR 里看布局从哪来到哪去。</p>
+<h2 id="triton-schedule">流水、线程分工与新一代存储层次</h2>
+<p>循环里的加载与计算如果严格顺序执行，硬件会在等内存的时段空转。解决办法是把循环展开成多个阶段，让第 i 次迭代的计算与第 i+1 次迭代的加载同时进行——这就是软件流水。Triton 把它拆成三步接续的 pass，出现在 8.x 与 9.x 的分支里：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/triton · ebdd5b6b4856 · third_party/nvidia/backend/compiler.py:333-336</span>
+        <span class="syn-n">nvidia</span><span class="syn-o">.</span><span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">hopper</span><span class="syn-o">.</span><span class="syn-n">add_hopper_warpspec</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">,</span> <span class="syn-n">opt</span><span class="syn-o">.</span><span class="syn-n">num_stages</span><span class="syn-p">,</span> <span class="syn-n">dump_enabled</span><span class="syn-p">)</span>
+        <span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_assign_latencies</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">,</span> <span class="syn-n">opt</span><span class="syn-o">.</span><span class="syn-n">num_stages</span><span class="syn-p">)</span>
+        <span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_schedule_loops</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">)</span>
+        <span class="syn-n">passes</span><span class="syn-o">.</span><span class="syn-n">ttgpuir</span><span class="syn-o">.</span><span class="syn-n">add_pipeline</span><span class="syn-p">(</span><span class="syn-n">pm</span><span class="syn-p">,</span> <span class="syn-n">opt</span><span class="syn-o">.</span><span class="syn-n">num_stages</span><span class="syn-p">,</span> <span class="syn-n">dump_enabled</span><span class="syn-p">)</span>
+</code></pre>
+<p>三步各有职责：<code>assign_latencies</code> 给需要跨迭代提前发起的操作标注延迟预算（这里直接取 <code>num_stages</code>），<code>schedule_loops</code> 决定循环内操作的次序与分组，<code>pipeline</code> 按计划真正改写循环结构。实现集中在一个子目录里，文件名即分工：<code>Pipeliner/AssignLatencies.cpp</code>、<code>Pipeliner/Schedule.cpp</code>、<code>Pipeliner/ScheduleLoops.cpp</code>、<code>Pipeliner/SoftwarePipeliner.cpp</code>、<code>Pipeliner/PipelineExpander.cpp</code>，另有面向前沿硬件的 <code>MMAv5PipelineUtility.cpp</code>、<code>TMAStoresPipeline.cpp</code>、<code>WGMMAPipeline.cpp</code>。</p>
+<p><code>num_stages</code> 这个参数在此处显形：它是多缓冲的级数，级数越大，重叠越充分，同时占用的共享内存与寄存器越多。使用者能调整它，却写不出缓冲分配本身——分配由后端按调度结果计算，这也解释了为什么占用率问题往往要通过调这个数来解决。</p>
+<p>硬件换代时管线变化最大的地方在线程分工。8.x 与 9.x 用 <code>add_hopper_warpspec</code>，10.x 的分支换成另一组：<code>add_optimize_accumulator_init</code>、<code>add_hoist_tmem_alloc</code>、<code>add_promote_lhs_to_tmem</code>、<code>add_warp_specialize</code>、<code>add_optimize_partition_warps</code>，收尾再来一次 <code>add_hoist_tmem_alloc</code>，参数为真表示允许把分配移出条件分支，然后 <code>add_remove_tmem_tokens</code>（<code>:341-352</code>）。这里的核心变化是张量内存（TMEM）成为一种需要显式管理的资源：分配要被提升到循环外以便复用，用完之后还要把记账用的 token 清掉。warp 专门化则把这批资源分给不同角色的 warp 组——加载、矩阵运算、收尾各占一组，用栅栏彼此同步，从而在不牺牲单一角色效率的前提下重叠起来。</p>
+<p>代价集中在三处。级数提升要占共享内存，TMEM 分配要占新硬件上的专用容量，warp 专分化引入额外的同步与屏障。三者都与「把流水做得更深」这一目标竞争同一种稀缺资源，于是调参变成一个在多维约束下找可行点的问题，这也把话题带到下一节：谁来试这些组合。</p>
+<h2 id="triton-autotune">自动调优：几个旋钮与一份缓存</h2>
+<p>Triton 也做自动调优，规模比 TVM 小得多。<code>python/triton/runtime/autotuner.py:19</code> 的 <code>Autotuner</code> 接收候选配置列表与一组键参数名（<code>:21</code>），候选的字段就是全部的搜索维度：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/triton · ebdd5b6b4856 · python/triton/runtime/autotuner.py:366</span>
+    <span class="syn-k">def</span><span class="syn-w"> </span><span class="syn-fm">__init__</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-p">,</span> <span class="syn-n">kwargs</span><span class="syn-p">,</span> <span class="syn-n">num_warps</span><span class="syn-o">=</span><span class="syn-mi">4</span><span class="syn-p">,</span> <span class="syn-n">num_stages</span><span class="syn-o">=</span><span class="syn-mi">3</span><span class="syn-p">,</span> <span class="syn-n">num_ctas</span><span class="syn-o">=</span><span class="syn-mi">1</span><span class="syn-p">,</span> <span class="syn-n">maxnreg</span><span class="syn-o">=</span><span class="syn-kc">None</span><span class="syn-p">,</span> <span class="syn-n">pre_hook</span><span class="syn-o">=</span><span class="syn-kc">None</span><span class="syn-p">,</span> <span class="syn-n">post_hook</span><span class="syn-o">=</span><span class="syn-kc">None</span><span class="syn-p">,</span> <span class="syn-n">ir_override</span><span class="syn-o">=</span><span class="syn-kc">None</span><span class="syn-p">):</span>
+</code></pre>
+<p>可调的量是四类：warp 数、流水级数、CTA 数、寄存器上限。调度本身不在候选集里，它由后端按固定管线决定，候选只影响后端做决策时的输入参数。把这一点与 TVM 那份充满 <code>compute_at</code>、<code>cache_read_write</code>、<code>tensorize</code> 的搜索空间对照，两个项目对「谁来调度」给出了不同答案。</p>
+<p>搜索过程由键决定复用范围。每次调用从被标注为键的参数取值，再把所有张量参数的 dtype 追加进去，拼成一个元组（<code>:237-242</code>）；该元组命中缓存就直接采用上次的优胜配置。未命中时先按当前参数剪掉不兼容的候选（<code>prune_configs</code>，<code>:299</code>），再逐个测量：<code>_bench</code> 对每个候选真实运行并计时（<code>:148</code>），取最小值记入缓存（<code>:253-260</code>）。剪枝后只剩一个候选时走一条捷径——不测量，直接采用（<code>:247-250</code>）。</p>
+<p>真实测量在这里同样不可避免：每个候选都要编译并在设备上跑一遍，调优时间与设备占用是实打实的成本。可选项 <code>cache_results</code> 打开后会把结果落到磁盘（<code>check_disk_cache</code>，<code>:190</code>），使跨进程的重复启动不必重测。键的设计因此变得关键：键里的参数少了，不同形状会共用一个优胜配置；键里的参数多了，每次新形状都要重新测一遍。这套权衡在 Triton 里以 dtype 自动入键的方式被固定下来一部分——同形状不同类型的张量不会被当成本场景。</p>
+<p>不用自动调优时，<code>Heuristics</code>（<code>:493</code>）按给定取值直接指定配置。两条路都不改变编译管线，改变的只是管线入口处的几个参数。</p>
+</section>
+
+<section id="sec-04-cute">
+<h1 id="cute">CuTe：布局代数与模板实例化</h1>
+<p>CuTe 走的是另一条路。它没有独立的编译器进程，也没有 pass 管线：布局被表示成可以做代数运算的类型，分块、线程映射与指令选择都在模板实例化与 MLIR 降低这两处完成。正确性靠编译期断言约束，代价压在编译期。本章先讲这套代数在算什么，再讲指令知识如何按架构组织，最后看它把哪些责任交回给写代码的人。</p>
+<h2 id="cute-layout-algebra">布局是映射，代数是对映射做运算</h2>
+<p>CuTe 里的布局由一个形状与一个步长组成，作用是把逻辑坐标映射成线性偏移。仓库提供了一份可读的 Python 实现 <code>python/pycute/layout.py</code>，它的构造说明了默认步长从哪里来：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/cutlass · 0b55a2f691d6 · python/pycute/layout.py:52-57</span>
+<span class="syn-k">class</span><span class="syn-w"> </span><span class="syn-nc">Layout</span><span class="syn-p">(</span><span class="syn-n">LayoutBase</span><span class="syn-p">):</span>
+  <span class="syn-k">def</span><span class="syn-w"> </span><span class="syn-fm">__init__</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-p">,</span> <span class="syn-n">_shape</span><span class="syn-p">,</span> <span class="syn-n">_stride</span><span class="syn-o">=</span><span class="syn-kc">None</span><span class="syn-p">):</span>
+    <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">shape</span>  <span class="syn-o">=</span> <span class="syn-n">_shape</span>
+    <span class="syn-k">if</span> <span class="syn-n">_stride</span> <span class="syn-ow">is</span> <span class="syn-kc">None</span><span class="syn-p">:</span>
+      <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">stride</span> <span class="syn-o">=</span> <span class="syn-n">prefix_product</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">shape</span><span class="syn-p">)</span>
+    <span class="syn-k">else</span><span class="syn-p">:</span>
+      <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">stride</span> <span class="syn-o">=</span> <span class="syn-n">_stride</span>
+</code></pre>
+<p>不给步长时按行优先的累积乘积生成，也就是最后一维连续。这段代码上方还有一句注释，说明这份 Python 实现刻意与 C++ 的 <code>Layout::operator(Coord const&amp;)</code> 保持一致（<code>:77</code>），因此读它可以当作读 C++ 模板的入口。</p>
+<p>映射的域与值域要分开计数。<code>size</code> 是逻辑元素的个数，<code>cosize</code> 是布局实际触及的偏移范围：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/cutlass · 0b55a2f691d6 · python/pycute/layout.py:99-104</span>
+  <span class="syn-k">def</span><span class="syn-w"> </span><span class="syn-nf">size</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-p">):</span>
+    <span class="syn-k">return</span> <span class="syn-n">product</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">shape</span><span class="syn-p">)</span>
+
+  <span class="syn-c1"># cosize(layout)   Size of the codomain</span>
+  <span class="syn-k">def</span><span class="syn-w"> </span><span class="syn-nf">cosize</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-p">):</span>
+    <span class="syn-k">return</span> <span class="syn-bp">self</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">size</span><span class="syn-p">()</span> <span class="syn-o">-</span> <span class="syn-mi">1</span><span class="syn-p">)</span> <span class="syn-o">+</span> <span class="syn-mi">1</span>
+</code></pre>
+<p><code>cosize</code> 取最后一个逻辑元素映射到的偏移再加一。两者相同时布局是紧的；<code>cosize</code> 大于 <code>size</code> 时布局在存储里留了空洞，申请空间的算法必须按较大的那个数来算。分块拍平、线程划分、共享内存摆放都会改变这两个量，这也是布局运算值得单独成体系的原因。</p>
+<p>有了 (shape, stride) 这种表示，分块就能写成映射之间的运算。<code>composition(A, B)</code> 是把 A 的作用施加在 B 的取值上，实现里有一个必须满足的前提：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/cutlass · 0b55a2f691d6 · python/pycute/layout.py:205-214</span>
+  <span class="syn-k">else</span><span class="syn-p">:</span>
+    <span class="syn-n">result_shape</span>  <span class="syn-o">=</span> <span class="syn-p">[]</span>
+    <span class="syn-n">result_stride</span> <span class="syn-o">=</span> <span class="syn-p">[]</span>
+    <span class="syn-n">rest_shape</span>    <span class="syn-o">=</span> <span class="syn-n">layoutB</span><span class="syn-o">.</span><span class="syn-n">shape</span>
+    <span class="syn-n">rest_stride</span>   <span class="syn-o">=</span> <span class="syn-n">layoutB</span><span class="syn-o">.</span><span class="syn-n">stride</span>
+    <span class="syn-n">flat_A</span> <span class="syn-o">=</span> <span class="syn-n">coalesce</span><span class="syn-p">(</span><span class="syn-n">layoutA</span><span class="syn-p">)</span>
+    <span class="syn-k">for</span> <span class="syn-p">(</span><span class="syn-n">curr_shape</span><span class="syn-p">,</span> <span class="syn-n">curr_stride</span><span class="syn-p">)</span> <span class="syn-ow">in</span> <span class="syn-nb">zip</span><span class="syn-p">(</span><span class="syn-n">flatten</span><span class="syn-p">(</span><span class="syn-n">flat_A</span><span class="syn-o">.</span><span class="syn-n">shape</span><span class="syn-p">)[:</span><span class="syn-o">-</span><span class="syn-mi">1</span><span class="syn-p">],</span> <span class="syn-n">flatten</span><span class="syn-p">(</span><span class="syn-n">flat_A</span><span class="syn-o">.</span><span class="syn-n">stride</span><span class="syn-p">)[:</span><span class="syn-o">-</span><span class="syn-mi">1</span><span class="syn-p">]):</span>
+      <span class="syn-k">assert</span> <span class="syn-n">curr_shape</span> <span class="syn-o">%</span> <span class="syn-n">rest_stride</span> <span class="syn-o">==</span> <span class="syn-mi">0</span> <span class="syn-ow">or</span> <span class="syn-n">rest_stride</span> <span class="syn-o">%</span> <span class="syn-n">curr_shape</span> <span class="syn-o">==</span> <span class="syn-mi">0</span>
+      <span class="syn-n">new_shape</span> <span class="syn-o">=</span> <span class="syn-nb">min</span><span class="syn-p">(</span><span class="syn-nb">max</span><span class="syn-p">(</span><span class="syn-mi">1</span><span class="syn-p">,</span> <span class="syn-n">curr_shape</span> <span class="syn-o">//</span> <span class="syn-n">rest_stride</span><span class="syn-p">),</span> <span class="syn-n">rest_shape</span><span class="syn-p">)</span>
+</code></pre>
+<p>循环第一句断言的是整除关系：参与复合的两维要么整除以对方，要么被对方整除。这不是保守取值，而是复合这种运算在该表示下成立的条件——步长与形状不能任意配对。<code>coalesce(layoutA)</code> 先做一步化简，把可以合并的相邻维合并掉，减少要检查的维数。</p>
+<p>同文件里其余运算按同一思路展开：<code>complement</code>（<code>:232</code>）求出让组合覆盖连续区间所需的补布局，<code>logical_divide</code>（<code>:297</code>）与 <code>zipped_divide</code>（<code>:343</code>）把布局按分块切开并给出「块内」与「块间」两级坐标，<code>tiled_divide</code>（<code>:348</code>）保留分块结果的维结构，<code>slice_and_offset</code>（<code>:364</code>）取切片并回传偏移。写 GEMM 时用到的那种「按 tile 载入、按 tile 计算」的概念，在实现里就是这几个函数的组合。</p>
+<p>一个具体例子能把 <code>size</code> 与 <code>cosize</code> 的差别算清楚。取布局 <code>(4,2):(2,1)</code>：逻辑坐标 <code>(i,j)</code> 映射到 <code>2i + j</code>，域大小是 8，最后一个元素 <code>(3,1)</code> 落在偏移 7，于是 <code>cosize</code> 也是 8，布局是紧的。换成 <code>(4,2):(2,4)</code>：映射为 <code>2i + 4j</code>，域大小仍是 8，<code>i</code> 取 0～3、<code>j</code> 取 0～1，8 个逻辑元素落在 6 个不同的偏移 <code>{0, 2, 4, 6, 8, 10}</code> 上，最大偏移 10，因此 <code>cosize</code> 等于 11。区间 <code>[0, 10]</code> 里有 5 个偏移没有任何元素占用，<code>cosize - size</code> 则是 3——两个数不相等，因为重复落点的元素把差别吃掉了。按这套布局下标的存储确实占到第 10 号位置，于是共享内存里一个 tile 要占多少字节由 <code>cosize</code> 决定，而 <code>size</code> 只说明有多少个元素要算。</p>
+<h2 id="cute-atoms">指令知识如何按架构组织</h2>
+<p>布局代数管的是坐标与偏移，落到硬件上还要解决另一件事：一条指令要求它的操作数在寄存器里按什么顺序排、参与这条指令的线程如何分布。CuTe 把这两份信息封装成原子（atom）。按仓库里的定义，<code>TiledCopy</code> 派生自 <code>Copy_Atom</code>（<code>include/cute/atom/copy_atom.hpp:188</code>），<code>TiledMMA</code> 派生自 <code>MMA_Atom</code>（<code>include/cute/atom/mma_atom.hpp:211</code>）。原子描述单条指令的布局，平铺版本描述一个线程块如何覆盖多个原子——布局代数在这里第二次出场：平铺本身就是布局运算。</p>
+<p>指令相关的知识按架构分文件存放，文件名即覆盖面：<code>copy_traits_sm50.hpp</code>、<code>sm75</code>、<code>sm80</code>、<code>sm90</code>、<code>sm90_tma</code>、<code>sm90_im2col</code>、<code>sm100</code>、<code>sm100_tma</code>，矩阵指令侧有 <code>mma_traits_sm61/70/75/80/89/90/90_gmma/90_gmma_ext/90_gmma_sparse/100/100_frag/107/120/120_sparse</code>（<code>include/cute/atom/</code>）。这种组织方式本身就是一种设计声明：每代硬件增加的不是新的编译阶段，而是新的特化。写代码的人给出逻辑分块与目标，模板匹配负责选出一组合法的原子特化，<code>partitioner.hpp</code> 负责把张量按线程切开。</p>
+<p>代价分布在这种组织方式的两端。一端是扩展成本：新指令意味着新特化，而特化必须与既有的布局代数保持一致，否则组合出的平铺过不了检查。另一端是使用成本：判断一个 tile 划分是否能落到某条指令上，靠的是模板匹配的结果，失败时给出的信息是模板实例化层面的，定位难度随嵌套深度上升。这解释了为什么 CuTe 的文档与教程把大量篇幅花在「什么样的 tiling 是合法的」上。</p>
+<p>与前一章对照可以看出两种分工。Triton 把指令选择收进后端固定管线，使用者通过 <code>num_warps</code>、<code>num_stages</code> 间接影响结果；CuTe 把指令暴露成可选的特化，把选择权与随之而来的合法性责任一并交给使用者。</p>
+<h2 id="cute-static-knowledge">静态知识与被放弃的检查</h2>
+<p>上一节的整除条件是这套代数成立的前提，而它在实现里被有选择地执行。<code>include/cute/int_tuple.hpp</code> 的除法函数把两种强度的检查并列写在一起，两种都没有生效或只在特定条件下生效：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/cutlass · 0b55a2f691d6 · include/cute/int_tuple.hpp:403-412</span>
+<span class="syn-w">    </span><span class="syn-c1">// Strong divisibility condition</span>
+<span class="syn-w">    </span><span class="syn-c1">//static_assert((IntTupleA::value % IntTupleB::value == 0) or (IntTupleB::value % IntTupleA::value == 0), "Divisibility Condition");</span>
+
+<span class="syn-w">    </span><span class="syn-c1">// Weak divisibility condition</span>
+<span class="syn-w">    </span><span class="syn-k">if</span><span class="syn-w"> </span><span class="syn-k">constexpr</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-n">is_static</span><span class="syn-o">&lt;</span><span class="syn-n">IntTupleA</span><span class="syn-o">&gt;::</span><span class="syn-n">value</span><span class="syn-w"> </span><span class="syn-k">and</span><span class="syn-w"> </span><span class="syn-n">is_static</span><span class="syn-o">&lt;</span><span class="syn-n">IntTupleB</span><span class="syn-o">&gt;::</span><span class="syn-n">value</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">      </span><span class="syn-k">static_assert</span><span class="syn-p">(((</span><span class="syn-n">IntTupleA</span><span class="syn-o">::</span><span class="syn-n">value</span><span class="syn-w"> </span><span class="syn-o">%</span><span class="syn-w"> </span><span class="syn-n">IntTupleB</span><span class="syn-o">::</span><span class="syn-n">value</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-o">==</span><span class="syn-w"> </span><span class="syn-mi">0</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-k">or</span><span class="syn-w"> </span><span class="syn-p">((</span><span class="syn-n">IntTupleB</span><span class="syn-o">::</span><span class="syn-n">value</span><span class="syn-w"> </span><span class="syn-o">%</span><span class="syn-w"> </span><span class="syn-n">IntTupleA</span><span class="syn-o">::</span><span class="syn-n">value</span><span class="syn-p">)</span><span class="syn-w"> </span><span class="syn-o">==</span><span class="syn-w"> </span><span class="syn-mi">0</span><span class="syn-p">),</span><span class="syn-w"> </span><span class="syn-s">"Divisibility Condition"</span><span class="syn-p">);</span>
+<span class="syn-w">    </span><span class="syn-p">}</span><span class="syn-w"> </span><span class="syn-k">else</span><span class="syn-w"> </span><span class="syn-p">{</span>
+<span class="syn-w">      </span><span class="syn-c1">// DEBUG assert can cause extra registers and inappropriate compile-time/run-time failure</span>
+<span class="syn-w">      </span><span class="syn-c1">//assert((((a % b) == 0) or ((a % b) == 0)) &amp;&amp; "Divisibility Condition");</span>
+<span class="syn-w">    </span><span class="syn-p">}</span>
+
+<span class="syn-w">    </span><span class="syn-k">return</span><span class="syn-w"> </span><span class="syn-p">(</span><span class="syn-n">a</span><span class="syn-w"> </span><span class="syn-o">+</span><span class="syn-w"> </span><span class="syn-n">b</span><span class="syn-w"> </span><span class="syn-o">-</span><span class="syn-w"> </span><span class="syn-n">Int</span><span class="syn-o">&lt;</span><span class="syn-mi">1</span><span class="syn-o">&gt;</span><span class="syn-p">{})</span><span class="syn-w"> </span><span class="syn-o">/</span><span class="syn-w"> </span><span class="syn-n">b</span><span class="syn-p">;</span>
+</code></pre>
+<p>三段按条件生效：被注释掉的第一行是强条件，对任何输入都成立；接下来的静态断言只在两个操作数都是编译期常量时检查；其余情况落到 <code>else</code>，里面的运行时断言同样被注释掉，原因写在旁边——调试断言会增加寄存器用量，并可能造成不恰当的编译期或运行时失败。最后一行照常做向上取整除法。被注释的运行时断言里两个比较式写成了同一个表达式，这也说明这行文本没有被编译过。</p>
+<p>结果是一条清楚的分界：<strong>形状在编译期已知时，条件由编译器强制；形状未知时，条件由使用者自己保证</strong>。违反前提不会在这里被拦下，而会在后续某处表现为偏移算错或实例化失败。这类取舍在布局库里是结构性的，因为检查本身要占用寄存器与编译时间，而布局库的调用场景对此很敏感。</p>
+<p>同一目录的 <code>config.hpp:155-156</code> 给出了这对断言的惯用写法：<code>CUTE_STATIC_ASSERT</code> 与 <code>CUTE_STATIC_ASSERT_V</code>，后者要求参数本身带 <code>value</code> 成员，因此只能接受编译期常量。库内其他检查都用这套宏表达，例如张量切片时的维数一致性检查（<code>int_tuple.hpp:309</code>、<code>:330</code>、<code>:390</code> 等处的 <code>"Mismatched ranks"</code>）。</p>
+<p>对使用者来说，这条分界决定了调试方式：把形状、步长、分块尺寸写成常量，错误会停在编译期并把条件说清楚；把它们留成运行期变量，同样的错误会推迟到结果里。<code>python/pycute/layout.py</code> 的存在也服务于这件事——它把代数以可读形式重写一遍，可以在不触发模板展开的情况下验证一条恒等式是否成立。</p>
+<h2 id="cute-dsl">Python 前端与第二套编译入口</h2>
+<p>C++ 模板那条路的问题在上一节已经露出来：合法性检查依赖静态形状，失败信息埋在模板实例化里。仓库给出的第二个入口把同一套布局代数搬到 Python 上，编译改走 MLIR。前端位于 <code>python/CuTeDSL/cutlass/</code>，子包按职责分成 <code>base_dsl</code>、<code>core</code>、<code>cute</code>、<code>cutlass_dsl</code>、<code>memory</code> 与 <code>_mlir_helpers</code>。</p>
+<p>编译器的对象结构说明这条路与模板实例化共用多少东西、又换掉多少。<code>python/CuTeDSL/cutlass/base_dsl/compiler.py:169</code> 的构造函数接收两个外部对象：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/cutlass · 0b55a2f691d6 · python/CuTeDSL/cutlass/base_dsl/compiler.py:169</span>
+  <span class="syn-k">def</span><span class="syn-w"> </span><span class="syn-fm">__init__</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-p">,</span> <span class="syn-n">passmanager</span><span class="syn-p">:</span> <span class="syn-n">Any</span><span class="syn-p">,</span> <span class="syn-n">execution_engine</span><span class="syn-p">:</span> <span class="syn-n">Any</span><span class="syn-p">)</span> <span class="syn-o">-&gt;</span> <span class="syn-kc">None</span><span class="syn-p">:</span>
+</code></pre>
+<p>一个 pass manager 与一个执行引擎，两者都由 MLIR 提供；<code>_mlir_helpers</code> 子包承担与它们对接的工作。编译入口有两条：<code>compile</code>（<code>:221</code>）产出编译结果，<code>compile_and_jit</code>（<code>:326</code>）在此基础上继续建立可调用的执行入口。围绕这条链还配了一组面向使用者的控制面——诊断异常的专门类型 <code>CompilerDiagnosticError</code>（<code>:122</code>）、编译选项基类 <code>CompileOption</code>（<code>:401</code>）、布尔与文件转储两种具体选项（<code>:446</code>、<code>:473</code>）、优化等级 <code>OptLevel</code>（<code>:496</code>）。把诊断与选项做成一级对象，是因为 MLIR 层面的失败需要可读的解释，而模板层没有这种余地。</p>
+<p>这套 DSL 在仓库里按语言来教：<code>examples/python/CuTeDSL/</code> 下有 <code>dsl_tutorials</code>、<code>notebooks</code>，以及按架构分组的教程与示例，例如 <code>blackwell/tutorial_gemm</code>、<code>blackwell/tutorial_tma</code>、<code>blackwell/kernel/distributed</code>，另有 <code>experimental/task_scheduling</code> 一组任务调度练习。教程的自成体系程度说明它不是一层薄封装：使用者要学的是一套表达方式，包括显式写出布局、显式指定流水与线程角色。</p>
+<p>两条入口并存带来的是分工，也带来维护面的扩大。同一套代数被实现两遍——一遍是 C++ 模板，一遍是 Python 与 MLIR——好处是可选：需要极致控制的场景留在模板层，需要更快迭代与更清楚报错的场景走 DSL。代价同样具体：语义要在两处保持一致，<code>python/pycute/layout.py</code> 这样的参照实现因此既是文档也是回归基准。</p>
+</section>
+
+<section id="sec-05-pytorch">
+<h1 id="pytorch">PyTorch：从字节码捕获到算子生成</h1>
+<p>PyTorch 的编译能力长在一个已经跑起来的框架上。算子调用先经过一层分发，张量带着设备与状态信息；编译要在这套分发之上把执行过程记录下来，再交给下游生成设备代码。这条路决定了它的难点不在代码生成，而在「记录得是否完整、假设是否仍然成立、不成立时怎么退回」。这套捕获加生成的结构对应 <code>torch.compile</code> 中的 TorchDynamo 与 TorchInductor（<a class="citation" href="https://doi.org/10.1145/3620665.3640366" title="Jason Ansel, Edward Z. Yang, Horace He, Natalia Gimelshein, Animesh Jain, Michael Voznesensky, Bin Bao, Peter Bell, David Berard, Evgeni Burovski, Geeta Chauhan, Anjali Chourdia, Will Constable, Alban Desmaison, Zachary DeVito, Elias Ellison, Will Feng, Jiong Gong, Michael Gschwind, Brian Hirsh, Sherlock Huang, Kshiteej Kalambarkar, Laurent Kirsch, et al. 2024. PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation. ASPLOS &#x27;24, Volume 2, 929–947. DOI: 10.1145/3620665.3640366." aria-label="引用 Ansel et al. 2024，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;pytorch2-2024&quot;, &quot;text&quot;: &quot;Jason Ansel, Edward Z. Yang, Horace He, Natalia Gimelshein, Animesh Jain, Michael Voznesensky, Bin Bao, Peter Bell, David Berard, Evgeni Burovski, Geeta Chauhan, Anjali Chourdia, Will Constable, Alban Desmaison, Zachary DeVito, Elias Ellison, Will Feng, Jiong Gong, Michael Gschwind, Brian Hirsh, Sherlock Huang, Kshiteej Kalambarkar, Laurent Kirsch, et al. 2024. PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation. ASPLOS &#x27;24, Volume 2, 929–947. DOI: 10.1145/3620665.3640366.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3620665.3640366&quot;, &quot;fallback&quot;: false}]">Ansel et al. 2024</a>）。本章按分发、捕获、反向、生成、缓存五步走。</p>
+<h2 id="pytorch-dispatch">分发：编译要接在哪一层</h2>
+<p><code>torch.add(x, y)</code> 这类调用并不直接落到某个算子实现上。它们先进入一个分发器，由它按张量携带的键挑选实现。<code>aten/src/ATen/core/dispatch/Dispatcher.h:67-71</code> 把这件事写在类的上方：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/pytorch · 92f43bbed42c61d2553a49cbd85bc8b5078b1cf0 · aten/src/ATen/core/dispatch/Dispatcher.h:67-71</span>
+<span class="syn-cm">/**</span>
+<span class="syn-cm"> * Top-level dispatch interface for dispatching via the dynamic dispatcher.</span>
+<span class="syn-cm"> * Most end users shouldn't use this directly; if you're trying to register</span>
+<span class="syn-cm"> * ops look in op_registration</span>
+<span class="syn-cm"> */</span>
+<span class="syn-k">class</span><span class="syn-w"> </span><span class="syn-nc">TORCH_API</span><span class="syn-w"> </span><span class="syn-n">Dispatcher</span><span class="syn-w"> </span><span class="syn-k">final</span><span class="syn-w"> </span><span class="syn-p">{</span>
+</code></pre>
+<p>选择依据是一组键，键的取值空间定义在 <code>c10/core/DispatchKey.h:136</code> 的 <code>enum class DispatchKey : uint16_t</code>。设备类型、dtype、自动微分状态、以及各种模式（如追踪、函数化）各占若干键，张量上的一组键经过优先级排序后决定用哪个实现。算子的签名与分派规则本身是数据：<code>aten/src/ATen/native/native_functions.yaml</code> 用 13,649 行描述算子，构建期由 <code>torchgen/</code> 生成注册与转发代码，运行时由 <code>op_registration</code> 提供的接口把实现挂到键上。</p>
+<p>这套结构给想加编译器的人留下两个接入点。一个是注册新的后端键，把整类算子交给外部实现，分发器照旧工作；昇腾适配层走的正是这条路（下一章会看到 <code>PrivateUse1</code> 这个为第三方设备预留的键）。另一个是在分发器之上拦截调用序列，把一段 Python 执行记录成图，再整体替换掉——PyTorch 自己的编译器走的是这条。</p>
+<p>两条路的代价不同。走键的人不需要理解 Python 语义，但要为每个算子提供实现，覆盖不全时只能回退；走捕获的人不必逐个实现算子，但要处理语言层面的任意行为，并在捕获失败时保住正确性。后一种选择的全部难点在下一节。</p>
+<h2 id="pytorch-capture">捕获：把执行记录成图，再用守卫守住假设</h2>
+<p>捕获由 <code>torch/_dynamo/</code> 完成。入口函数是 <code>convert_frame</code>（<code>torch/_dynamo/convert_frame.py:2562</code>），断言版本在 <code>:624</code>；真正把 Python 字节码变成图的是 <code>InstructionTranslator</code>——基类在 <code>torch/_dynamo/symbolic_convert.py:1489</code>，具体实现继承它（<code>:5758</code>）。名字里的 translator 说明了做法：逐条解释字节码，遇到张量运算就生成图结点，遇到控制流就在解释器层面处理。生成的图累积在 <code>OutputGraph</code> 里（<code>torch/_dynamo/output_graph.py:711</code>），由 <code>compile_subgraph</code>（<code>:2042</code>）交给后端并汇总结果。</p>
+<p>记录下来的东西只有在假设成立时才有效，于是每个编译产物都带着一组守卫。守卫系统要解决什么问题，写在该模块的文档字符串里：</p>
+<pre><code class="language-text">编者定位：repos/pytorch · 92f43bbed42c61d2553a49cbd85bc8b5078b1cf0 · torch/_dynamo/guards.py:13-15
+
+The guard system is critical for Dynamo's ability to efficiently reuse compiled code while
+maintaining correctness by detecting when recompilation is necessary due to changes in
+program state, tensor properties, or control flow.
+</code></pre>
+<p>复用与正确性在这里是同一件事的两面：守卫检查通过就复用编译结果，不通过就必须重新编译。守卫在每次调用时执行，因此它的成本进入每条路径的固定开销。</p>
+<p>重新编译不能无限发生，框架给它设了上限，数值直接写在配置里：<code>recompile_limit = 8</code>（<code>torch/_dynamo/config.py:121</code>）、<code>accumulated_recompile_limit = 256</code>（<code>:124</code>），另有一个开关控制达到上限之后的行为（<code>:126</code>）。含义是同一个代码对象因守卫失败最多重编译 8 次；整个进程累计到 256 次之后，Dynamo 停止为相关代码生成新版本，让它按原样执行。这条上限把「编译失败」变成了一种可预期的状态，而不影响程序继续运行。</p>
+<p>捕获失败的另一个后果是图被切开。遇到无法记录进图的语义时，当前图就此结束，剩余部分照常按解释执行，之后再重新开始捕获。每个片段各自生成编译产物、各自带守卫、各自可能重编译，这解释了为什么在含大量 Python 逻辑的模型里，编译收益常被切分开销吃掉。</p>
+<p>把这一节与上一节对照可以看出取舍的边界：分发层保证任何算子都有实现可用，捕获层保证没有记录进来的东西仍然能跑。两者共同构成了「编译失败不等于程序失败」这条底线，而代价是编译决策被限制在能被安全记录的那部分程序上。</p>
+<h2 id="pytorch-aotautograd">反向图与重算分区</h2>
+<p>训练场景下只有前向图没有用，反向也要一起编译，而且反向所需的中间值正是内存压力的来源。AOT Autograd 在编译期把前向与反向一起追踪成一张联合图，入口之一是 <code>torch/_functorch/aot_autograd.py:717</code> 的 <code>aot_function</code>。为了能对图做变换，带就地修改与别名的算子先被函数化：该文件引入了 <code>run_functionalized_fw_and_collect_metadata</code>（<code>:46</code>）与 <code>create_functionalized_fn</code>（<code>:77</code>），并在一处注释里点出别名关系必须被函数化机制正确理解（<code>:353</code>）。</p>
+<p>联合图随后要被切成前向与反向两张。切法不是唯一的，因为反向既可以从零重算前向中间结果，也可以把前向算出来的值原样保留。这件事被写成一个分区问题：</p>
+<pre><code class="language-text">编者定位：repos/pytorch · 92f43bbed42c61d2553a49cbd85bc8b5078b1cf0 · torch/_functorch/partitioners.py:4186-4193
+
+    Partitions the joint graph such that the backward recomputes the forward.
+    Recomputing helps in trading off memory bandwidth with computation.
+
+    To create the fwd and bwd graph, we copy the joint graph, manually set the
+    outputs to just original forward or backward outputs. And then we run the
+    resulting graphs through dead code elimination.
+</code></pre>
+<p>文档把权衡说清楚了：重算用计算换内存。实现路径是先复制联合图，把输出分别设为前向输出与反向输出，再各自跑一遍死代码消除（<code>partitioners.py:4178</code> 起的 <code>min_cut_rematerialization_partition</code>）。选择保留哪些中间值被表述成最小割问题，这决定了哪一批中间结果需要常驻内存。同文件另有不做重算的 <code>default_partition</code>（<code>:1618</code>），适用于不需要这类权衡的前向场景。</p>
+<p>这一步的代价落在两处。分区决定了峰值显存与额外计算量的组合，而重算的代价只在反向执行时才体现出来；函数化虽然让图更规整，也改变了算子的写法，某些带副作用的算子因此难以进入这张图。</p>
+<h2 id="pytorch-inductor">生成：从图到循环，再到设备代码</h2>
+<p><code>torch.compile</code> 默认的编译器后端是 Inductor，入口是 <code>torch/_inductor/compile_fx.py:3133</code> 的 <code>compile_fx</code>。它的文档字符串交代了它在整条链上的位置：</p>
+<pre><code class="language-text">编者定位：repos/pytorch · 92f43bbed42c61d2553a49cbd85bc8b5078b1cf0 · torch/_inductor/compile_fx.py:3143-3148
+
+    Main entry point for compiling given FX graph.  Despite the fact that this
+    lives in :mod:`torch._inductor`, this function is responsible for calling
+    into AOT Autograd (and we will eventually get a callback to
+    ``inner_compile`` to perform actual compilation.  In other words, this
+    function orchestrates end-to-end compilation for the inductor backend when
+    you use :func:`torch.compile`.
+</code></pre>
+<p>同一个文档字符串还有一句提醒：这个函数取得输入 <code>model_</code> 的所有权，可能就地修改它（<code>:3154-3155</code>）。后端入口直接改动传入的图模块，是这类「在图上下手」的编译器的常见约定。</p>
+<p>把 FX 图降到 Inductor IR 的是 <code>GraphLowering</code>，它的文档字符串说明了做法与职责（<code>torch/_inductor/graph.py:390-399</code>）：逐结点遍历图，物化输入、输出与常量，把每个调用分派给对应的 lowering，累积生成的 IR 结点；它同时持有整个图的状态（符号尺寸、调度器输入、设备与 dtype 跟踪、wrapper 代码），最后驱动 <code>codegen()</code> 产出 wrapper 与内核模块。降到这一层之后，算子已经变成带索引表达式的循环与缓冲区读写，与前一章的循环级 IR 处在同一抽象高度。</p>
+<p>接下来要决定哪些结点能合进同一个内核，这是性能的关键。判据不只是数据依赖，还包括生成代码的形态。<code>Scheduler</code> 里的一段融合判定给出一个具体例子：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/pytorch · 92f43bbed42c61d2553a49cbd85bc8b5078b1cf0 · torch/_inductor/scheduler.py:4584-4599</span>
+    <span class="syn-k">def</span><span class="syn-w"> </span><span class="syn-nf">can_fuse_with</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-p">,</span> <span class="syn-n">other</span><span class="syn-p">:</span> <span class="syn-n">BaseSchedulerNode</span><span class="syn-p">):</span>
+        <span class="syn-k">if</span> <span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">has_strict_reduction</span><span class="syn-p">()</span> <span class="syn-ow">or</span> <span class="syn-n">other</span><span class="syn-o">.</span><span class="syn-n">has_strict_reduction</span><span class="syn-p">():</span>
+            <span class="syn-k">return</span> <span class="syn-kc">False</span>
+        <span class="syn-c1"># Limit tl.load() count in the fused RSPLIT loop to avoid register</span>
+        <span class="syn-c1"># spills. See https://github.com/pytorch/pytorch/issues/179423</span>
+        <span class="syn-n">max_reads</span> <span class="syn-o">=</span> <span class="syn-n">config</span><span class="syn-o">.</span><span class="syn-n">triton</span><span class="syn-o">.</span><span class="syn-n">mix_order_reduction_max_reads</span>
+        <span class="syn-k">if</span> <span class="syn-n">max_reads</span> <span class="syn-o">&gt;</span> <span class="syn-mi">0</span><span class="syn-p">:</span>
+            <span class="syn-n">all_reads</span><span class="syn-p">:</span> <span class="syn-n">OrderedSet</span><span class="syn-p">[</span><span class="syn-nb">str</span><span class="syn-p">]</span> <span class="syn-o">=</span> <span class="syn-n">OrderedSet</span><span class="syn-p">()</span>
+            <span class="syn-k">for</span> <span class="syn-n">sn</span> <span class="syn-ow">in</span> <span class="syn-n">itertools</span><span class="syn-o">.</span><span class="syn-n">chain</span><span class="syn-p">(</span><span class="syn-bp">self</span><span class="syn-o">.</span><span class="syn-n">get_nodes</span><span class="syn-p">(),</span> <span class="syn-n">other</span><span class="syn-o">.</span><span class="syn-n">get_nodes</span><span class="syn-p">()):</span>
+                <span class="syn-k">for</span> <span class="syn-n">dep</span> <span class="syn-ow">in</span> <span class="syn-n">sn</span><span class="syn-o">.</span><span class="syn-n">read_writes</span><span class="syn-o">.</span><span class="syn-n">reads</span><span class="syn-p">:</span>
+                    <span class="syn-k">if</span> <span class="syn-nb">isinstance</span><span class="syn-p">(</span><span class="syn-n">dep</span><span class="syn-p">,</span> <span class="syn-n">MemoryDep</span><span class="syn-p">):</span>
+                        <span class="syn-n">all_reads</span><span class="syn-o">.</span><span class="syn-n">add</span><span class="syn-p">(</span><span class="syn-n">dep</span><span class="syn-o">.</span><span class="syn-n">name</span><span class="syn-p">)</span>
+            <span class="syn-k">if</span> <span class="syn-nb">len</span><span class="syn-p">(</span><span class="syn-n">all_reads</span><span class="syn-p">)</span> <span class="syn-o">&gt;</span> <span class="syn-n">max_reads</span><span class="syn-p">:</span>
+                <span class="syn-c1"># pyrefly: ignore [bad-assignment]</span>
+                <span class="syn-n">metrics</span><span class="syn-o">.</span><span class="syn-n">rejected_mix_order_reduction_fusion</span> <span class="syn-o">+=</span> <span class="syn-mi">1</span>
+                <span class="syn-k">return</span> <span class="syn-kc">False</span>
+</code></pre>
+<p>这里拒绝融合的理由是寄存器压力：融合后的循环里 <code>tl.load()</code> 的数量超过配置上限就可能溢出寄存器，代码注释直接把依据指向一个 issue 编号。会溢出寄存器的融合不会更快，因此这类判据来自工程经验与实测，而不是从计算量推出来的。被拒绝的融合还会记一次指标（<code>metrics.rejected_mix_order_reduction_fusion</code>），说明这类判定在维护中是被观测的。</p>
+<p>最后一跳是代码生成。<code>torch/_inductor/codegen/</code> 下按目标分为 <code>triton.py</code> 与 <code>cpp.py</code> 两条主线，前者产出 Triton 内核，后者产出 C++ 与向量化循环；与矩阵运算相关的部分走模板，例如 <code>cpp_gemm_template.py</code>、<code>cpp_flex_attention_template.py</code>、<code>cpp_micro_gemm.py</code>。生成的设备内核又要经过一次编译与调优，这层衔接由 <code>torch/_inductor/runtime/triton_heuristics.py</code> 一类模块承担——Triton 自己的自动调优在这里被复用。整条链因此出现两次编译：一次把图变成内核源码，一次把内核源码变成可加载的二进制。</p>
+<h2 id="pytorch-cache">缓存与动态性：把复用条件写进键里</h2>
+<p>编译一次的成本很高，因此编译结果要能跨次复用，甚至跨进程复用。Inductor 的图缓存把这件事写成了带条件的磁盘缓存：</p>
+<pre><code class="language-text">编者定位：repos/pytorch · 92f43bbed42c61d2553a49cbd85bc8b5078b1cf0 · torch/_inductor/codecache.py:2140-2150
+
+    The overall strategy is as follows:
+    - This cache stores entries on disk. When saving an entry, we can't
+      serialize callables (that could be C++, Triton, etc.), so we serialize
+      their own disk cache location. We then recreate the compiled artifact
+      after fetching from disk.
+    - For indexing the cache, we gather the fields relevant to identifying an
+      FxGraph (the graph module, graph inputs, system settings etc.) into an
+      FxGraphCacheDetails object, pickle it, and compute a hash for the key.
+      See FxGraphCachePickler.
+    - Among the metadata we store, we also include a guards expression that's
+      appropriate for validating any symbols for Tensor arguments that have
+</code></pre>
+<p>第一段说明为什么缓存条目里放的是路径而不是代码：生成的产物本身可能是 C++ 或 Triton 编译结果，它们各自已经有磁盘缓存，图缓存只需要记住位置。第二段给出了键的构成——图模块、图输入、系统设置等参与标识这张图的信息被收集起来序列化后哈希（<code>FxGraphCache</code>，<code>torch/_inductor/codecache.py:2136</code>）。第三段最值得留意：缓存元数据里还带着一个守卫表达式，用来校验张量参数上的符号。守卫的范围因此从进程内的编译决策延伸到了跨进程的缓存复用。</p>
+<p>动态形状由 <code>ShapeEnv</code> 处理（<code>torch/fx/experimental/symbolic_shapes.py:3957</code>）。符号形状让同一份编译产物可以覆盖一族形状：只要守卫能证明新形状落在已编译的取值范围内，就不必重编译。超出范围或触发新的特化时才生成新版本，此时前面那套键与守卫的组合开始起作用——键区分不同的特化，缓存承载跨进程的复用。</p>
+<p>第三类问题是执行侧的开销。把多次内核启动压成一张 CUDA 图能减少启动开销，但复用同一块显存池会与中间结果的存活期冲突。仓库对这件事的解释是：</p>
+<pre><code class="language-text">编者定位：repos/pytorch · 92f43bbed42c61d2553a49cbd85bc8b5078b1cf0 · torch/_inductor/cudagraph_trees.py:19-25
+
+* Previously, if you executed graph A, some non-CUDA graph code, and then
+  graph B, after executing graph B, it was not safe to retain any references
+  to intermediates produced by A.  With CUDA graph trees, we track if any
+outputs of graph A are still live by the time graph B is run, and make
+  sure graph B doesn't clobber there memory when reusing the CUDA graphs
+  pool.  You'll get a separate recording of B depending on what tensors
+  stay live or dead.
+</code></pre>
+<p>做法是跟踪跨图的活跃性：按运行时哪些张量还活着，决定图 B 是否可以复用图 A 留下的显存，代价是同一段代码可能对应多份录制。这类开销无法靠静态分析消除，因为它取决于调用方的使用方式。</p>
+<p>把这一节的三件事放在一起看，PyTorch 这条路的成本结构就完整了：编译产物用守卫与键来界定适用范围，动态性用符号与特化来摊销，执行开销用图化来压缩——三者的共同前提都是「运行时能观察到的信息足够判断假设是否成立」。</p>
+</section>
+
+<section id="sec-06-ascend">
+<h1 id="ascend">昇腾：适配层、图编译与算子生成</h1>
+<p>昇腾这一侧的公开代码性质与前三章不同：它不是一套完整开源的编译器，而是把既有框架接到昇腾运行时上的适配层，加上若干公开的编译入口与控制面。本章的任务因此是划清边界——哪些机制能在源码里读到、哪些只能看到接口与开关，以及把一个编译器接到新设备上究竟要补齐哪几件事。</p>
+<h2 id="ascend-torch-npu">适配层：注册、算子生成与回退清单</h2>
+<p>PyTorch 为第三方设备预留了一个分派键，适配层的第一件事就是给它一个名字：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/torch-npu · f38351b66d9edcb32ac71b372d68d18baa797106 · torch_npu/_init/registry/backend.py:47</span>
+<span class="syn-n">torch</span><span class="syn-o">.</span><span class="syn-n">utils</span><span class="syn-o">.</span><span class="syn-n">rename_privateuse1_backend</span><span class="syn-p">(</span><span class="syn-s2">"npu"</span><span class="syn-p">)</span>
+</code></pre>
+<p>调用之后，<code>PrivateUse1</code> 这个键对外显示为 <code>npu</code>，张量的设备字符串、模块上的设备迁移方法等一批通用机制随之可用。这一步说明了适配层的定位：它不替换 PyTorch 的分发结构，而是在预留位置注册一个新设备，让框架原有的机制继续工作。</p>
+<p>算子侧的接口不是手写的。<code>torchnpugen/</code> 里有一套生成器：<code>gen_backend_stubs.py</code> 生成后端存根，<code>gen_npu_c_shim.py</code> 生成 C 接口胶水层，<code>codegen_ops_info.py</code> 处理算子信息，另有针对自动微分与函数化的生成器。这与 PyTorch 自己从算子清单生成注册代码是同一套做法——算子的签名与分派是数据，胶水代码是产物。</p>
+<p>覆盖不全的算子走另一条路。<code>torchnpugen/aoti/fallback_ops.py</code> 是一份显式清单，条目形如：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/torch-npu · f38351b66d9edcb32ac71b372d68d18baa797106 · torchnpugen/aoti/fallback_ops.py:13-23（节选）</span>
+    <span class="syn-s2">"aten.__and__"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__and__.bool"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__and__.int"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__iand__"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__iand__.Scalar"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__iand__.Tensor"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__ilshift__"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__ilshift__.Scalar"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__ilshift__.Tensor"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__ior__.Scalar"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+    <span class="syn-s2">"aten.__irshift__.Scalar"</span><span class="syn-p">:</span> <span class="syn-p">{},</span>
+</code></pre>
+<p>条目用点号名字标识重载，例如 <code>aten.__lshift__.Scalar</code> 与 <code>aten.__lshift__.Tensor</code> 是两条不同的记录。把回退写成清单而不是异常处理，意味着「哪些算子能落在昇腾上」在构建期就是确定的，运行期不必靠失败重试来发现。清单之外，运行期还有内核可用性检查（<code>torch_npu/npu/_kernel_check.py</code>）。</p>
+<h2 id="ascend-compile">编译路径：既有编译链接到新设备</h2>
+<p><code>torch_npu/_inductor/</code> 是把 Inductor 接到昇腾上的扩展包，里面的文件与前章 Inductor 的组成一一对应：<code>lowering.py</code> 与 <code>lowering_common.py</code> 提供该设备的 lowering，<code>ir.py</code>、<code>graph.py</code>、<code>codecache.py</code>、<code>choices.py</code>、<code>decomposition.py</code>、<code>export.py</code>、<code>autotune_process.py</code>、<code>cpp_builder.py</code> 分别对应 IR、图处理、代码缓存、选择、分解、导出、调优与构建。这种对应关系本身就是证据：PyTorch 的编译链没有被替换，昇腾补的是后端需要的实现与选择。</p>
+<p>补齐过程会遇到覆盖不足，于是这里也有一份回退清单：<code>torch_npu/_inductor/lowering_fallback_list.py</code> 从 <code>torch._inductor</code> 导入相关模块，并列出应走回退路径的高阶算子一类对象（文件开头可见 <code>while_loop</code>、<code>invoke_quant</code>、<code>associative_scan</code>、<code>with_effects</code> 等导入，以及一份列名清单）。两级清单合起来界定了这条路的适用范围：图里的算子要么被 lower 成设备代码，要么落到回退实现上。</p>
+<p>到这一步，源码能提供的证据就到头了。设备代码最终由昇腾的算子编译器生成，其缓存与模式由环境变量控制，仓库里只有对应文档——<code>docs/</code> 下的 <code>ACL_OP_COMPILER_CACHE_DIR.md</code>、<code>ACL_OP_COMPILER_CACHE_MODE.md</code> 说明存在算子编译缓存与缓存模式两项控制。本章不推测这些开关背后的实现。</p>
+<h2 id="ascend-graph">图模式与惰性融合</h2>
+<p>第二类机制是执行层的图化。<code>torch_npu/npu/graphs.py:590</code> 定义了 <code>NPUGraph</code>，对应图捕获与回放；<code>torch_npu/npu/_graph_tree.py</code> 里的 <code>NPUGraphNode</code>（<code>:740</code>）与 <code>NPUGraphTreeManager</code>（<code>:1897</code>）与前一章的 CUDA 图树在命名上对应，处理的是同一类问题——复用内存池时中间结果的存活期冲突。控制流在图捕获中的处理另有专门模块（<code>torch_npu/npu/_npugraph_conditional_nodes.py:12</code> 的 <code>NPUGraphCaptureControlFlowOpDispatchMode</code>，名字表明它是一个捕获期的分派模式）。</p>
+<p>惰性融合这条路把「何时成图」暴露成了一个全局状态，其约束写在模块文档字符串里：</p>
+<pre><code class="language-text">编者定位：repos/torch-npu · f38351b66d9edcb32ac71b372d68d18baa797106 · torch_npu/npu/lazy_fusion.py:14-22（摘录）
+
+    Requires ``TORCH_NPU_LAZY_FUSION`` to be enabled before importing
+    torch_npu. This gate cannot override the environment master switch.
+    The setting persists until changed; unlike a context manager, this
+    function does not automatically restore the previous state.
+
+    A state change flushes the pending graph without waiting for device
+    execution to finish. Call at region boundaries, without concurrent
+    graph producers. Context managers restore their entry state on exit,
+    including when this setter is called inside the context.
+</code></pre>
+<p>四点约束都在这里：开关必须在导入之前由环境变量打开，代码里的门无法覆盖它；状态设置持续生效，不随上下文退出而恢复；改变状态会冲刷待处理的图，且不等待设备执行完成；因此调用点应落在区域边界，并避开并发的图生产者。这类约束在 CUDA 侧的同类机制里不常出现在使用者的视野中，而在适配层里必须显式写出，因为成图时机影响了正确性而不只是性能。</p>
+<p>同步语义同样如此。<code>docs/</code> 下成组出现的行为说明——<code>ACL_DEVICE_SYNC_TIMEOUT.md</code>、<code>synchronization_timeout.md</code>、<code>ASCEND_LAUNCH_BLOCKING.md</code>、<code>HCCL_DESYNC_DEBUG.md</code>——对应超时、阻塞式启动与通信失步三件事。设备语义映射到另一套运行时之后，这些差异需要单独交代，文档的存在本身就是这种映射复杂度的证据。</p>
+<p>这一节的证据边界很清楚：能读到的是接口、清单与开关，读不到的是图编译器与算子编译器的内部实现。下一节转向昇腾另一条开源路径——MindSpore，它把图编译的一部分放进了开源仓库。</p>
+</section>
+
+<section id="sec-07-operator-path">
+<h1 id="operator-path">贯穿对照：一次融合注意力在五个栈里的落点</h1>
+<p>前六章按栈展开，这一章换一个方向：拿同一个算子走一遍，看它在每一处被改写成什么、谁做的决定、代价从哪里来。选注意力是因为它同时压住前面讨论过的每一种机制——两次矩阵乘、一次跨行归约、随序列长度平方增长的空间、以及一个只有在分块之后才成立的数值递推。五个栈对它的处理方式差异明显，差异的位置恰好就是各栈的自定义边界。</p>
+<h2 id="online-softmax">先把算法的代价算清楚</h2>
+<p>标准写法里，注意力先算 <code>S = QK^T</code>，再对每一行做 softmax 得到 <code>P</code>，最后算 <code>O = PV</code>。假定序列长度 <code>n = 4096</code>、头维度 <code>d = 128</code>、数值用 16 位浮点，那么 <code>S</code> 是一个 4096×4096 的矩阵：<code>4096² = 16,777,216</code> 个元素，每个 2 字节，合计 32 MiB。这只是单个头、单个批次中的一份中间结果，而它存在的意义只是被立刻做一次归约。</p>
+<p>融合写法把 <code>S</code> 拆成块，边算边归约，不落盘。对每一行维护三个量：当前最大分值 <code>m_i</code>、指数和 <code>l_i</code>、以及未归一化的输出 <code>acc</code>。处理第 <code>j</code> 个键块时依次做三件事：</p>
+<p><math display="block"><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>=</mo><mi mathvariant="normal">max</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>,</mo><msub><mrow><mi mathvariant="normal">max</mi></mrow><mi>j</mi></msub><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>)</mo></math></p>
+<p><math display="block"><mi mathvariant="normal">acc</mi><mo>←</mo><mi mathvariant="normal">acc</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><mo>+</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><msub><mi>V</mi><mi>j</mi></msub></math></p>
+<p><math display="block"><mi>l</mi><mo>←</mo><mi>l</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo></math></p>
+<p>递推的关键在第一行与随之而来的缩放。先前累计的 <code>acc</code> 与 <code>l</code> 是按旧的 <code>m_i</code> 归一化的，一旦出现更大的分值，它们必须整体重标定，乘上 <code>exp(m_i − m_new)</code>。这一步让「先看完全部键再归一化」变成「边看边修正估计」，也正是它使块内计算成为可能。</p>
+<p>空间账随之改变。块大小取 128×128，一个分值块只占 <code>128 × 128 × 2 B = 32 KiB</code>，与那个 32 MiB 的完整矩阵相差 1024 倍。占用从「与序列长度平方成正比」变成「与块大小平方成正比加上输出本身」，这是融合带来的主要收益。</p>
+<p>收益之外还有新增的计算。每次遇到新的键块，<code>acc</code>（尺寸为查询块行数 × <code>d</code>）要被重标定一次。按查询块大小为 128 计，总的重标定次数是 <code>(n/128) × (n/128)</code> 次块操作，每次作用于 128×128 个元素，于是额外的乘加量约为 <code>n²d / 128</code>；而两次矩阵乘本身的乘加量约为 <code>2n²d</code>。两者相除得到 <code>1/(2 × 128) ≈ 0.39%</code>。用不到半个百分点的额外计算，换掉一个按平方增长的中间矩阵，这笔交换在长序列上很容易成立。</p>
+<p>代价不止这些。为了让块内计算能连续执行，键与值的块需要在片上缓冲里排队，这带来多缓冲与同步；<code>exp</code> 的计算落到了向量单元上，<code>m</code> 与 <code>l</code> 的重标定依赖前一块的结果，于是块之间形成一条串行链，流水线要围绕这条链安排。这些约束解释了下一节的现象：同一个算法，不同栈交给使用者的那部分并不相同。</p>
+<h2 id="operator-path-per-stack">五个栈各自交出了什么</h2>
+<h3 id="op-triton">Triton：使用者写出整条递推</h3>
+<p>Triton 官方教程里有一份融合注意力实现（<code>python/tutorials/06-fused-attention.py</code>）。它把上一节的递推逐行写进一个循环：</p>
+<pre><code class="language-python"><span class="syn-c1"># 编者定位：repos/triton · ebdd5b6b4856 · python/tutorials/06-fused-attention.py:67-93</span>
+    <span class="syn-k">for</span> <span class="syn-n">start_n</span> <span class="syn-ow">in</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">range</span><span class="syn-p">(</span><span class="syn-n">lo</span><span class="syn-p">,</span> <span class="syn-n">hi</span><span class="syn-p">,</span> <span class="syn-n">BLOCK_N</span><span class="syn-p">,</span> <span class="syn-n">warp_specialize</span><span class="syn-o">=</span><span class="syn-n">warp_specialize</span><span class="syn-p">):</span>
+        <span class="syn-n">start_n</span> <span class="syn-o">=</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">multiple_of</span><span class="syn-p">(</span><span class="syn-n">start_n</span><span class="syn-p">,</span> <span class="syn-n">BLOCK_N</span><span class="syn-p">)</span>
+        <span class="syn-c1"># -- compute qk ----</span>
+        <span class="syn-n">k</span> <span class="syn-o">=</span> <span class="syn-n">desc_k</span><span class="syn-o">.</span><span class="syn-n">load</span><span class="syn-p">([</span><span class="syn-n">offsetk_y</span><span class="syn-p">,</span> <span class="syn-mi">0</span><span class="syn-p">])</span><span class="syn-o">.</span><span class="syn-n">T</span>
+        <span class="syn-n">qk</span> <span class="syn-o">=</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">dot</span><span class="syn-p">(</span><span class="syn-n">q</span><span class="syn-p">,</span> <span class="syn-n">k</span><span class="syn-p">)</span>
+        <span class="syn-k">if</span> <span class="syn-n">STAGE</span> <span class="syn-o">==</span> <span class="syn-mi">2</span><span class="syn-p">:</span>
+            <span class="syn-n">mask</span> <span class="syn-o">=</span> <span class="syn-n">offs_m</span><span class="syn-p">[:,</span> <span class="syn-kc">None</span><span class="syn-p">]</span> <span class="syn-o">&gt;=</span> <span class="syn-p">(</span><span class="syn-n">start_n</span> <span class="syn-o">+</span> <span class="syn-n">offs_n</span><span class="syn-p">[</span><span class="syn-kc">None</span><span class="syn-p">,</span> <span class="syn-p">:])</span>
+            <span class="syn-n">qk</span> <span class="syn-o">=</span> <span class="syn-n">qk</span> <span class="syn-o">*</span> <span class="syn-n">qk_scale</span> <span class="syn-o">+</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">where</span><span class="syn-p">(</span><span class="syn-n">mask</span><span class="syn-p">,</span> <span class="syn-mi">0</span><span class="syn-p">,</span> <span class="syn-o">-</span><span class="syn-mf">1.0e6</span><span class="syn-p">)</span>
+            <span class="syn-n">m_ij</span> <span class="syn-o">=</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">maximum</span><span class="syn-p">(</span><span class="syn-n">m_i</span><span class="syn-p">,</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">max</span><span class="syn-p">(</span><span class="syn-n">qk</span><span class="syn-p">,</span> <span class="syn-mi">1</span><span class="syn-p">))</span>
+            <span class="syn-n">qk</span> <span class="syn-o">-=</span> <span class="syn-n">m_ij</span><span class="syn-p">[:,</span> <span class="syn-kc">None</span><span class="syn-p">]</span>
+        <span class="syn-k">else</span><span class="syn-p">:</span>
+            <span class="syn-n">m_ij</span> <span class="syn-o">=</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">maximum</span><span class="syn-p">(</span><span class="syn-n">m_i</span><span class="syn-p">,</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">max</span><span class="syn-p">(</span><span class="syn-n">qk</span><span class="syn-p">,</span> <span class="syn-mi">1</span><span class="syn-p">)</span> <span class="syn-o">*</span> <span class="syn-n">qk_scale</span><span class="syn-p">)</span>
+            <span class="syn-n">qk</span> <span class="syn-o">=</span> <span class="syn-n">qk</span> <span class="syn-o">*</span> <span class="syn-n">qk_scale</span> <span class="syn-o">-</span> <span class="syn-n">m_ij</span><span class="syn-p">[:,</span> <span class="syn-kc">None</span><span class="syn-p">]</span>
+        <span class="syn-n">p</span> <span class="syn-o">=</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">math</span><span class="syn-o">.</span><span class="syn-n">exp2</span><span class="syn-p">(</span><span class="syn-n">qk</span><span class="syn-p">)</span>
+        <span class="syn-c1"># -- compute correction factor</span>
+        <span class="syn-n">alpha</span> <span class="syn-o">=</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">math</span><span class="syn-o">.</span><span class="syn-n">exp2</span><span class="syn-p">(</span><span class="syn-n">m_i</span> <span class="syn-o">-</span> <span class="syn-n">m_ij</span><span class="syn-p">)</span>
+        <span class="syn-n">l_ij</span> <span class="syn-o">=</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">sum</span><span class="syn-p">(</span><span class="syn-n">p</span><span class="syn-p">,</span> <span class="syn-mi">1</span><span class="syn-p">)</span>
+        <span class="syn-c1"># -- update output accumulator --</span>
+        <span class="syn-k">if</span> <span class="syn-ow">not</span> <span class="syn-n">IS_HOPPER</span> <span class="syn-ow">and</span> <span class="syn-n">warp_specialize</span> <span class="syn-ow">and</span> <span class="syn-n">BLOCK_M</span> <span class="syn-o">==</span> <span class="syn-mi">128</span> <span class="syn-ow">and</span> <span class="syn-n">HEAD_DIM</span> <span class="syn-o">==</span> <span class="syn-mi">128</span><span class="syn-p">:</span>
+            <span class="syn-n">BM</span><span class="syn-p">:</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">constexpr</span> <span class="syn-o">=</span> <span class="syn-n">acc</span><span class="syn-o">.</span><span class="syn-n">shape</span><span class="syn-p">[</span><span class="syn-mi">0</span><span class="syn-p">]</span>
+            <span class="syn-n">BN</span><span class="syn-p">:</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">constexpr</span> <span class="syn-o">=</span> <span class="syn-n">acc</span><span class="syn-o">.</span><span class="syn-n">shape</span><span class="syn-p">[</span><span class="syn-mi">1</span><span class="syn-p">]</span>
+            <span class="syn-n">acc0</span><span class="syn-p">,</span> <span class="syn-n">acc1</span> <span class="syn-o">=</span> <span class="syn-n">acc</span><span class="syn-o">.</span><span class="syn-n">reshape</span><span class="syn-p">([</span><span class="syn-n">BM</span><span class="syn-p">,</span> <span class="syn-mi">2</span><span class="syn-p">,</span> <span class="syn-n">BN</span> <span class="syn-o">//</span> <span class="syn-mi">2</span><span class="syn-p">])</span><span class="syn-o">.</span><span class="syn-n">permute</span><span class="syn-p">(</span><span class="syn-mi">0</span><span class="syn-p">,</span> <span class="syn-mi">2</span><span class="syn-p">,</span> <span class="syn-mi">1</span><span class="syn-p">)</span><span class="syn-o">.</span><span class="syn-n">split</span><span class="syn-p">()</span>
+            <span class="syn-n">acc0</span> <span class="syn-o">=</span> <span class="syn-n">acc0</span> <span class="syn-o">*</span> <span class="syn-n">alpha</span><span class="syn-p">[:,</span> <span class="syn-kc">None</span><span class="syn-p">]</span>
+            <span class="syn-n">acc1</span> <span class="syn-o">=</span> <span class="syn-n">acc1</span> <span class="syn-o">*</span> <span class="syn-n">alpha</span><span class="syn-p">[:,</span> <span class="syn-kc">None</span><span class="syn-p">]</span>
+            <span class="syn-n">acc</span> <span class="syn-o">=</span> <span class="syn-n">tl</span><span class="syn-o">.</span><span class="syn-n">join</span><span class="syn-p">(</span><span class="syn-n">acc0</span><span class="syn-p">,</span> <span class="syn-n">acc1</span><span class="syn-p">)</span><span class="syn-o">.</span><span class="syn-n">permute</span><span class="syn-p">(</span><span class="syn-mi">0</span><span class="syn-p">,</span> <span class="syn-mi">2</span><span class="syn-p">,</span> <span class="syn-mi">1</span><span class="syn-p">)</span><span class="syn-o">.</span><span class="syn-n">reshape</span><span class="syn-p">([</span><span class="syn-n">BM</span><span class="syn-p">,</span> <span class="syn-n">BN</span><span class="syn-p">])</span>
+        <span class="syn-k">else</span><span class="syn-p">:</span>
+            <span class="syn-n">acc</span> <span class="syn-o">=</span> <span class="syn-n">acc</span> <span class="syn-o">*</span> <span class="syn-n">alpha</span><span class="syn-p">[:,</span> <span class="syn-kc">None</span><span class="syn-p">]</span>
+</code></pre>
+<p>几处细节说明这里的分工。缩放系数被折进指数：代码用 <code>exp2</code> 与一个把 <code>log2(e)</code> 一并计入的 <code>qk_scale</code>，与上一节按自然指数写的递推等价，只是换了一个底数。循环头把 <code>warp_specialize</code> 作为参数传给 <code>tl.range</code>，也就是把线程分工的请求写在源码里。最值得注意的一段是重标定的分支：在非 Hopper、开启专门化且块形状恰为 128×128 的条件下，作者把 <code>acc</code> 拆成两半分别缩放再拼回（<code>:88-91</code>）。这一步是使用者在手工处理布局——直接对 <code>acc</code> 做缩放会触发一次代价不低的布局转换，拆成两半后两个半区各自映射到更好的形状上。循环末尾还有一行注释交代了语句顺序的用意：<code>l_i</code> 与 <code>m_i</code> 的更新放在循环尾部，为的是降低寄存器压力（<code>:102-105</code>）。</p>
+<p>同一个仓库里还有一份用新方言 Gluon 写的版本（<code>python/examples/gluon/01-attention-forward.py</code>）。它把布局与流水显式写出来，说明即便在 Triton 内部，也存在一套「把后端自动做的选择交回使用者」的写法。</p>
+<p>至于布局转换、共享内存分配与流水排布，仍由第三章讲的那条固定管线完成。使用者交出的是循环结构与递推公式，后端交出的是这些结构如何落到硬件上。</p>
+<h3 id="op-cute">CuTe：从示例里选一套模板</h3>
+<p>CuTe 一侧没有「注意力编译器」，有的是按架构给出的实现。仓库里可以直接找到三份：<code>examples/41_fused_multi_head_attention</code>、<code>examples/88_hopper_fmha</code>（单文件 <code>88_hopper_fmha.cu</code> 加一份 <code>README.md</code>）、<code>examples/77_blackwell_fmha</code>。它们的写法与前几章的 CuTe 用法一致：选定集体层（collective）与指令原子，给出分块形状与线程划分，合法性由第四章那套编译期条件约束。</p>
+<p>这条路把选择权放在使用者手里：块形状、共享内存布局、流水级数由作者写定，库负责证明这套划分能落到目标指令上，并在不能时拒绝实例化。代价也在同一处——换一代硬件往往意味着重选一套示例参数，而收益是编译期就能确定代码形态。</p>
+<h3 id="op-pytorch">PyTorch：先在图上认出模式，再选择模板</h3>
+<p>Inductor 对注意力的处理分两级。第一级是图上的模式改写，<code>torch/_inductor/fx_passes/fuse_attention.py</code> 里成对出现的函数说明了做法：<code>_sfdp_pattern_1</code>（<code>:54</code>）与 <code>_sfdp_replacement_1</code>（<code>:63</code>），<code>_sfdp_pattern_2</code>（<code>:76</code>）与 <code>_sfdp_replacement_2</code>（<code>:85</code>），依此类推到带掩码与 dropout 的变体。每一对描述「什么样的子图可以被替换成融合后的缩放点积注意力」。这类改写不涉及指令选择，只在图上确认结构并换掉算子。</p>
+<p>第二级是代码生成。融合后的算子经由 flex attention 的模板转成内核源码，模板文件在 <code>torch/_inductor/kernel/flex/templates/</code>（<code>flash_attention.py.jinja</code>、<code>flash_attention_backward.py.jinja</code>、<code>flex_attention.py.jinja</code>），生成的结果仍是 Triton 源码，再交给第三章那条管线编译。于是同一次计算在 PyTorch 里经过两级改写：图上的模式替换，以及模板层的内核生成。</p>
+<p>模式匹配带来的边界很具体：写法稍有不同就可能不被认出来，此时图照旧执行，只是少了融合收益，程序仍然正确。这类「匹配失败即退化」的设计在第五章已经出现过一次。</p>
+<h3 id="op-tvm">TVM：图上的算子加两条外部出路</h3>
+<p>TVM 图里有注意力的算子定义（<code>src/relax/op/nn/attention.cc</code>），但它对同一个算子的处理并不唯一。仓库里同时能看到两条外部出路：一条经由 BYOC 调用 CUTLASS，<code>python/tvm/contrib/cutlass/attention_operation.py</code> 提供 <code>instantiate_attention_template</code>（<code>:24</code>）、<code>instantiate_flash_attention_template</code>（<code>:173</code>）与 <code>instantiate_flash_attention_var_len_template</code>（<code>:278</code>），也就是为注意力生成 CUTLASS 代码；另一条是运行时侧的 cuDNN 前端集成（<code>src/runtime/extra/contrib/cudnn_frontend/attention.cc</code>），把算子交给厂商库。</p>
+<p>三条路对应三种不同的成本。走自己的调度意味着要写出一份在目标上足够好的调度；走 BYOC 意味着一部分控制权交给外部模板，换来成熟的实现；走厂商库意味着支持的形状与数据类型由库决定。第二章讲的分层在这一个算子上表现得最清楚：图上的算子保持稳定，落到哪里由后端配置与分派决定。</p>
+<h3 id="op-ascend">昇腾：把模式融合成一个算子，再交给设备侧</h3>
+<p>MindSpore 的做法与 Inductor 的第一级相似，也在图上做模式改写，但产出不同。<code>mindspore/ccsrc/backend/common/pass/ir_fusion/flash_attention_fusion.cc</code> 里，<code>FlashAttentionFusionBase::DefinePattern</code>（<code>:109</code>）定义要匹配的结构，匹配成功后由 <code>CreateFlashAttentionNode</code> 造出融合结点——第一版在 <code>:218</code>，第二版在 <code>:336</code>；针对 BNSD 布局另有一条创建路径 <code>CreatePromptFlashAttentionCnodeForBNSD</code>（<code>:114</code>）。</p>
+<p>与 PyTorch 的差别在产出物的性质。这里造出的结点对应设备侧已实现的一个融合算子，具体落到哪个内核由设备插件决定（第六章看到的 <code>kernel_select_ascend.cc</code> 与 <code>KernelBuildInfo</code>）。开源部分负责识别模式与造结点，算子的实现与编译在仓库之外。因此这一条路上，模式匹配的条件同时约束着正确性与可用性：条件比设备的实现宽，结点就选不到内核；比实现窄，就白白失去融合机会。</p>
+<p>两版 <code>CreateFlashAttentionNode</code> 并存也说明这条路的演进方式：新模式与旧模式各自保留，由匹配条件区分，而不是在同一处分支里兼容多种结构。</p>
+<h2 id="operator-path-comparison">对照：决策位置与代价的分配</h2>
+<p>把五条路并排放在一起，差异集中在四个问题上。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>融合决策在哪里</th>
+<th>使用者交出什么</th>
+<th>合法性由什么判定</th>
+<th>条件不成立时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Triton</td>
+<td>使用者的循环 + 后端固定管线</td>
+<td>块形状、递推、<code>warp_specialize</code> 请求</td>
+<td>后端 pass 的前提条件</td>
+<td>仍生成代码，性能下降</td>
+</tr>
+<tr>
+<td>CuTe</td>
+<td>示例模板的选择</td>
+<td>分块、布局、指令原子</td>
+<td>编译期整除与静态形状条件</td>
+<td>实例化失败</td>
+</tr>
+<tr>
+<td>PyTorch</td>
+<td>图上的模式改写</td>
+<td>不改代码，交出可捕获的执行</td>
+<td>模式是否匹配</td>
+<td>保留原图，不融合</td>
+</tr>
+<tr>
+<td>TVM</td>
+<td>后端配置与分派</td>
+<td>目标与调度（或交给外部模板）</td>
+<td>调度合法性 + 外部库能力</td>
+<td>退回逐算子实现</td>
+</tr>
+<tr>
+<td>昇腾（MindSpore）</td>
+<td>图上的模式改写</td>
+<td>不改代码</td>
+<td>模式条件与设备内核是否可得</td>
+<td>结点选不到内核</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>决策位置决定了可用信息。</strong> 在图级做改写时，编译器看得到形状、语义与算子边界，看不到寄存器与共享内存；在块级编程里，使用者看得到数据流与块形状，看不到整张图。两类系统都因此在某个位置「跳出去」一次：Triton 把 <code>warp_specialize</code> 与布局处理交给使用者写，TVM 与 Inductor 把「用哪个后端、哪套模板」交给配置。这条缝不可能消掉，只能选择把它放在哪里——放在源码里，使用者必须理解硬件；放在配置里，使用者必须理解匹配条件。</p>
+<p><strong>失败路径是进入生产的前提。</strong> 五个栈都保留了退化机制，差别只在退化的位置：Triton 与 CuTe 的失败停在编译期（一个报错，一个放弃优化），PyTorch 与昇腾的失败停在匹配阶段（保持原图继续执行），TVM 的失败停在分派阶段（退回逐算子实现），MindSpore 另有图内的 Python 回退结点（第六章）。对使用者而言，决定可用性的往往不是最好情况下的性能，而是退化后的行为能否接受。</p>
+<p><strong>可移植性的实际形态与直觉相反。</strong> 需要最少改动的做法是在图上识别模式，因为模式表达的是「哪些算子构成一次注意力」，与设备无关，换设备只需要后端提供融合后的实现。跟设备绑得最紧的是库级模板，每代硬件要准备一份对应实现——CuTe 的三份注意力示例分属不同架构正是这个原因。块级程序处在中间：它比模板可移植，但 Triton 教程里那段只对特定块形状与特定架构生效的重标定分支，说明一旦要压榨性能，设备差异仍会渗回源码。</p>
+<p><strong>同一个算子在五处被改写成了不同东西。</strong> 在 Triton 里它是一段带递推的循环，在 CuTe 里是一次模板选择，在 PyTorch 与昇腾里是一个被认出来的图模式，在 TVM 里是一个可能交给外部代码的图算子。这五种形态都可以用框架自己的话说成「融合注意力」，但它们对使用者的要求、对版本的依赖与失败后的行为各不相同。判断一个栈是否适合某个负载，落点就在这里，而不在某一项基准数字上。</p>
+</section>
+
+<section id="sec-08-boundaries">
+<h1 id="boundaries">代价、退化与选择边界</h1>
+<p>前七章把五个栈的机制分开讲了，这一章把它们放回同一张账上。编译带来的收益需要有人支付成本，而成本不只出现在编译期：它在测量、展开、缓存与守卫里各占一份，并且与运行期收益直接竞争。</p>
+<h2 id="boundary-costs">编译要花掉的三种资源</h2>
+<p><strong>测量。</strong> 有些决策无法算出来，只能试一试。第二章里 MetaSchedule 的 <code>builder</code> 与 <code>runner</code> 把候选编译出来并真实运行，<code>tune_tasks</code> 的 <code>max_trials_global</code> 与 <code>num_trials_per_iter</code> 直接决定要跑多少次；第三章里 Triton 的 <code>Autotuner</code> 对每个候选执行 <code>_bench</code> 并计时，取最小值；第五章里 Inductor 复用 Triton 的调优设施（<code>torch/_inductor/runtime/triton_heuristics.py</code> 一带）并对生成的内核再做一次编译与选择。测量成本按「候选数 × 每次编译与运行」计，而且占用目标设备，因此它与训练或服务争同一批资源。</p>
+<p><strong>展开与静态知识。</strong> 第四章的 CuTe 走的是另一条支付方式：合法性由编译期条件判定，整除关系在操作数都是常量时由 <code>static_assert</code> 强制（<code>include/cute/int_tuple.hpp:407-408</code>），操作数变成运行期变量时该检查被跳过，运行时断言也因「会增加寄存器用量并可能造成不恰当的编译期或运行时失败」而被注释掉（同文件 <code>:409-411</code>）。选择静态形状换来确定的代码与编译期报错，代价是模板展开深度、编译时间，以及「形状必须写成常量」这条约束透到调用方。第七章里 Triton 教程中那段 <code>BLOCK_M == 128 and HEAD_DIM == 128</code> 的分支，是同一个取舍在另一处的表现：针对具体常量写出的快路径无法覆盖其他形状。</p>
+<p><strong>缓存与守卫。</strong> 第三类成本用复用摊销。Inductor 的图缓存把编译产物写到磁盘，键由参与标识一张图的信息哈希得到，并在元数据里带上校验符号的守卫表达式（<code>torch/_inductor/codecache.py:2140-2150</code>）；每次调用的守卫检查则是省不掉的开销，重编译还有上限（<code>torch/_dynamo/config.py:121</code>、<code>:124</code>）。相近的设施在其它栈里也能找到：MindSpore 的编译缓存管理器（<code>mindspore/ccsrc/frontend/jit/ps/compile_cache_manager.cc</code>），以及昇腾算子编译缓存的目录与模式开关（<code>docs/ACL_OP_COMPILER_CACHE_DIR.md</code>、<code>ACL_OP_COMPILER_CACHE_MODE.md</code>）。</p>
+<p>把三种成本并排看，编译收益成立的条件就很具体：设一次执行省下的时间为 <code>Δ</code>，编译、测量与展开的一次性成本为 <code>C</code>，每次调用的守卫与缓存查找开销为 <code>g</code>，那么执行 <code>k</code> 次之后净收益是 <code>k(Δ − g) − C</code>。有意义的只在于 <code>Δ</code> 与 <code>g</code> 的差以及 <code>C</code> 能否被足够多的执行次数摊掉。短序列、小批量、单次调用的负载经常落在 <code>k(Δ−g) &lt; C</code> 的区域，此时编译是净损失——这也是各类编译缓存与预热机制存在的原因：它们不改变不等式，只把 <code>C</code> 挪到进程启动之外。</p>
+<p>守卫项 <code>g</code> 容易被忽略，因为它不出现在任何收益报表里。只要编译产物的适用范围是靠运行时检查划定的，这笔开销就会出现在每一次调用上，包括那些完全命中的调用。</p>
+<h2 id="boundary-degradation">退化路径：编译器如何保持不变错</h2>
+<p>把五章的退化机制放在一起，可以按发生的位置分成四类。</p>
+<p><strong>编译期拒绝。</strong> CuTe 的静态条件不满足时模板无法实例化，问题停在编译期（第四章）；TVM 的调度原语在前提不成立时抛出带上下文的调度错误，例如 <code>compute_at</code> 要求相关块都在目标循环之下（第二章）。这类退化的优点是错误出现在哪里就报在哪里，代价是使用者必须能读懂编译器层面的信息。</p>
+<p><strong>匹配未命中的静默退化。</strong> PyTorch 的注意力融合依赖图上能否认出模式（第五章），昇腾侧同样先匹配模式再造结点（第七章）。认不出来时不报错，图照常执行，只是失去融合。这类退化的可用性依赖可观测性：第五章里那个被拒绝的融合会记一次指标（<code>metrics.rejected_mix_order_reduction_fusion</code>，<code>torch/_inductor/scheduler.py:4598</code>），守卫失败会写入记录（<code>torch/_dynamo/guards.py:6963</code>）。没有这些计数，性能回落只能靠外部测量发现。</p>
+<p><strong>清单式回退。</strong> 适配层把可回退的算子写成显式列表（<code>torchnpugen/aoti/fallback_ops.py:13-23</code>），覆盖范围在构建期就确定（第六章）。这种做法把不确定性换成了可审计性：清单就是覆盖面，代价是每加入一个算子都要维护它。</p>
+<p><strong>图内回退与图切断。</strong> MindSpore 在无法编译的构造处插入执行 Python 的结点（<code>fallback.h:40-44</code>，第六章），PyTorch 在无法记录时结束当前图并继续按解释执行（第五章）。两者的共同点是把「编译不了」变成程序结构的一部分，代价是编译收益被切分：被切出来的片段各自承担守卫与调度开销。</p>
+<p><strong>数值层面的退化同样值得记录。</strong> 第七章那段 Triton 代码在掩码处写入的是 <code>-1.0e6</code>，而不是负无穷：该值与 <code>qk</code> 相加后进入以 2 为底的指数，<code>exp2(−1.0e6)</code> 在单精度下下溢为 0，被屏蔽的位置因此得到精确的零权重，同时避免无穷参与后续算术。用一个足够大的有限负数换取算术上的安全，是这类实现里常见的处理方式；它属于算法实现的选择，与调度无关，但同样影响结果——负数大到什么程度才够，取决于累加的量级。</p>
+<p>这些机制共同支撑本书第一章提到的那条底线：<strong>编译失败不等于程序失败</strong>。真正需要判断的是退化之后还剩多少性能，以及退化是否会被观察到。一个栈能否用于生产，通常就落在后一条上——会退化的系统仍可用，悄悄退化的系统很难用。</p>
+<h2 id="boundary-selection">选择边界：按条件对齐，而不是排名</h2>
+<p>五条路各自成立的条件不同，因此判断从负载的约束出发。以下五组问题覆盖了本书讨论过的全部机制，每一组的答案都会排除掉一部分选项。</p>
+<p><strong>一、要不要跨设备。</strong> 如果同一份计算要在多种加速器上跑，把决策放在图级最省事：模式与算子表达设备无关，换设备时由后端提供融合实现。代价是性能上限受后端实现约束。走到块级程序或库模板那一层，就等于接受与具体设备绑定的代码。</p>
+<p><strong>二、形状是否稳定。</strong> 形状在编译期已知时，编译期检查能换来确定的代码与即时报错（CuTe 那条线）。形状随请求变化时，需要符号形状与守卫来界定复用范围（PyTorch 那条线），或者接受通用循环（TVM 的逐算子路径）。判断标准是形状的取值空间有多大：几种固定形状值得为每种编译一次，连续变化的长度更适合符号化处理，而完全不规则的输入会让特化收益迅速消失。</p>
+<p><strong>三、谁支付调优成本。</strong> 可以离线付出（把搜索或测量结果存进数据库与磁盘缓存，运行时直接取用），也可以把成本放在进程启动或首次调用上。前者需要把调优纳入发布流程并管理结果文件，后者要求调用方容忍前几次调用的延迟抖动。两者都不免费，区别在于谁来承担。</p>
+<p><strong>四、退化是否可接受。</strong> 要求确定性时，说明编译期就能拒绝的路径更合适；允许性能波动但要求程序始终正确时，模式匹配加退化的组合更容易一直运行。需要检查的是退化后的下界，而不是最好情况下的上界。</p>
+<p><strong>五、维护能力落在哪一层。</strong> 写块级程序要求理解流水与布局，出错时要能读中间表示；选库模板要求跟上代际参数；写图级模式要求理解匹配条件与后端能力边界。这一条最常被低估：同一套机制在两种团队手里的实际成本可以相差很远。</p>
+<p>把这几组问题与第一章列出的七个问题合起来看，本书的比较始终落在同一个位置——切分点、可检查性、决策权、目标绑定、内存与同步的可见性、动态信息的处理方式、以及代价的承担方。五条路在这些维度上各有取舍：TVM 把决策权交给搜索并为此付出测量成本，Triton 把表达权交给使用者并收回报编译器一部分优化自由度，CuTe 把正确性交给编译期并因此要求静态知识，PyTorch 把编译能力建在捕获之上并因此必须管理守卫，昇腾一侧则把前端与选择留在开源、把算子编译留在运行库里。</p>
+<p>这些结论都限定在上述固定提交与静态阅读范围内。本书没有编译、运行或测量这些项目中的任何一个，因此关于性能的陈述只到机制与代价结构为止；哪个栈在某个具体负载上更快，需要在那个负载上测，而不在本书的结论范围内。</p>
+</section>
+  </article>
+
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>
