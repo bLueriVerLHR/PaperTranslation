@@ -18,7 +18,7 @@
   <button id="top-button" type="button" hidden>顶部</button>
 </div>
 
-<main class="page" id="content" data-content-hash="2ab9381f2dd6"><a class="site-home" href="../index.html">← 文库</a>
+<main class="page" id="content" data-content-hash="ddb4b86a28c4"><a class="site-home" href="../index.html">← 文库</a>
   <header class="title-block">
     <h1>深度学习编译栈：TVM、Triton、CuTe、PyTorch 与昇腾的源码分析</h1>
     <p class="subtitle">从图变换到指令选择：五条实现路径与一条贯穿算子的对照</p>
@@ -71,6 +71,19 @@
 <li><a href="#ascend-torch-npu">适配层：注册、算子生成与回退清单</a></li>
 <li><a href="#ascend-compile">编译路径：既有编译链接到新设备</a></li>
 <li><a href="#ascend-graph">图模式与惰性融合</a></li>
+</ol></li>
+<li><a href="#ir">中间表示：三种组织方式与 MLIR 的位置</a><ol>
+<li><a href="#ir-what-it-carries">IR 要承载什么</a></li>
+<li><a href="#ir-mlir">MLIR 在五个栈里的真实位置</a></li>
+<li><a href="#ir-own">自建 IR：借算法，不借地基</a></li>
+<li><a href="#ir-source-as-output">停在循环级，交出源码</a></li>
+<li><a href="#ir-comparison">对照：IR 的选择决定了谁能改它</a></li>
+</ol></li>
+<li><a href="#graph">计算图：捕获、改写、分区与两级调度</a><ol>
+<li><a href="#graph-capture">图从哪里来：捕获的四种形态</a></li>
+<li><a href="#graph-rewrite">改写的两个方向与两种尺度</a></li>
+<li><a href="#graph-partition">分区：把图切成可独立处理的部分</a></li>
+<li><a href="#graph-two-levels">两级调度与它们之间的接口</a></li>
 </ol></li>
 <li><a href="#operator-path">贯穿对照：一次融合注意力在五个栈里的落点</a><ol>
 <li><a href="#online-softmax">先把算法的代价算清楚</a></li>
@@ -215,6 +228,56 @@
 <td>编译期／运行期</td>
 <td>决定信息在哪一阶段已知；多数代价由此划分</td>
 </tr>
+<tr>
+<td>graph-level IR / loop-level IR</td>
+<td>图级 IR／循环级 IR</td>
+<td>前者以算子为结点，后者以循环与缓冲为结点</td>
+</tr>
+<tr>
+<td>MLIR</td>
+<td>MLIR</td>
+<td>提供方言机制、pass 管理器与转换框架的基础设施，本身不规定 IR 层次</td>
+</tr>
+<tr>
+<td>FX graph</td>
+<td>FX 图</td>
+<td>PyTorch 捕获产物的表示形式，由 Python 对象构成</td>
+</tr>
+<tr>
+<td>ANF / FuncGraph</td>
+<td>ANF 函数图</td>
+<td>MindSpore 的图表示，以函数与规范化赋值形式组织</td>
+</tr>
+<tr>
+<td>MindIR</td>
+<td>MindIR</td>
+<td>MindSpore 可序列化的图格式</td>
+</tr>
+<tr>
+<td>graph break</td>
+<td>图断裂</td>
+<td>捕获失败处结束当前图，其余部分按解释执行</td>
+</tr>
+<tr>
+<td>partition</td>
+<td>分区</td>
+<td>把图切成可独立处理的部分，边界两侧各自优化</td>
+</tr>
+<tr>
+<td>rematerialization</td>
+<td>重算</td>
+<td>反向重新计算前向中间值，用计算换内存</td>
+</tr>
+<tr>
+<td>liveness</td>
+<td>活跃性</td>
+<td>中间值从产生到使用之间是否存活，决定内存可否复用</td>
+</tr>
+<tr>
+<td>kernel generator</td>
+<td>内核生成器</td>
+<td>在图之外把算子变成设备内核的组件，例如 AKG</td>
+</tr>
 </tbody>
 </table></div>
 </section>
@@ -243,7 +306,7 @@
 <li><strong>动态信息如何处理。</strong> 形状变化时是重新编译、走通用路径，还是在入口处判断后选择。</li>
 <li><strong>代价由什么承担。</strong> 编译时间、模板展开深度、搜索开销、需要的静态知识，都要与运行期收益一起计入。</li>
 </ol>
-<p>后续各章按这组问题展开，最后一章把同一条算子路径放进五个栈，看它在每一处被改写成了什么。</p>
+<p>后续各章按这组问题展开：先逐栈讲清各自的机制，再用两章横向比较表示与计算图技术，然后把同一条算子路径放进五个栈，看它在每一处被改写成了什么。</p>
 </section>
 
 <section id="sec-02-tvm">
@@ -658,9 +721,253 @@ outputs of graph A are still live by the time graph B is run, and make
 <p>这一节的证据边界很清楚：能读到的是接口、清单与开关，读不到的是图编译器与算子编译器的内部实现。下一节转向昇腾另一条开源路径——MindSpore，它把图编译的一部分放进了开源仓库。</p>
 </section>
 
+<section id="sec-06a-ir">
+<h1 id="ir">中间表示：三种组织方式与 MLIR 的位置</h1>
+<p>前面六章各自讲清了一个栈长什么样。要判断它们为什么长成这样，得看一个更基本的东西：程序在编译期间以什么形式存在。这个形式决定了编译器能看见什么、能改什么、在哪一步报错，也决定了外部的人能不能插进去加一层。</p>
+<p>五个栈在这件事上分成三类：把 IR 交给 MLIR 这一类公共基础设施，自己造一套 IR，以及让宿主语言的类型系统或输出源码来承担这个角色。</p>
+<h2 id="ir-what-it-carries">IR 要承载什么</h2>
+<p>把一段计算交给设备执行，中间表示要装下五样东西：<strong>类型与形状</strong>（哪些维是常量、哪些是运行期符号）、<strong>作用域</strong>（这段代码属于线程、线程块还是整个设备）、<strong>内存层次</strong>（读写落在寄存器、共享内存还是全局内存）、<strong>变换能力</strong>（别人能不能写一条 pass 处理它）、以及<strong>可打印性</strong>（出问题时能不能读出来）。</p>
+<p>前三样决定编译器的能力边界。第四样决定生态：一个只能由核心团队修改的 IR，与一个允许外部注册操作、类型与变换的 IR，长期演化方式完全不同。第五样决定工程成本——能打印的 IR 让性能问题可以定位到具体一层，不能打印的只能靠经验猜。</p>
+<p>同一个注意力计算在本书五条路里落到 IR 上的形态并不相同：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>栈</th>
+<th>编译期的主要表示</th>
+<th>层次</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TVM</td>
+<td><code>IRModule</code> 中的 <code>relax::Function</code> 与 <code>tirx::PrimFunc</code></td>
+<td>图级 + 张量级（两套张量层并存，见第二章）</td>
+</tr>
+<tr>
+<td>Triton</td>
+<td>TTIR → TTGIR → LLIR，对应 <code>Triton</code>／<code>TritonGPU</code>／<code>Gluon</code> 等方言</td>
+<td>块级程序 → 目标代码</td>
+</tr>
+<tr>
+<td>CuTe（C++）</td>
+<td>类型本身：<code>Layout</code>、<code>Tile</code>、原子特化</td>
+<td>编译期求值，无运行期 IR</td>
+</tr>
+<tr>
+<td>CuTe（DSL）</td>
+<td>Python 程序 → MLIR</td>
+<td>块级程序 → 目标代码</td>
+</tr>
+<tr>
+<td>PyTorch</td>
+<td>FX 图（Python 对象）→ Inductor 的循环级 IR → 生成的 Triton／C++ 源码</td>
+<td>图级 + 循环级</td>
+</tr>
+<tr>
+<td>昇腾</td>
+<td>MindSpore 的 ANF／<code>FuncGraph</code> 与 MindIR；设备侧另有 GE 的图 IR</td>
+<td>图级（开源部分）+ 设备编译器内部</td>
+</tr>
+</tbody>
+</table></div>
+<p>这张表里最值得注意的是"哪一层被写在纸面上"。TVM 与 MindSpore 的图会序列化成可读的产物（MindIR 有自己的 <code>core/load_mindir/</code> 与 <code>core/proto/</code>）；Triton 的每级降级都能 <code>dump</code> 出来；CuTe 的 C++ 那一路在编译失败时给出的是一段模板实例化信息，能读但不友好。</p>
+<p>可打印性不是美观问题。本书后面的所有对照都依赖一件事——出问题时能定位到哪一层。这也解释了为什么本书在每一处都给出仓库相对路径与真实行范围：IR 的价值有一半在于它能被指出来。</p>
+<h2 id="ir-mlir">MLIR 在五个栈里的真实位置</h2>
+<p>MLIR 是一套用来造 IR 的基础设施：它提供方言机制（一套可扩展的操作与类型定义）、pass 管理器、以及把一种方言转换到另一种方言的框架。Triton 的每个方言都用自己的 TableGen 文件定义属性与类型（<code>include/triton/Dialect/TritonGPU/IR/TritonGPUAttrDefs.td</code>、<code>TritonGPUTypes.td</code> 等），转换代码单独放在 <code>lib/Conversion/</code> 下——这正是使用 MLIR 的典型形态：<strong>新的一层用新方言表达，层与层之间用转换模式连接</strong>。</p>
+<p>按仓库里的提及规模看，五个栈与 MLIR 的关系差别很大：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>栈</th>
+<th>源码中提及 MLIR 的文件数</th>
+<th>它把 MLIR 放在哪里</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Triton</td>
+<td>302（<code>lib/</code> 与 <code>include/</code>）</td>
+<td>编译主干的实现语言</td>
+</tr>
+<tr>
+<td>CuTe DSL</td>
+<td>149（<code>python/CuTeDSL/</code>）</td>
+<td>第二套前端与编译入口</td>
+</tr>
+<tr>
+<td>PyTorch／Inductor</td>
+<td>17（<code>torch/_inductor/</code>）</td>
+<td>若干可选后端</td>
+</tr>
+<tr>
+<td>TVM</td>
+<td>3（<code>src/</code> 与 <code>include/</code>）</td>
+<td>借用来的算法与设计</td>
+</tr>
+<tr>
+<td>MindSpore</td>
+<td>1（<code>mindspore/ccsrc/</code>）</td>
+<td>可选的内核生成器之一</td>
+</tr>
+</tbody>
+</table></div>
+<p>Triton 这一栏需要配一句说明：LLVM／MLIR 不在它的仓库里，而是一个钉住版本的外部依赖。<code>cmake/llvm-info.json</code> 记着一个固定提交 <code>llvm_hash: b010a18d2b648cab83c83967ff26b8fde11acdc6</code>，并为各平台列出预编译包的 sha256（<code>almalinux-x64</code>、<code>almalinux-arm64</code> 等），另有 <code>FindLLVM.cmake</code> 与 <code>llvm-build-info.json</code>。接受 MLIR 的方言机制，同时也接受了它的版本节奏：换一次 MLIR 版本意味着跟进整套 API。</p>
+<p>CuTe 的 Python 前端同样建在 MLIR 上，但用法更接近"自己拿一个编译器"：<code>python/CuTeDSL/cutlass/base_dsl/compiler.py:169</code> 的构造函数接收一个 pass manager 与一个执行引擎，编译入口分 <code>compile</code>（<code>:221</code>）与 <code>compile_and_jit</code>（<code>:326</code>）两条。</p>
+<p>PyTorch 那一栏最能说明"提及不等于依赖"。Inductor 里提到 MLIR 的 17 个文件全部集中在带 <code>cutedsl</code>／<code>flydsl</code> 的路径与 <code>codegen/pallas.py</code> 上——也就是 CuTe DSL、FlyDSL 与 Pallas 三个可选后端（例如 <code>codegen/cutedsl/cutedsl_kernel.py</code>、<code>codegen/flydsl/flydsl_utils.py</code>、<code>runtime/cutedsl_cache.py</code>）。主干编译链（FX 图 → 循环级 IR → 生成的 Triton／C++ 源码）与 MLIR 无关。MLIR 因此是从<strong>外部后端</strong>进入 PyTorch 的，而不是从主干。</p>
+<p>一个小结：MLIR 提供的是公共的可插层语法基础设施，它自己不规定任何一层该长什么样。用它换来的是一条可以在中间任意加层的管线，付出的代价是跟随它演化的成本，以及把编译期的一部分控制权交给这套框架的规则。</p>
+<h2 id="ir-own">自建 IR：借算法，不借地基</h2>
+<p>TVM 在源码里提到 MLIR 的地方只有三处，而这三处恰好说明了它借用什么、不借用什么。第一处是 pass 基础设施的设计来源：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/tvm · 2bb1a553be19 · include/tvm/ir/instrument.h:23</span>
+<span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-w"> </span><span class="syn-n">This</span><span class="syn-w"> </span><span class="syn-n">file</span><span class="syn-w"> </span><span class="syn-n">introduces</span><span class="syn-w"> </span><span class="syn-n">a</span><span class="syn-w"> </span><span class="syn-n">pass</span><span class="syn-w"> </span><span class="syn-n">instrument</span><span class="syn-w"> </span><span class="syn-n">infrastructure</span><span class="syn-p">,</span><span class="syn-w"> </span><span class="syn-n">inspired</span><span class="syn-w"> </span><span class="syn-n">by</span><span class="syn-w"> </span><span class="syn-n">LLVM</span><span class="syn-w"> </span><span class="syn-k">and</span><span class="syn-w"> </span><span class="syn-n">MLIR</span><span class="syn-p">.</span>
+</code></pre>
+<p>后两处在整数集求解上，代码直接标出了算法来源与可切换的实现：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/tvm · 2bb1a553be19 · src/sym/presburger_set.h:22</span>
+<span class="syn-w"> </span><span class="syn-o">*</span><span class="syn-w"> </span><span class="syn-err">\</span><span class="syn-n">brief</span><span class="syn-w"> </span><span class="syn-n">Integer</span><span class="syn-w"> </span><span class="syn-n">set</span><span class="syn-w"> </span><span class="syn-n">based</span><span class="syn-w"> </span><span class="syn-n">on</span><span class="syn-w"> </span><span class="syn-n">MLIR</span><span class="syn-w"> </span><span class="syn-n">Presburger</span><span class="syn-w"> </span><span class="syn-n">set</span>
+</code></pre>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/tvm · 2bb1a553be19 · src/sym/presburger_set.cc:46</span>
+<span class="syn-cp">#if defined(TVM_MLIR_VERSION) &amp;&amp; TVM_MLIR_VERSION &gt;= 150</span>
+</code></pre>
+<p>把这三处放在一起，TVM 的姿态就很清楚：<strong>设计与算法可以借鉴，IR 本体与基础设施自己保有</strong>。它自己实现 pass 管理（<code>include/tvm/ir/instrument.h</code> 所在的 <code>tvm/ir</code>）、自己实现整数集求解（<code>src/sym/</code>），并在编译开关允许时把后者换成 MLIR 的实现。收益是语义可以按需要设计——<code>tirx</code> 里的 tile 原语、执行作用域与 <code>RegionStmt</code> 都是一般 IR 不预设的东西；代价是调试器、FFI、pass 基础设施这一整套都要自己维护。</p>
+<p>这一点在依赖清单上能看出来：<code>3rdparty/</code> 下除第三方算子库（<code>cutlass</code>、<code>libflash_attn</code>、<code>tensorrt_llm</code>）之外，还有 <code>tvm-ffi</code>——把跨语言调用层单独拆出来维护。而"不用 MLIR 做 IR"并不妨碍接它的生态：<code>python/tvm/relax/frontend/</code> 下的五个前端里就有 <code>stablehlo</code>，也就是 MLIR 生态的交换格式，另外四个是 <code>nn</code>、<code>onnx</code>、<code>tflite</code> 与 <code>torch</code>。图可以从别的格式翻译进来，不必经由同一种 IR。</p>
+<p>MindSpore 的情况更朴素：它有一套自己的图表示（<code>mindspore/core/ir/anf.cc</code> 与 <code>func_graph.cc</code>，ANF 形式的函数图）与可序列化的格式（<code>mindspore/core/load_mindir/</code> 与 <code>mindspore/core/proto/</code>）。整个 <code>ccsrc</code> 里只有一处提到 MLIR，而且那处把 MLIR 列成了一个可选项：</p>
+<pre><code class="language-cpp"><span class="syn-c1">// 编者定位：repos/mindspore · c91ca93fd5b37e4f61b0db00994573da86127c5e · mindspore/ccsrc/include/runtime/hardware_abstract/kernel_base/graph_fusion/graph_kernel_flags.h:228-232</span>
+<span class="syn-w">  </span><span class="syn-cm">/**</span>
+<span class="syn-cm">   * Kernel Generator.</span>
+<span class="syn-cm">   * The generator used to compile kernels, AKG or MLIR or DVM.</span>
+<span class="syn-cm">   */</span>
+<span class="syn-w">  </span><span class="syn-n">std</span><span class="syn-o">::</span><span class="syn-n">string</span><span class="syn-w"> </span><span class="syn-n">kernel_generator</span><span class="syn-p">{</span><span class="syn-s">"AKG"</span><span class="syn-p">};</span>
+</code></pre>
+<p>字段名是 <code>kernel_generator</code>，默认值 <code>"AKG"</code>，同行的注释列出另外两个候选 MLIR 与 DVM。也就是说，在这一栈里 MLIR 不是图的 IR，而是<strong>内核生成后端的候选之一</strong>：图由 MindSpore 自己的表示承载，走到设备侧时再选择由谁来把它变成内核。这与第二章看到的昇腾边界一致——前端与选择在开源仓里，内核生成在仓库之外，而生成器的种类是可以配置的。</p>
+<h2 id="ir-source-as-output">停在循环级，交出源码</h2>
+<p>Inductor 有 IR，但它停在循环这一层。<code>torch/_inductor/ir.py</code> 有一万多行，定义的是循环级结点：<code>IRNode</code>（<code>:622</code>）、<code>Operation</code>（<code>:989</code>）、<code>Loops</code>（<code>:1090</code>）、<code>Pointwise</code>（<code>:1252</code>）、<code>Scatter</code>（<code>:1293</code>）、<code>Reduction</code>（<code>:1431</code>），归约之下还有 <code>MultiOutputReduction</code>（<code>:2437</code>）、<code>OnlineSoftmaxReduction</code>（<code>:2609</code>）与 <code>WelfordReduction</code>（<code>:2791</code>）。</p>
+<p><code>OnlineSoftmaxReduction</code> 这个结点名值得停一下：第七章那个"边看边修正估计"的递推，在这条栈里被做成了一类一等结点。算法层面的一个数值技巧，最终以 IR 结点类型的形式固定下来，这是"IR 决定能看见什么"的直接例子——编译器认得出在线 softmax，才谈得上为它专门安排计算与内存。</p>
+<p>链条的下一跳不是机器码，而是源码：<code>torch/_inductor/codegen/triton.py</code> 与 <code>codegen/cpp.py</code> 把循环级 IR 变成 Triton 内核或 C++ 循环，再交给下游编译器。寄存器分配、指令选择、调度这些工作因此都不用自己做。</p>
+<p>这条路换来两类成本。一类是表达受限：生成的 Triton 源码能表达的东西受 Triton 语言与它的旋钮限制，想用某个指令而 Triton 没暴露，就只能等上游或换后端。另一类是缓存要管两级——图级缓存按图结构与守卫哈希（第五章的 <code>FxGraphCache</code>），内核级缓存由下游的编译缓存承担，两级的键与失效条件各自独立。第五章里"一次编译、两次编译"的说法指的是同一件事：图变成源码，源码再变成二进制。</p>
+<p>把 Inductor 与 CuTe 并排放，可以看到两种"把机器码交出去"的姿态。CuTe 的中间表示是 C++ 类型，求值发生在编译期，检查也发生在编译期；Inductor 的中间表示是运行期构造的 Python 对象，检查发生在构造过程与后续的守卫里。前者把错误推向编译期，后者把灵活性留在运行期——两种取向对应两类用户：库作者与框架用户。</p>
+<h2 id="ir-comparison">对照：IR 的选择决定了谁能改它</h2>
+<p>把三类组织方式并排放在一起：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>载体</th>
+<th>扩展方式</th>
+<th>报错位置</th>
+<th>跟随上游的成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MLIR 多方言</td>
+<td>方言定义（TableGen）＋转换模式</td>
+<td>新增方言与转换，不修改上游</td>
+<td>转换合法性检查失败时</td>
+<td>跟随 MLIR 版本（Triton 为此钉住一个提交）</td>
+</tr>
+<tr>
+<td>自建 IR</td>
+<td>自有 IRModule／函数图</td>
+<td>改写核心 IR 定义并提交到项目</td>
+<td>pass 的前提检查</td>
+<td>无外部版本压力，工具链自建</td>
+</tr>
+<tr>
+<td>类型即 IR</td>
+<td>宿主语言类型</td>
+<td>新增特化与静态条件</td>
+<td>编译期（模板实例化或 <code>static_assert</code>）</td>
+<td>跟随宿主编译器与指令集</td>
+</tr>
+<tr>
+<td>循环级 IR ＋源码输出</td>
+<td>运行期构造的对象图</td>
+<td>新增 lowerings、后端与模板</td>
+<td>构造过程与守卫</td>
+<td>跟随下游语言（Triton／C++）</td>
+</tr>
+</tbody>
+</table></div>
+<p>每行对应一种"谁能改它"的答案。自建 IR 把扩展权留在核心团队手里，外部只能提 pass 或等新特性；MLIR 把扩展权下放给用方言的项目，代价是所有人跟着同一条版本线走；类型即 IR 把检查权交给编译器、把表达权交给使用者；循环级 IR 加源码输出则把后端实现的负担转移给了下游——包括下游的语言表现力。</p>
+<p>判断哪一种更合适，可以用三个问题落地。<strong>谁需要加一层？</strong> 只有核心团队时，自建 IR 更直接；有多个团队各自带来硬件或 DSL 时，方言机制省下的是协调成本。<strong>错误应该在哪一步出现？</strong> 训练任务希望尽早失败，服务希望带病运行，两者的答案不同。<strong>上游什么时候动？</strong> 依赖一个活跃的编译框架意味着每次升级都要跟进，钉住版本则意味着自行承担安全与性能修复的移植工作。</p>
+<p>这三个问题在本书后面的章节里还会以别的形式出现：第七章问"同一个算子被改写成什么"，第八章问"退化之后剩下什么"。IR 的形态决定了这两问的答案边界——能表达才谈得上改写，能检查才谈得上退化时保持正确。</p>
+</section>
+
+<section id="sec-06b-graph">
+<h1 id="graph">计算图：捕获、改写、分区与两级调度</h1>
+<p>深度学习编译与通用编译最大的差别在图这一层：通用编译器的输入已经是控制流与数据流，而模型的输入是一张算子图，图的边界、形状与中间结果的存活期都可以整体改写。前面几章各自展示了这套技术的一角，这一章把它拆成四件事——图从哪里来、怎么被改写、怎么被切开，以及图级与循环级两个调度层如何分工。</p>
+<h2 id="graph-capture">图从哪里来：捕获的四种形态</h2>
+<p><strong>一、字节码改写。</strong> PyTorch 的 Dynamo 在 Python 帧的执行层截获代码，把字节码解释成图（<code>torch/_dynamo/convert_frame.py:2562</code> 起，具体工作在 <code>symbolic_convert.py:1489</code> 的 <code>InstructionTranslatorBase</code> 与 <code>:5758</code> 的实现里）。这条路的代价全部集中在"假设"上：图是按某一次执行记录下来的，记录时成立的条件必须被守卫住。守卫模块的文档字符串把这件事说得很直接——它检测程序状态、张量属性或控制流的变化，从而决定什么时候必须重新编译（<code>torch/_dynamo/guards.py:13-15</code>）。重新编译有上限（<code>torch/_dynamo/config.py:121</code> 的 <code>recompile_limit = 8</code> 与 <code>:124</code> 的 <code>accumulated_recompile_limit = 256</code>），到顶之后停止为该代码生成新版本。</p>
+<p><strong>二、JIT 前端管线。</strong> MindSpore 把捕获做成了一条正式的编译管线：<code>mindspore/ccsrc/frontend/jit/ps/</code> 下 <code>action.cc</code>、<code>pass.cc</code>、<code>pipeline.cc</code> 对应动作、变换与管线三层，无法编译的构造则被替换成执行 Python 的结点（<code>fallback.h:40-44</code> 的 <code>CreatePyExecuteCNode</code>）。与 Dynamo 的差别在于"假设"的表达方式：Dynamo 用守卫在运行期检查，MindSpore 把不能编译的部分留在图内，让它在运行期照常执行。</p>
+<p><strong>三、显式导出。</strong> 把捕获从执行过程里剥离出来，单独得到一个可序列化的图：PyTorch 一侧是 <code>torch/export/</code>（该包里提供把模块导出为图的能力），MindSpore 一侧是 MindIR 及其加载器（<code>mindspore/core/load_mindir/</code>、<code>mindspore/core/proto/</code>）。离线导出让图可以被保存、检查与推迟编译，代价是导出之后不再有原来的运行时可供回退：导出时覆盖不到的东西，之后也不会出现。</p>
+<p><strong>四、前端导入。</strong> TVM 的图是翻译来的：<code>python/tvm/relax/frontend/</code> 下有 <code>nn</code>、<code>onnx</code>、<code>stablehlo</code>、<code>tflite</code> 与 <code>torch</code> 五个入口。这条路没有"捕获"问题，取而代之的是翻译覆盖率问题——源格式里的一种写法若没有对应表达，就要在导入阶段决定是报错还是近似。</p>
+<p>四种形态背后有一个共同点：<strong>图的边界就是编译器的边界</strong>。落在边界内的一切可以被整体优化，落在边界外的只能按原样执行。</p>
+<p>Triton 与 CuTe 在这个坐标里处在端点：它们没有图层。Triton 的 <code>lib/</code> 下只有 <code>Analysis</code>、<code>Conversion</code>、<code>Dialect</code>、<code>Target</code>、<code>Tools</code> 五个目录，编译单位是一段块级程序；CuTe 编译的是模板实例化。没有图就意味着没有"记录下来的执行"，也就没有守卫与图断裂这两种负担——代价是算子之间的融合与内存复用也一并交给了使用者。</p>
+<h2 id="graph-rewrite">改写的两个方向与两种尺度</h2>
+<p><strong>模式替换</strong>是图级改写里最常见的一种，写法是把"什么样的子图"与"换成什么"成对写出。Inductor 的注意力融合就是这个形态：<code>torch/_inductor/fx_passes/fuse_attention.py</code> 里 <code>_sfdp_pattern_1</code>（<code>:54</code>）对 <code>_sfdp_replacement_1</code>（<code>:63</code>），<code>_sfdp_pattern_2</code>（<code>:76</code>）对 <code>_sfdp_replacement_2</code>（<code>:85</code>），依此类推覆盖带掩码与 dropout 的变体。同类 pass 在同一目录里成组出现：<code>group_batch_fusion.py</code>、<code>mkldnn_fusion.py</code>、<code>pad_mm.py</code>、<code>decompose_mem_bound_mm.py</code>、<code>freezing_patterns.py</code>、<code>misc_patterns.py</code>。</p>
+<p>改写不只朝"合并"方向走。MindSpore 在 <code>mindspore/ccsrc/backend/common/pass/</code> 下把 <code>ir_fusion</code> 与 <code>ir_fission</code> 并列——<strong>分裂</strong>与融合同样是一等改写。分裂的用处在于把一个大算子拆成若干个彼此独立、可分别调度或可并行的小算子。判断该往哪个方向走，取决于后端的执行单元粒度：能把更多工作塞进一个内核时融合有利，寄存器或共享内存吃紧时分裂有利。</p>
+<p><strong>整体变换</strong>是另一种尺度，它依赖图的全局性质（数据流形态、缓冲生命周期、依赖关系），不是局部能判定的。TVM 的 relax 层有整套这类 pass：<code>fuse_ops.cc</code> 与 <code>fuse_tir.cc</code>（算子融合）、<code>merge_composite_functions.cc</code>（把标记过的子图合并成外部调用）、<code>annotate_tir_op_pattern.cc</code>（打标记，供上一条使用）、<code>convert_dataflow.cc</code>（把图转成数据流形式）、<code>lambda_lift.cc</code>（把嵌套函数提到顶层）、<code>normalize.cc</code>、<code>fold_constant.cc</code> 与 <code>eliminate_common_subexpr.cc</code>（常量折叠与公共子表达式消除）、<code>convert_layout.cc</code> 与 <code>static_plan_block_memory.cc</code>（布局转换与静态内存规划）。</p>
+<p>尺度不同，失败方式也不同：模式替换匹配不上就退回原图，而整体变换一旦把某个不变量改坏，问题会推迟到生成代码时才暴露。这解释了为什么这类 pass 往往附带强烈的静态检查——TVM 的调度原语如此（第二章），<code>tirx</code> 的降低管线也如此。</p>
+<p>还有一处变化值得单独指出：<strong>图级决策开始需要代价模型</strong>。Inductor 的 <code>fx_passes/</code> 目录里直接放着 <code>memory_estimator.py</code> 与 <code>node_runtime_estimation.py</code>，另有 <code>bucketing.py</code> 与 <code>overlap_scheduling.py</code> 一类的排布 pass；MindSpore 的图融合带一个 <code>parallel_cost_model.cc</code>（<code>mindspore/ccsrc/backend/ms_backend/graph_fusion/</code>）。改写从"等价的代数化简"变成了"在若干合法方案里挑一个"，判断依据是估计出来的内存与时间，而不是语法结构。</p>
+<h2 id="graph-partition">分区：把图切成可独立处理的部分</h2>
+<p>分区决定"哪里是边界"。边界一旦定下，两侧就可以各自独立优化：一侧交给别的编译器、别的硬件，或者干脆不编译。</p>
+<p><strong>交给外部实现。</strong> TVM 的做法是先标记再合并：<code>annotate_tir_op_pattern.cc</code> 给符合某个模式的子图打上标记，<code>merge_composite_functions.cc</code> 把打了标记的子图合成一次外部调用（这两个文件都在 <code>src/relax/transform/</code>，第二章讲到的 BYOC 由此落地）。昇腾侧的选择过程本质上也是一次分区：<code>kernel_select_ascend.cc</code> 决定每个结点落到哪个内核（第 06 章），同一个图因此可以被切成若干由不同实现承接的片段。</p>
+<p><strong>训练图的前后向分区。</strong> AOTAutograd 把前向与反向放在一张联合图上切开，切法决定了哪些中间值需要保留、哪些由反向重算。这一步写在 <code>torch/_functorch/partitioners.py:4178</code> 的 <code>min_cut_rematerialization_partition</code>，文档字符串说明它是"让反向重算前向"，并把它称作内存带宽与计算量之间的权衡（同文件 <code>:4186-4193</code>）。分区结果直接决定峰值显存。</p>
+<p><strong>失效时的分区。</strong> Dynamo 遇到无法记录的语义会结束当前图并继续执行，MindSpore 把无法编译的构造换成执行 Python 的结点（<code>fallback.h:40-44</code>）。两者在语义上都是分区：把图切开，其中一段不走编译。这类分区与优化无关，只为了让程序继续正确运行，因此它在源码里留下的痕迹是守卫与回退结点，而不是调度决策。</p>
+<p><strong>并行与通信的分区。</strong> 图里的依赖关系是这类优化的前提。MindSpore 在 <code>mindspore/ccsrc/frontend/parallel/</code> 下处理并行策略与切分，注意力一类算子还有专门的策略信息（<code>ops_info/flash_attention_score_info.cc</code> 一带）；PyTorch 在 <code>torch/_inductor/fx_passes/</code> 下有 <code>ddp_fusion.py</code>、<code>bucketing.py</code>、<code>overlap_scheduling.py</code>、<code>overlap_preserving_bucketer.py</code>，把通信与计算按依赖关系编排重叠。这些 pass 都需要完整的图才能做：谁依赖谁、哪些通信可以互相等待拖动，都不是局部信息。</p>
+<p>四类分区共享一条代价：<strong>跨边界的中间值必须具体化</strong>。落到边界之外的张量要在全局内存里真的存在，边界之内的可以只活在片上存储里。这条代价在第七章那个例子上最清楚——把整个注意力放进一个内核，边界外只有输入与输出；一旦把某一步切出去，那一步的输入输出都要在全局内存里往返一次。分区的收益与代价因此是同一件事的两面：边界让两侧可以独立优化，也让跨越边界的每一份数据都要付一次搬运。</p>
+<h2 id="graph-two-levels">两级调度与它们之间的接口</h2>
+<p>图级与循环级要回答的问题不同。图级回答"哪些算子合成一个内核、哪些中间值必须留下、每个内核多大多小"；循环级回答"这个内核里的循环怎么排、数据怎么搬、线程怎么分"。同一个模型上，两级都会做出影响性能的决定，而它们的接口决定了哪些决定可以被对方推翻。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>栈</th>
+<th>图级</th>
+<th>循环级</th>
+<th>两级之间的接口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TVM</td>
+<td>relax 的 <code>fuse_ops</code>／<code>fuse_tir</code> 与布局、内存规划</td>
+<td>张量层调度（<code>s_tir</code> 的调度原语）与 <code>tirx</code> 降低</td>
+<td><code>R.call_tir</code> 等调用结点</td>
+</tr>
+<tr>
+<td>PyTorch</td>
+<td><code>torch/_inductor/scheduler.py</code> 的融合判定</td>
+<td>生成内核的编译与调优</td>
+<td>生成的 Triton／C++ 源码</td>
+</tr>
+<tr>
+<td>昇腾（MindSpore）</td>
+<td>图级融合与内核选择（开源侧）</td>
+<td>内核生成（在 CANN 内）</td>
+<td>融合结点与内核选择结果</td>
+</tr>
+<tr>
+<td>Triton</td>
+<td>无</td>
+<td>使用者写的块级程序与其后的固定管线</td>
+<td>——</td>
+</tr>
+<tr>
+<td>CuTe</td>
+<td>无</td>
+<td>模板实例化选择的原子与平铺</td>
+<td>——</td>
+</tr>
+</tbody>
+</table></div>
+<p>后两行的空栏是结构性的：Triton 与 CuTe 的使用者写的本来就是内核，没有东西需要从图这一层传下来。这也是它们的调优空间只有寥寥几个旋钮（第三章）而 TVM 有一整套调度原语的原因——少了一层，可调的东西就集中在一处。</p>
+<p><strong>内存与生命周期横跨两级</strong>，这是最容易出问题的地方。TVM 在 relax 层做静态内存规划（<code>static_plan_block_memory.cc</code>），MindSpore 在图融合里做张量活跃性压缩（<code>graph_fusion/compact_tensor_liveness.cc</code>），PyTorch 用 CUDA 图跟踪跨图的活跃性（第五章的 <code>cudagraph_trees.py</code>），而 CuTe 把共享内存分配直接交给使用者在源码里写出来。四者都在回答同一个问题：某个中间值从产生到使用之间，能不能一直留在片上。</p>
+<p>两级之间一旦理解不一致，代价就落在全局内存上。图级以为某个中间值会被保留，循环级却把它算在寄存器里重算一遍；或者循环级需要一块缓冲，图级没有为它作预算。第七章那个例子里，<code>acc</code> 每遇到新的键块就要重标定一次，而它必须一直活在寄存器或共享内存里——这个要求在 Triton 里由使用者写出来（<code>acc = acc * alpha[:, None]</code>），在 Inductor 里则由 <code>OnlineSoftmaxReduction</code> 这个 IR 结点带下来（第 06a 章）。同一件事，一级交给源码，另一级交给结点类型。</p>
+<p>因此看一个栈的两级分工，可以只问两个问题：<strong>图级的信息有多完整</strong>（形状、依赖、活跃性是否都在图里可查），以及<strong>循环级能在多大程度上推翻图级的假设</strong>（是否需要重算、是否需要额外缓冲、是否能改布局）。这两个问题的答案决定了这套栈在实际负载里的上限与调试成本。</p>
+</section>
+
 <section id="sec-07-operator-path">
 <h1 id="operator-path">贯穿对照：一次融合注意力在五个栈里的落点</h1>
-<p>前六章按栈展开，这一章换一个方向：拿同一个算子走一遍，看它在每一处被改写成什么、谁做的决定、代价从哪里来。选注意力是因为它同时压住前面讨论过的每一种机制——两次矩阵乘、一次跨行归约、随序列长度平方增长的空间、以及一个只有在分块之后才成立的数值递推。五个栈对它的处理方式差异明显，差异的位置恰好就是各栈的自定义边界。</p>
+<p>按栈展开的六章之后，第 06a 与 06b 两章横向比较了表示与图技术。这一章再换一个方向：拿同一个算子走一遍，看它在每一处被改写成什么、谁做的决定、代价从哪里来。选注意力是因为它同时压住前面讨论过的每一种机制——两次矩阵乘、一次跨行归约、随序列长度平方增长的空间、以及一个只有在分块之后才成立的数值递推。五个栈对它的处理方式差异明显，差异的位置恰好就是各栈的自定义边界。</p>
 <h2 id="online-softmax">先把算法的代价算清楚</h2>
 <p>标准写法里，注意力先算 <code>S = QK^T</code>，再对每一行做 softmax 得到 <code>P</code>，最后算 <code>O = PV</code>。假定序列长度 <code>n = 4096</code>、头维度 <code>d = 128</code>、数值用 16 位浮点，那么 <code>S</code> 是一个 4096×4096 的矩阵：<code>4096² = 16,777,216</code> 个元素，每个 2 字节，合计 32 MiB。这只是单个头、单个批次中的一份中间结果，而它存在的意义只是被立刻做一次归约。</p>
 <p>融合写法把 <code>S</code> 拆成块，边算边归约，不落盘。对每一行维护三个量：当前最大分值 <code>m_i</code>、指数和 <code>l_i</code>、以及未归一化的输出 <code>acc</code>。处理第 <code>j</code> 个键块时依次做三件事：</p>
