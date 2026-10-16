@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" role="img" aria-labelledby="title desc">
+<title id="title">减少移动的四类手段与代价</title>
+<desc id="desc">量化、稀疏、低秩与无损压缩各自减少的字节数与新增开销。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="640" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">减少移动的四类手段与代价</text>
+<rect x="40" y="90" width="330" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="120.0" font-size="22">量化</text>
+<text x="54" y="152.0" font-size="22">字节 4→2→1→0.5</text>
+<rect x="400" y="90" width="460" height="80" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="414" y="136.0" font-size="22">更宽累加器、缩放因子</text>
+<rect x="40" y="190" width="330" height="80" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="54" y="220.0" font-size="22">结构化稀疏 2:4</text>
+<text x="54" y="252.0" font-size="22">4b/(2b+8)</text>
+<rect x="400" y="190" width="460" height="80" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="414" y="236.0" font-size="22">索引元数据；4 位时收益归零</text>
+<rect x="40" y="290" width="330" height="80" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="54" y="320.0" font-size="22">低秩分解</text>
+<text x="54" y="352.0" font-size="22">d² → 2dr</text>
+<rect x="400" y="290" width="460" height="80" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="414" y="336.0" font-size="22">谱衰减决定可用性</text>
+<rect x="40" y="390" width="330" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="420.0" font-size="22">无损压缩</text>
+<text x="54" y="452.0" font-size="22">字节降至 1/r</text>
+<rect x="400" y="390" width="460" height="80" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="414" y="436.0" font-size="22">编解码时间；需 c &lt; 1−1/r</text>
+<text x="35" y="590" font-size="22">左侧为字节账，右侧为必须一起计入的代价；第 6.2 节说明这些收益不能直接相乘。</text>
+</svg>

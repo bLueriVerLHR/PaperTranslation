@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 650" role="img" aria-labelledby="title desc">
+<title id="title">算术强度与带宽上界</title>
+<desc id="desc">斜线为带宽上界，水平线为峰值算力，拐点为 371 FLOP/byte。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="650" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">算术强度与带宽上界</text>
+<line x1="120" y1="520" x2="860" y2="520" stroke="#2563a8" stroke-width="3"/>
+<line x1="120" y1="520" x2="120" y2="90" stroke="#2563a8" stroke-width="3"/>
+<text x="300" y="566" font-size="22">算术强度（FLOP/byte，对数）</text>
+<text x="126" y="70" font-size="22">性能上限（FLOP/s，对数）</text>
+<line x1="120" y1="407" x2="780" y2="100" stroke="#2563a8" stroke-width="3"/>
+<line x1="780" y1="100" x2="860" y2="100" stroke="#2563a8" stroke-width="3"/>
+<text x="430" y="300" font-size="22">带宽上界 I·B</text>
+<text x="790" y="78" font-size="22">峰值算力 P</text>
+<circle cx="780" cy="100" r="30" fill="#fff" stroke="#2563a8" stroke-width="2"/>
+<text x="768" y="107" font-size="20">拐点</text>
+<text x="650" y="140" font-size="20">371 FLOP/byte</text>
+<circle cx="163" cy="388" r="30" fill="#fff" stroke="#2563a8" stroke-width="2"/>
+<text x="145" y="395" font-size="20">逐元素</text>
+<text x="150" y="440" font-size="20">I≈0.17</text>
+<circle cx="640" cy="166" r="30" fill="#fff" stroke="#2563a8" stroke-width="2"/>
+<text x="616" y="173" font-size="20">GEMM</text>
+<text x="600" y="220" font-size="20">n=128 时 I=64</text>
+<text x="35" y="620" font-size="22">斜线左侧的任务被带宽锁住：提升算力不提高性能。</text>
+</svg>
