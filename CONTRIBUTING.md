@@ -13,7 +13,7 @@ separately authorized reader-only operation, not part of an ordinary code contri
 
 ## Make a focused change
 
-1. Initialize `. .\tools\dev-env.ps1`; use `$Python` and system TEMP for disposable state.
+1. Use `python tools/dev.py setup` and its `run -- ...` entry point; keep disposable state in TEMP.
 2. Create a focused branch such as `feature/readable-source`.
 3. Inspect the affected interface and complete relevant paragraphs. Keep one owner for each
    rule; link to existing specifications instead of copying them into another guide.
@@ -30,13 +30,18 @@ A batch within that task does not require repeating unchanged preparation for ev
 
 Run targeted tests while implementing; before committing pipeline changes run:
 
-```powershell
-& $Python -m ruff format .
-& $Python -m ruff check .
-& $Python -m pytest
+```text
+python tools/dev.py run -- -m ruff format .
+python tools/dev.py run -- -m ruff check .
+python tools/dev.py run -- -m pytest
 ```
 
 Inspect `git diff --check` and the staged paths. `git ls-files dist repos survey` must be empty.
+Tracked text uses LF through `.gitattributes`, including on Windows; binary assets are
+excluded from conversion. Keep source files UTF-8 and do not change global Git newline
+settings to work around a publication warning. `tools/publish_pages.py` handles its own TEMP
+checkout; PowerShell adapters are optional and do not own environment/publication logic.
+
 Use Conventional Commits, for example `feat(tools): add bounded source reading`.
 Describe the changed behavior, actual checks and remaining limitations in the pull request;
 keep run logs and screenshots under `$ProjectTemp/reports`, not in maintained documentation.

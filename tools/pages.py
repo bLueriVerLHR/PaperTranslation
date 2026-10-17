@@ -29,6 +29,7 @@ from tools import assets, build  # noqa: E402
 PRIVATE = {"work", "reference", "survey", ".git", "__pycache__"}
 ASSET_TYPES = {".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"}
 PUBLIC_TYPES = ASSET_TYPES | {".html", ".woff2", ".txt"}
+PUBLIC_TEXT_TYPES = frozenset({".html", ".css", ".js", ".json", ".txt", ".yml", ".svg"})
 
 
 class PageInfo(HTMLParser):
@@ -365,7 +366,7 @@ def export(dist: Path, out: Path, *, projects: set[str] | None = None) -> list[d
         text = re.sub(
             r"(<main\b[^>]*>)", lambda match, home=home: match.group(1) + home, text, count=1
         )
-        target.write_text(text, encoding="utf-8")
+        target.write_text(text, encoding="utf-8", newline="\n")
     if not entries:
         raise ValueError("no rendered pages found")
     # A single runtime tree serves every page, including nested legacy readers.
@@ -375,10 +376,10 @@ def export(dist: Path, out: Path, *, projects: set[str] | None = None) -> list[d
     workflow = out / ".github/workflows/pages.yml"
     workflow.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / ".github/workflows/pages.yml", workflow)
-    (out / "index.html").write_text(render_home(entries), encoding="utf-8")
+    (out / "index.html").write_text(render_home(entries), encoding="utf-8", newline="\n")
     # Fonts are added next by pages_fonts; a complete-site validation is mandatory afterwards.
     (out / "site-manifest.json").write_text(
-        json.dumps({"pages": entries}, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps({"pages": entries}, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n"
     )
     return entries
 
@@ -424,8 +425,43 @@ def export_update(dist: Path, out: Path, baseline: Path, projects: set[str]) -> 
     return entries
 
 
+def normalize_public_text(site: Path) -> list[str]:
+    """Canonicalize UTF-8 CRLF text in a validated TEMP snapshot, never binary assets.
+
+    Prepare every change before writing so invalid text or private/symlink paths cannot
+    leave a partially normalized snapshot. Git internals are always excluded.
+    """
+    if not site.is_absolute() or not site.resolve().is_relative_to(
+        Path(tempfile.gettempdir()).resolve()
+    ):
+        raise ValueError("text normalization requires an absolute system TEMP snapshot")
+    if errors := check_site(site):
+        raise ValueError("cannot normalize an invalid public snapshot: " + "; ".join(errors[:3]))
+    changes = []
+    for path in sorted(site.rglob("*")):
+        relative = path.relative_to(site)
+        if (
+            ".git" in relative.parts
+            or not path.is_file()
+            or path.suffix.lower() not in PUBLIC_TEXT_TYPES
+        ):
+            continue
+        data = path.read_bytes()
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ValueError(f"public text must be UTF-8: {relative}") from error
+        normalized = data.replace(b"\r\n", b"\n")
+        if normalized != data:
+            changes.append((path, normalized))
+    for path, data in changes:
+        path.write_bytes(data)
+    return [path.relative_to(site).as_posix() for path, _ in changes]
+
+
 def write_inventory(site: Path) -> None:
-    """Record exact public file hashes after fonts have been installed."""
+    """Normalize staged public text to LF before recording its exact file hashes."""
+    normalize_public_text(site)
     manifest = site / "site-manifest.json"
     data = json.loads(manifest.read_text(encoding="utf-8"))
     data["files"] = {

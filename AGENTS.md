@@ -32,22 +32,19 @@ Never delete the whole `dist/` tree as a cleanup step: it now contains source-of
 
 ## Environment and commands
 
-Python 3.12+ is required; dependency pins were verified with Python 3.14. In each new
-PowerShell session, initialize the external environment:
+Python 3.12+ is required; dependency pins were verified with Python 3.14. Use the portable
+`tools/dev.py` setup/runner so the venv and all development caches stay in system TEMP;
+commands are maintained in `README.md`. Run Python tools through
+`python tools/dev.py run -- ...`, without shell activation or workspace environments.
+The Windows compatibility helper `. .\tools\dev-env.ps1` still exposes `$Python` and
+`$ProjectTemp`; commands using that external `$Python` remain supported.
 
-```powershell
-. .\tools\dev-env.ps1                 # sets $Python and $ProjectTemp
-# First setup, or after system TEMP has been cleared:
-. .\tools\dev-env.ps1 -CreateVenv
-& $Python -m pip install -r requirements.txt
-```
-
-Always run commands with `$Python`. `$P` is a registered project slug, discovered from
-`dist/*/work/paper.json`. If several projects exist, `--paper` is required.
+`$P` denotes a registered project slug, discovered from `dist/*/work/paper.json`.
+If several projects exist, `--paper` is required.
 
 Routine commands belong to `README.md`; code contribution gates belong to
-`CONTRIBUTING.md`. Publication uses `tools/pages.py`, `tools/pages_fonts.py` and
-`tools/publish-pages.ps1`; remote/live verification uses `tools/pages_verify.py`.
+`CONTRIBUTING.md`. Publication uses `tools/pages.py`, `tools/pages_fonts.py` and the portable
+`tools/publish_pages.py` (`publish-pages.ps1` is a compatibility adapter); remote/live verification uses `tools/pages_verify.py`.
 
 ## Source and intermediate-data policy
 

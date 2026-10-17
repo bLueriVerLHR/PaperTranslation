@@ -25,6 +25,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Pages deployment compatibility
 
+- Add portable Python external-venv setup, pip installation and command execution without
+  shell activation. Move publication/verification orchestration into Python; keep Windows
+  shell adapters for compatibility instead of duplicating Git/environment logic.
+
+- Standardize tracked text on LF with repository attributes and preserve binary assets.
+  Normalize validated TEMP publication text before hashing, emit generated text as LF,
+  and isolate the publisher from global Windows autocrlf settings in its own checkout.
+
 - Treat SVG as XML text for Git CRLF/LF verification while rejecting substantive SVG
   changes and retaining byte-exact checks for raster images and WOFF2 fonts.
 

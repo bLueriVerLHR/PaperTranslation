@@ -196,7 +196,7 @@ def install_fonts(site: Path, cache: Path) -> None:
 }
 code, pre, kbd, samp { font-family: var(--font-mono); }
 """)
-    (out / "fonts.css").write_text("\n".join(rules), encoding="utf-8")
+    (out / "fonts.css").write_text("\n".join(rules), encoding="utf-8", newline="\n")
     for family in ("han", "maple", "tinos", "stix"):
         (out / f"{family}-OFL.txt").write_bytes(sources[f"{family}-license.txt"].read_bytes())
     notice = (
@@ -208,7 +208,7 @@ code, pre, kbd, samp { font-family: var(--font-mono); }
         "All faces converted to WOFF2 and renamed; license/copyright records retained.\n\n"
     )
     notice += LOCK.read_text(encoding="utf-8")
-    (out / "NOTICE.txt").write_text(notice, encoding="utf-8")
+    (out / "NOTICE.txt").write_text(notice, encoding="utf-8", newline="\n")
     print(
         f"Installed {len(list(out.glob('*.woff2')))} subsets, {sum(p.stat().st_size for p in out.glob('*.woff2')) / 1048576:.2f} MiB"
     )

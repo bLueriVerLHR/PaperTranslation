@@ -1,0 +1,18 @@
+# Canonical Git objects and working-tree text use LF on every platform.
+* text=auto eol=lf
+
+# Binary reader assets must never undergo newline conversion.
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.gif -text
+*.webp -text
+*.ico -text
+*.woff -text
+*.woff2 -text
+*.ttf -text
+*.otf -text
+*.pdf -text
+
+# SVG is XML text, not a raster/binary image.
+*.svg text eol=lf

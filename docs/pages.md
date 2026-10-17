@@ -118,17 +118,20 @@ Ensure Actions is enabled and the `github-pages` environment allows `main` and `
 
 Use an empty absolute TEMP directory to prepare publication:
 
-```powershell
-. .\tools\dev-env.ps1
-& $Python -m pip install -r requirements-pages.txt
-# Rebuild registered papers first, plus tools/survey.py and any local work/rebuild.py.
-$Site = Join-Path $ProjectTemp ('scratch\pages-' + [guid]::NewGuid().ToString('N'))
-& $Python tools\pages.py --out $Site
-& $Python tools\pages_fonts.py --site $Site --cache "$ProjectTemp\scratch\font-originals"
-& $Python tools\pages.py --check $Site
+The commands below do not require PowerShell or shell activation. Run `env` to find the
+external `project_temp`; replace `ABS_TEMP_SITE`, `ABS_TEMP_CACHE` and `ABS_TEMP_CHECKOUT`
+with actual absolute paths under system TEMP. Choose an unused site directory and build only
+explicitly approved original readers before staging. Repeat `--project` for multiple approvals.
+
+```text
+python tools/dev.py setup --pages
+python tools/dev.py env
+python tools/dev.py run -- tools/pages.py --project my-review --out "ABS_TEMP_SITE"
+python tools/dev.py run -- tools/pages_fonts.py --site "ABS_TEMP_SITE" --cache "ABS_TEMP_CACHE"
+python tools/dev.py run -- tools/pages.py --check "ABS_TEMP_SITE"
 ```
 
-Inspect `$Site\site-manifest.json` and preview on a phone-sized browser. It enumerates every
+Inspect `ABS_TEMP_SITE/site-manifest.json` and preview on a phone-sized browser. It enumerates every
 page and hashes all public files. The exporter copies only HTML outside private directories
 and recognized asset types; it refuses symlinks, non-empty output directories, and non-TEMP
 output. Public copies anonymize Windows user-specific repository paths under Documents
@@ -138,13 +141,25 @@ root-relative links and external HTML render dependencies. It never cleans dist.
 
 Then commit/push main normally and publish the reviewed content:
 
-```powershell
-.\tools\publish-pages.ps1 -Site $Site -Push
+```text
+python tools/dev.py run -- tools/publish_pages.py --site "ABS_TEMP_SITE" --push
 ```
+
+The legacy `publish-pages.ps1 -Site ... -Push` command forwards to this Python entry point.
 
 The helper creates a fresh TEMP checkout based on the remote content branch (or a new,
 parentless branch initially), replaces only that disposable checkout's public files, validates
-again, commits and pushes without force. It never adds dist to main. Omitting `-Push` prepares
+again, commits and pushes without force. It never adds dist to main.
+
+Public text (HTML, CSS, JS, JSON, notices, workflow YAML and SVG XML) is normalized from
+CRLF to LF **before** inventory hashes are computed. This finalization is restricted to
+validated absolute TEMP snapshots; Git internals, canonical manuscripts and binary assets
+are not rewritten. Text must be UTF-8. New text/font stylesheet writers also emit LF directly.
+The fresh publication checkout sets local `core.autocrlf=false` and `core.eol=lf`, so Git
+stages the already-approved bytes instead of converting them after hashing. No global Git
+configuration changes or content-branch `.gitattributes` exception are needed. The verifier's
+CRLF/LF allowance remains for older snapshots; newly finalized snapshots should require
+zero newline exceptions, with fonts and raster images still byte-exact. Omitting `--push` prepares
 a commit for inspection and prints its checkout path. A non-fast-forward push fails safely;
 re-run from the latest remote branch rather than forcing.
 
@@ -154,14 +169,14 @@ Use the existing public branch as the baseline; do not export every local reader
 one project is approved. Both baseline and output are disposable absolute TEMP directories.
 The selected project must still pass the normal source/rights eligibility filters.
 
-```powershell
-$Baseline = Join-Path $ProjectTemp ('scratch\baseline-' + [guid]::NewGuid().ToString('N'))
-$Site = Join-Path $ProjectTemp ('scratch\pages-' + [guid]::NewGuid().ToString('N'))
-$Remote = git remote get-url origin
-git clone --depth 1 --single-branch --branch pages-content $Remote $Baseline
-& $Python tools\pages.py --project my-review --baseline $Baseline --out $Site
-& $Python tools\pages_fonts.py --site $Site --cache "$ProjectTemp\scratch\font-originals"
-& $Python tools\pages.py --check $Site
+Read the configured origin with `git remote get-url origin`; substitute that value for
+`ORIGIN_URL` and choose a fresh absolute `ABS_TEMP_BASELINE` alongside the output site.
+
+```text
+git clone --config core.autocrlf=false --config core.eol=lf --depth 1 --single-branch --branch pages-content "ORIGIN_URL" "ABS_TEMP_BASELINE"
+python tools/dev.py run -- tools/pages.py --project my-review --baseline "ABS_TEMP_BASELINE" --out "ABS_TEMP_SITE"
+python tools/dev.py run -- tools/pages_fonts.py --site "ABS_TEMP_SITE" --cache "ABS_TEMP_CACHE"
+python tools/dev.py run -- tools/pages.py --check "ABS_TEMP_SITE"
 ```
 
 `--project` can be repeated. The exporter replaces only those project trees in the TEMP
@@ -170,18 +185,19 @@ readers and assets are preserved. It never deletes canonical work or grants publ
 
 ## Verify push and selected live files
 
-After `publish-pages.ps1 -Push`, the helper verifies the remote content commit against the
-approved site automatically. Its printed `$Checkout` can be reused; do not clone again just
+After `publish_pages.py --push`, the helper verifies the remote content commit against the
+approved site automatically. Reuse its printed `Content checkout` path; do not clone again just
 to check the same push. For live verification, inspect only the requested paths:
 
-```powershell
-& $Python tools\pages_verify.py --checkout $Checkout --site $Site `
-    --base-url "https://example.github.io/library/" --path "my-review/index.html"
+```text
+python tools/dev.py run -- tools/pages_verify.py --checkout "ABS_TEMP_CHECKOUT" --site "ABS_TEMP_SITE" --base-url "https://example.github.io/library/" --path "my-review/index.html"
 ```
 
 The verifier checks Git object bytes, allowing only text CRLF/LF normalization, and requires
-binary assets to match exactly. Live verification uses normal TLS and exact HTTP body hashes;
-it is one-shot, without an Actions API dependency or retry loop. A mismatch after a verified
+binary assets to match exactly. Live verification predicts canonical LF bytes for text
+(including legacy CRLF Git blobs), then compares exact HTTP body hashes with normal TLS;
+received bodies are not normalized to hide mismatches.
+Verification is one-shot, without an Actions API dependency or retry loop. A mismatch after a verified
 push may indicate pending deployment: do not repush automatically. Optional detailed evidence
 uses `--report` with an absolute TEMP path; default output is a compact summary.
 
@@ -194,8 +210,9 @@ result, and deploys from system TEMP. Thus a shared UI fix on main updates every
 rebuilding/re-exporting any article or copying code to project folders. Page text, figures and
 licensed fonts remain in the approved content snapshot; no new translation is published by a UI push.
 
-Local runtime refresh: `& $Python tools\assets.py`. To migrate or update a reader-only TEMP
-snapshot explicitly: `& $Python tools\pages.py --refresh-shared $Site`. The first migration
+Local runtime refresh: `python tools/dev.py run -- tools/assets.py`. To migrate or update a
+reader-only TEMP snapshot explicitly, run `python tools/dev.py run -- tools/pages.py
+--refresh-shared "ABS_TEMP_SITE"` on one command line. The first migration
 rewrites standard resource URLs, removes duplicate generated copies and upgrades complete,
 verified-locator legacy source captions into native source cards without changing code.
 Already converted cards are unchanged; other prose is not rebuilt or replaced. Later
@@ -207,11 +224,11 @@ The content branch's Git history remains public even if a later export removes a
 put a source or sensitive file there. If disclosure occurs, removal in a new commit is not
 sufficient; contact the repository owner to plan history cleanup.
 
-Validation: `& $Python -m pytest`, `& $Python -m ruff check .`,
-`& $Python -m ruff format --check .`, plus the mandatory exported-site `--check`.
+Validation: `python tools/dev.py run -- -m pytest`, `python tools/dev.py run -- -m ruff check .`,
+`python tools/dev.py run -- -m ruff format --check .`, plus the mandatory exported-site `--check`.
 Optional modal browser regressions use Playwright with an installed local Chrome/Chromium,
-not a signed-in profile or a downloaded browser. Initialize the external environment, install
-`playwright==1.58.0` with `$Python -m pip`, optionally set `PAPER_BROWSER_EXECUTABLE`, then run
-`& $Python -m pytest tests/test_library_browser.py`. Tests cover 320/390/1280px layouts,
+not a signed-in profile or a downloaded browser. Run `python tools/dev.py setup --browser`
+to install the pinned optional package, optionally set `PAPER_BROWSER_EXECUTABLE`, then run
+`python tools/dev.py run -- -m pytest tests/test_library_browser.py`. Tests cover 320/390/1280px layouts,
 internal scrolling, all three close paths, focus/scroll restoration, detail-title search,
 navigation and no-JS/no-dialog fallbacks. They skip when optional tooling is absent.

@@ -404,10 +404,12 @@ folder and ship an image the page no longer references.
 
 ## Disposable development state
 
-Initialize each PowerShell session with `. .\tools\dev-env.ps1`. The virtual environment,
-Python/pytest/ruff caches, task presets, reports, logs and experiments live under system TEMP,
-not beside source code. Use `$ProjectTemp/tasks`, `$ProjectTemp/reports` and
-`$ProjectTemp/scratch`; temporary paths must be absolute. The harness's `.pi/tasks` is a
+`tools/dev.py` owns the portable external-venv, pip setup and child-process environment;
+see [setup and commands](../README.md#setup). Python/pytest/ruff/pip caches, task presets,
+reports, logs and experiments live under system TEMP, not beside source code. Its JSON
+`project_temp` identifies the `tasks/`, `reports/` and `scratch/` directories; paths must be
+absolute. The Windows adapter delegates to Python and exposes the legacy `$Python` and
+`$ProjectTemp` variables without duplicating the environment policy. The harness's `.pi/tasks` is a
 junction whose target is in system TEMP. These locations are disposable, unlike retained
 `dist/<slug>/work/` inputs and references. Legacy ignore entries are safeguards only, not
 active storage rules. Migration recovery archives in TEMP are not permanent source locations.

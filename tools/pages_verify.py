@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 from tools import pages  # noqa: E402
 
-TEXT_TYPES = {".html", ".css", ".js", ".json", ".txt", ".yml", ".svg"}
+TEXT_TYPES = pages.PUBLIC_TEXT_TYPES
 
 
 def git(checkout: Path, *arguments: str, data: bytes | None = None) -> bytes:
@@ -144,7 +144,10 @@ def verify_live(base_url: str, paths: list[str], blobs: dict[str, bytes]) -> lis
         path = PurePosixPath(name)
         if path.is_absolute() or ".." in path.parts or name not in blobs:
             raise ValueError("live path must be a tracked relative public filename")
-        expected = hashlib.sha256(blobs[name]).hexdigest()
+        deployed = blobs[name]
+        if path.suffix.lower() in TEXT_TYPES:
+            deployed = deployed.replace(b"\r\n", b"\n")
+        expected = hashlib.sha256(deployed).hexdigest()
         request = urllib.request.Request(  # noqa: S310 (plain HTTPS validated above)
             base_url.rstrip("/") + "/" + quote(name, safe="/-._"),
             headers={
@@ -161,6 +164,8 @@ def verify_live(base_url: str, paths: list[str], blobs: dict[str, bytes]) -> lis
                         "path": name,
                         "status": response.status,
                         "expected_sha256": expected,
+                        "git_sha256": hashlib.sha256(blobs[name]).hexdigest(),
+                        "canonical_lf_text": deployed != blobs[name],
                         "actual_sha256": actual,
                         "matches": actual == expected,
                     }

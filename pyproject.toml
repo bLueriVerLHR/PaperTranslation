@@ -34,5 +34,6 @@ known-first-party = ["tools"]
 "tools/source_cards.py" = ["RUF001"]
 
 [tool.ruff.format]
+line-ending = "lf"
 quote-style = "double"
 indent-style = "space"

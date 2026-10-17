@@ -20,15 +20,22 @@ same reader without inventing a PDF manifest.
 
 Python 3.12+ is required; dependency pins were verified on Python 3.14.
 
-```powershell
-. .\tools\dev-env.ps1 -CreateVenv
-& $Python -m pip install -r requirements.txt
+```text
+python tools/dev.py setup
+python tools/dev.py env
 ```
 
-In each subsequent PowerShell session, run `. .\tools\dev-env.ps1` and use `$Python`.
-The helper places the environment and caches under system TEMP and provides `$ProjectTemp`:
-`tasks/` for plans, `reports/` for evidence and `scratch/` for experiments. Recreate the environment
-if TEMP is cleared; never keep the only copy of useful source material there.
+Use your Python 3.12+ command (`python` or `python3`). The portable runner creates an external
+standard-library `venv`, installs pinned requirements with pip, and routes Python/pytest/ruff/pip
+caches to system TEMP. `env` prints its interpreter, `project_temp` and environment as JSON.
+No shell activation, PowerShell or Node package installation is required. Add `--pages` to
+`setup` for publication dependencies, or `--browser` for optional Playwright (not a browser download).
+
+Use `python tools/dev.py run -- ...` to invoke that interpreter with the correct environment.
+TEMP contains `tasks/` for plans, `reports/` for evidence and `scratch/` for experiments. Recreate
+the environment if TEMP is cleared; never keep the only copy of useful source material there.
+Existing Windows commands remain compatible: `. .\tools\dev-env.ps1` exposes `$Python` and
+`$ProjectTemp`; it delegates environment preparation to Python.
 
 ## Quick commands
 
@@ -36,18 +43,20 @@ Register PDF/web projects with `dist/<slug>/work/paper.json`; use lowercase Engl
 `--paper` is required when several projects are registered. Extraction reads the external
 original in place; rebuilding needs only the retained work materials.
 
-```powershell
-$P = "my-paper"
-& $Python tools\extract.py --paper $P --pdf C:\path\to\original.pdf
-& $Python tools\build.py --paper $P
-& $Python tools\coverage.py --paper $P
-& $Python tools\assets.py                 # refresh the shared runtime, not article prose
-& $Python tools\pack.py --paper $P --out dist\my-paper.html  # optional single-file export
+```text
+python tools/dev.py run -- tools/extract.py --paper my-paper --pdf "PATH_TO_EXTERNAL_ORIGINAL.pdf"
+python tools/dev.py run -- tools/build.py --paper my-paper
+python tools/dev.py run -- tools/coverage.py --paper my-paper
+python tools/dev.py run -- tools/assets.py
+python tools/dev.py run -- tools/pack.py --paper my-paper --out dist/my-paper.html
 ```
+
+Replace the PDF placeholder with its existing external absolute path. Asset refresh changes
+shared runtime, not article prose; the pack command is an optional single-file export.
 
 A source-code book instead uses its canonical `work/meta.json`, sections and local
 `work/rebuild.py`, which calls the shared builder. The legacy survey builder is separate:
-`& $Python tools\survey.py`. Its schema is compatibility documentation, not a request to
+`python tools/dev.py run -- tools/survey.py`. Its schema is compatibility documentation, not a request to
 create or restore a dataset.
 
 Open the generated `index.html` directly. A portable folder copy includes the selected
@@ -94,10 +103,10 @@ specification. Writing standards still apply in full to the relevant manuscript 
 
 ## Pipeline checks
 
-```powershell
-& $Python -m pytest
-& $Python -m ruff check .
-& $Python -m ruff format --check .
+```text
+python tools/dev.py run -- -m pytest
+python tools/dev.py run -- -m ruff check .
+python tools/dev.py run -- -m ruff format --check .
 ```
 
 Synthetic tests work without local papers. Optional browser tests use an installed isolated
