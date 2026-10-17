@@ -9,6 +9,8 @@ current task, approval history or published inventory.
 |---|---|---|
 | Setup and routine commands | [Root README](../README.md) | [Contributing](../CONTRIBUTING.md) for code changes |
 | Content/index lookup, timed review and validation | [Workflow](workflow.md) | Project `work/README.md`, glossary and relevant research records |
+| Reuse an authoring Skill | [Project writing Skills](authoring-skills.md) | Choose by original writing, source-aligned translation or evidence-based review; standards still apply in full |
+| Choose Markdown syntax or document renderer | [Markdown authoring](markdown.md) | [Reader](reader.md) for presentation, [Architecture](architecture.md) for the existing builder |
 | Write, translate or polish Chinese prose | [Writing standards](chinese-writing.md), in full | [Review methods](review-method.md) for original reviews |
 | Analyze code or compose subdocuments | [Source analysis](source-analysis.md), in full | [Architecture](architecture.md#self-authored-projects) for builder interfaces |
 | Author a question bank | [Questions](questions.md), in full | [Reader](reader.md) for shared presentation behavior |

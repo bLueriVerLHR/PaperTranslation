@@ -4,8 +4,9 @@ The build reads local-only ``dist/<slug>/work/content/*.md``, the
 shared page template, styles, scripts and that paper's figure crops, then writes the deliverable
 folder ``dist/<slug>/`` - ``index.html`` beside its figure assets, referencing the single
 shared ``dist/assets/`` runtime by relative path so the page opens from ``file://``. No network access and no runtime math
-renderer are involved; equations are MathML authored directly in the content files, and fonts
-are left to the browser. The retained ``work/`` tree is the rebuild source of truth and
+renderer are involved; mathematics is delivered as MathML, and fonts are left to the browser.
+An explicit Pandoc profile supports document-native Markdown and build-time math conversion;
+existing projects retain the Python-Markdown compatibility path. The retained ``work/`` tree is the rebuild source of truth and
 must never be removed by output cleanup.
 
 Usage
@@ -38,6 +39,7 @@ if str(ROOT) not in sys.path:  # allow `python tools/build.py` to import the pac
 from tools import (  # noqa: E402  (must follow the sys.path bootstrap above)
     assets,
     manuscript,
+    pandoc,
     paper,
     questions,
     reader,
@@ -270,7 +272,7 @@ def render_toc(items: list[dict]) -> str:
     lines = ["<ol>"]
     for item in items:
         lines.append(
-            f'<li><a href="#{item["id"]}">{item["name"]}</a>'
+            f'<li><a href="#{escape(item["id"], quote=True)}">{item["name"]}</a>'
             + render_toc(item.get("children") or [])
             + "</li>"
         )
@@ -461,32 +463,74 @@ def build(
         page_path = dist.resolve().relative_to(library_root) / "index.html"
     except ValueError as error:
         raise ValueError("reader output must be inside library_root") from error
-    sections = read_sections(content_dir)
-    if metadata is None:
-        metadata = metadata_for(paper_slug)
-    if source_targets is None and paper_slug is not None:
-        source_targets = source_link_targets(paper.load(paper_slug))
-    template = template_path.read_text(encoding="utf-8")
     work = content_dir.parent
     profile = reader.load_profile(work)
     show_glossary = profile.get("show_glossary", False)
     if not isinstance(show_glossary, bool):
         raise ValueError("show_glossary must be a boolean")
+    if show_glossary and (content_dir / "glossary.md").exists():
+        raise ValueError("glossary section identifier is already in use")
+    renderer_name = profile.get("renderer", "python-markdown")
+    rendered: dict[str, str] = {}
+    renderer_version = None
+    if renderer_name == "pandoc":
+        documents = {}
+        for key, path in (
+            ("reader-meta", work / "reader-meta.md"),
+            ("sec-glossary", work / "glossary.md"),
+        ):
+            if (key == "reader-meta" and path.exists()) or (
+                key == "sec-glossary" and show_glossary
+            ):
+                documents[key] = path.read_text(encoding="utf-8")
+        sections = []
+        for path in sorted(content_dir.glob("*.md")):
+            text, sources = manuscript.expand(path, content_dir)
+            section = Section(path, f"sec-{path.stem}", "", sources=sources)
+            documents[section.identifier] = text
+            sections.append(section)
+        rendered, renderer_version = pandoc.render(documents)
+        for section in sections:
+            section.html = rendered[section.identifier]
+            section.tokens = pandoc.toc_tokens(section.html)
+    else:
+        sections = read_sections(content_dir)
+    if metadata is None:
+        metadata = metadata_for(paper_slug)
+    if source_targets is None and paper_slug is not None:
+        source_targets = source_link_targets(paper.load(paper_slug))
+    template = template_path.read_text(encoding="utf-8")
+    extra_files = [
+        path for path in (work / "reader.json", work / "reader-meta.md") if path.exists()
+    ]
+    glossary_notes = ""
     if show_glossary:
         glossary = work / "glossary.md"
         if any(section.identifier == "sec-glossary" for section in sections):
             raise ValueError("glossary section identifier is already in use")
-        md = make_markdown()
-        glossary_html = md.convert(glossary.read_text(encoding="utf-8"))
-        sections.insert(0, Section(glossary, "sec-glossary", glossary_html, list(md.toc_tokens)))
-    extra_files = [
-        path for path in (work / "reader.json", work / "reader-meta.md") if path.exists()
-    ]
+        glossary_html = (
+            rendered["sec-glossary"]
+            if renderer_name == "pandoc"
+            else make_markdown().convert(glossary.read_text(encoding="utf-8"))
+        )
+        # Editorial terminology is readable metadata, not an authored manuscript chapter.
+        # Keep the old anchor available without adding glossary headings to the body TOC.
+        glossary_notes = '<div id="sec-glossary">' + wrap_tables(glossary_html) + "</div>"
+        extra_files.append(glossary)
     digest = content_hash(sections, extra_files)
+    if renderer_version is not None:
+        digest = hashlib.sha256(f"{digest}\0pandoc\0{renderer_version}".encode()).hexdigest()[:12]
     references = dict(profile.get("references", {}))
-    header_notes, body_sections = [], []
+    header_notes = [glossary_notes] if glossary_notes else []
+    body_sections = []
     for section in sections:
-        body, notes, extracted = reader.split_auxiliary(section.html)
+        # New manuscripts own their structure explicitly; do not guess that an author's
+        # acknowledgements/definitions/bibliography should move by their heading alone.
+        body, notes, extracted = (
+            (section.html, "", {})
+            if renderer_name == "pandoc"
+            else reader.split_auxiliary(section.html)
+        )
         for key, record in extracted.items():
             configured = references.get(key, {})
             references[key] = {
@@ -503,7 +547,12 @@ def build(
             )
     notes_path = work / "reader-meta.md"
     if notes_path.exists():
-        header_notes.insert(0, make_markdown().convert(notes_path.read_text(encoding="utf-8")))
+        header_notes.insert(
+            0,
+            rendered["reader-meta"]
+            if renderer_name == "pandoc"
+            else make_markdown().convert(notes_path.read_text(encoding="utf-8")),
+        )
     content = source_cards.upgrade(
         rewrite_source_links(wrap_tables(wrap_sections(body_sections)), source_targets or {})
     )
@@ -557,7 +606,7 @@ def build(
     dist.mkdir(parents=True, exist_ok=True)
     copied = copy_assets(dist, styles_dir, scripts_dir, figures_dir, shared_root=library_root)
     page = assets.rewrite(page, page_path)
-    (dist / "index.html").write_text(page, encoding="utf-8")
+    (dist / "index.html").write_text(page, encoding="utf-8", newline="\n")
     manifest = {
         "paper": paper_slug,
         "title": metadata.get("title", ""),
@@ -575,8 +624,10 @@ def build(
         "assets": copied,
         "shared_asset_root": assets.relative_url(page_path, "assets"),
     }
+    if renderer_version is not None:
+        manifest["renderer"] = {"name": renderer_name, "version": renderer_version}
     (dist / "manifest.json").write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8", newline="\n"
     )
     return manifest
 

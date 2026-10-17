@@ -68,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     setup.add_argument("--pages", action="store_true", help="also install publication dependencies")
     setup.add_argument("--browser", action="store_true", help="also install optional Playwright")
+    setup.add_argument("--pandoc", action="store_true", help="also install the document renderer")
     run = commands.add_parser("run", help="run external-venv Python; put -- before its arguments")
     run.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
@@ -82,6 +83,12 @@ def main(argv: list[str] | None = None) -> int:
                 packages += ["-r", str(ROOT / "requirements-pages.txt")]
             if args.browser:
                 packages += ["playwright==1.58.0"]
+            if args.pandoc:
+                packages += [
+                    "--only-binary=pypandoc_binary",
+                    "-r",
+                    str(ROOT / "requirements-pandoc.txt"),
+                ]
             return run_python(packages, info)
         arguments = args.arguments
         if arguments[:1] == ["--"]:

@@ -219,6 +219,15 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
 .body pre .syn-mi, .body pre .syn-mf, .body pre .syn-mh,
 .body pre .syn-o, .body pre .syn-ow { font-weight: 600; }
 
+/* Pandoc's build-time tokens use the same palette; no highlighter runs in the reader. */
+.body pre.sourceCode .kw, .body pre.sourceCode .cf,
+.body pre.sourceCode .dt { color: var(--accent); font-weight: 700; }
+.body pre.sourceCode .co, .body pre.sourceCode .do { color: var(--ink-soft); }
+.body pre.sourceCode .st, .body pre.sourceCode .ch,
+.body pre.sourceCode .ss { color: color-mix(in srgb, var(--accent) 75%, var(--ink)); }
+.body pre.sourceCode .fu, .body pre.sourceCode .bu { color: var(--accent); }
+.body .note { border-inline-start: 3px solid var(--accent); padding-inline-start: 1rem; }
+
 /* ---------------------------------------------------------------- figures */
 .body figure {
   margin: 1.6rem 0;
@@ -273,11 +282,22 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
   gap: .6rem; margin: 1.4rem 0 1.7rem; padding: .45rem 0;
   max-width: 46rem; min-width: 0;
 }
-.equation > math, .equation > .math-scroll { grid-column: 1; grid-row: 1; min-width: 0; }
-.body .equation > math { display: block; margin: 0 auto; max-width: 100%; overflow-x: auto; }
-.equation > .eqno { grid-column: 2; grid-row: 1; font-size: .8rem; color: var(--ink-soft); }
+/* Flatten renderer-generated paragraphs for layout, not the source/MathML tree. */
+.equation > p { display: contents; }
+.equation > math, .equation > .math-scroll,
+.equation > p > math, .equation > p > .math-scroll {
+  grid-column: 1; grid-row: 1; min-width: 0;
+}
+.body .equation > math, .body .equation > p > math {
+  display: block; margin: 0 auto; max-width: 100%; overflow-x: auto;
+}
+.equation > .eqno, .equation > p > .eqno {
+  grid-column: 2; grid-row: 1; font-size: .8rem; color: var(--ink-soft);
+}
 .math-overflow-note { display: block; max-width: 46rem; color: var(--ink-soft); font-size: .7rem; text-align: end; }
-.equation > .math-overflow-note { grid-column: 1 / -1; grid-row: 2; }
+.equation > .math-overflow-note, .equation > p > .math-overflow-note {
+  grid-column: 1 / -1; grid-row: 2;
+}
 .math-scroll.has-overflow { border-bottom: 1px solid var(--rule); scrollbar-width: thin; }
 
 /* Preserve native MathML layout, MATH-table spacing and the text baseline.
@@ -425,7 +445,7 @@ math menclose[notation="downdiagonalstrike"] {
 }
 
 /* --------------------------------------------------------------- footnote */
-.footnote {
+.footnote, .footnotes {
   font-size: .84rem;
   color: var(--ink-soft);
   border-top: 1px solid var(--rule);

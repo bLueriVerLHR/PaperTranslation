@@ -94,9 +94,11 @@ Original reviews and source-code analyses use canonical `work/meta.json` rather 
 fictional PDF/web `paper.json`. A local `work/rebuild.py` passes project metadata and its own
 `work/content/` to `tools.build.build`. Reviews use `kind: review`; analyses use
 `kind: analysis` and retain their inspected repository and commit. Presentation profiles
-and header-only reading notes remain in `work/reader.json` and `work/reader-meta.md`. An opt-in `show_glossary` profile renders the
-canonical `work/glossary.md` before manuscript sections; it shares their TOC and content hash
-rather than creating a second terminology source. See [reader.md](reader.md).
+and header-only reading notes remain in `work/reader.json` and `work/reader-meta.md`.
+An opt-in `show_glossary` profile renders the reader-facing `work/glossary.md` in the title's
+source notes, not in manuscript sections or the body TOC. It is a hashed `reader_inputs`
+dependency, never a duplicate terminology source. Authoring instructions and chapter-title
+maps belong in non-rendered maintenance files, not this glossary. See [reader.md](reader.md).
 
 Each project has an independent slug, section inventory, source directory and `index.html`.
 Sharing the reader runtime does not merge manuscripts or require an aggregate survey hub.
@@ -168,7 +170,7 @@ dist/<slug>/work/assets/figures/figure-NN.png   local-only figure crops
         |
         |  authored translation
         v
-dist/<slug>/work/content/NN-name.md             one file per section, MathML inline
+dist/<slug>/work/content/NN-name.md             per-section Markdown, selected renderer's math syntax
 dist/<slug>/work/glossary.md                    shared terminology
         |
         |  tools/build.py --paper <slug>
@@ -253,10 +255,27 @@ Choices worth recording:
 - **A 4px accent left border on a card.** Cheap, and it keeps a card visually distinct from the
   prose around it without introducing a second content system.
 
+## Document renderer boundary
+
+`work/reader.json` may select `"renderer": "pandoc"`; omitted/`python-markdown` preserves the
+existing parser. Both use `tools/build.py`, canonical section includes, the page template,
+shared runtime and publication boundary. The optional Pandoc executable owns document syntax,
+math conversion, figures, tables, footnotes and highlighting. `tools/pandoc.py` only groups
+inputs for one conversion and adapts fragments/headings to the existing reader interface;
+it does not implement another Markdown parser or a general plugin system. The manifest records
+Pandoc's actual version, which contributes to the content hash.
+
+Header notes/glossary and body chapters share one conversion namespace; generated endnotes
+follow the last chapter. Explicit author headings remain body structure instead of triggering
+legacy metadata/contents heuristics. See [Markdown authoring](markdown.md) for selection,
+source syntax, dependency setup and limitations. No existing manuscript is silently switched.
+The parser-specific decisions below describe the Python-Markdown compatibility path.
+
 ## Key decisions
 
-**MathML instead of LaTeX or images.** The destination format is a mobile-friendly HTML
-page, so equations are authored as MathML directly in the content files. Browsers render
+**MathML instead of runtime LaTeX or images.** The destination format is a mobile-friendly HTML
+page, so existing content files author MathML directly; the explicit Pandoc path can instead
+convert documented mathematical source syntax during building. Browsers render
 `<math>` natively, no JavaScript math renderer is loaded, and the markup stays selectable
 and accessible. Display equations are wrapped in `<div class="equation">` with a sibling
 `<span class="eqno">` so the printed number aligns to the right margin.

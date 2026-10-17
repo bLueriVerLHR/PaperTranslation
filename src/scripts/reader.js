@@ -185,7 +185,7 @@
         detail.className = "footnote-detail";
         Array.from(target.childNodes).forEach(function (node) { detail.appendChild(node.cloneNode(true)); });
         detail.querySelectorAll("[id]").forEach(function (node) { node.removeAttribute("id"); });
-        detail.querySelectorAll(".footnote-backref").forEach(function (node) { node.remove(); });
+        detail.querySelectorAll(".footnote-backref, .footnote-back").forEach(function (node) { node.remove(); });
         modal.body.replaceChildren(detail);
         event.preventDefault();
         modal.open(link);

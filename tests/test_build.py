@@ -39,24 +39,59 @@ def test_reader_kind_has_accurate_presentation(
         assert "源码研读笔记" not in page
 
 
-def test_visible_glossary_uses_canonical_source_and_changes_hash(tmp_path: Path) -> None:
+def test_visible_glossary_is_header_metadata_and_changes_hash(tmp_path: Path) -> None:
     work = tmp_path / "work"
     content = work / "content"
     content.mkdir(parents=True)
     (content / "01-body.md").write_text("## 正文\n\n词元表示。", encoding="utf-8")
     (work / "reader.json").write_text('{"show_glossary": true}', encoding="utf-8")
     glossary = work / "glossary.md"
-    glossary.write_text("## 术语对应表\n\ntoken → 词元", encoding="utf-8")
+    glossary.write_text(
+        "## 术语对应表\n\n| 英文 | 译名 |\n| --- | --- |\n| token | 词元 |", encoding="utf-8"
+    )
+    (work / "reader-meta.md").write_text("原作来源及翻译范围。", encoding="utf-8")
+    (work / "translation-conventions.md").write_text(
+        "## 章节译名对照\n\n维护指令，不可渲染。", encoding="utf-8"
+    )
     output = tmp_path / "output"
     first = build.build(output, content, metadata=FIXTURE_METADATA)
     page = (output / "index.html").read_text(encoding="utf-8")
-    assert 'id="sec-glossary"' in page
-    assert "token → 词元" in page
-    assert page.index('id="sec-glossary"') < page.index('id="sec-01-body"')
-    assert 'href="#术语对应表"' in page
+    header, rest = page.split("</header>", 1)
+    assert "<summary>出处与说明</summary>" in header
+    assert 'id="sec-glossary"' in header
+    assert "术语对应表" in header and "token" in header and "词元" in header
+    assert 'class="table-wrap"' in header
+    assert header.index("原作来源及翻译范围") < header.index('id="sec-glossary"')
+    assert "sec-glossary" not in rest and "术语对应表" not in rest
+    assert "章节译名对照" not in page and "维护指令" not in page
+    assert first["sections"] == ["01-body.md"]
+    assert "glossary.md" in first["reader_inputs"]
     glossary.write_text("## 术语对应表\n\ntoken → token（词元）", encoding="utf-8")
     second = build.build(output, content, metadata=FIXTURE_METADATA)
     assert first["content_hash"] != second["content_hash"]
+
+
+def test_editorial_glossary_does_not_change_original_body_or_toc(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    content = work / "content"
+    content.mkdir(parents=True)
+    (content / "01-body.md").write_text(
+        "## 原文术语定义 {#author-definitions}\n\n作者自己的技术定义属于正文。\n\n"
+        "## 关于标题 {#on-title}\n\n作者对题名的论述仍在原位置。",
+        encoding="utf-8",
+    )
+    profile = work / "reader.json"
+    profile.write_text('{"show_glossary": false}', encoding="utf-8")
+    (work / "glossary.md").write_text("## 译名与文体约定\n\n译者采用的用词。", encoding="utf-8")
+    output = tmp_path / "output"
+    build.build(output, content, metadata=FIXTURE_METADATA)
+    before = (output / "index.html").read_text(encoding="utf-8").split("</header>", 1)[1]
+    profile.write_text('{"show_glossary": true}', encoding="utf-8")
+    build.build(output, content, metadata=FIXTURE_METADATA)
+    after = (output / "index.html").read_text(encoding="utf-8").split("</header>", 1)[1]
+    assert after == before
+    assert 'href="#author-definitions"' in after and 'href="#on-title"' in after
+    assert "作者自己的技术定义属于正文" in after and "译者采用的用词" not in after
 
 
 @pytest.mark.parametrize("value", [False, "true", None, 1])

@@ -240,6 +240,8 @@ def load_profile(work: Path) -> dict:
     if not isinstance(result, dict) or not isinstance(result.get("references", {}), dict):
         raise ValueError("reader.json must contain an object and an optional references object")
     safe_url(result.get("source_url"))
+    if result.get("renderer", "python-markdown") not in ("python-markdown", "pandoc"):
+        raise ValueError("renderer must be python-markdown or pandoc")
     if result.get("citation_style", "mixed") not in {"mixed", "numeric", "author-year"}:
         raise ValueError("citation_style must be mixed, numeric or author-year")
     for record in result.get("references", {}).values():

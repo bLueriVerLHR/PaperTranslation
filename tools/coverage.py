@@ -25,7 +25,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python tools/coverage.py` to import the package
     sys.path.insert(0, str(ROOT))
 
-from tools import manuscript, paper  # noqa: E402  (must follow the sys.path bootstrap above)
+from tools import (  # noqa: E402  (must follow the sys.path bootstrap above)
+    manuscript,
+    paper,
+    reader,
+)
 
 _MATH_OR_CODE_RE = re.compile(
     r"<math\b.*?</math>|<pre\b.*?</pre>|```.*?```|<table\b.*?</table>",
@@ -73,12 +77,26 @@ def extracted_figures(report_path: Path | None, expected: list[int]) -> list[int
     return [int(fig["number"]) for fig in data.get("figures", [])]
 
 
-def find_english_prose(text: str) -> list[tuple[int, str]]:
-    """Return ``(line_number, line)`` for lines that still look like English prose."""
+def find_english_prose(text: str, *, dollar_math: bool = False) -> list[tuple[int, str]]:
+    """Find possible English prose, excluding the selected renderer's math syntax."""
     stripped = _MATH_OR_CODE_RE.sub(" ", text)
+    if dollar_math:
+        stripped = re.sub(r"\$\$.*?\$\$|\$[^$\n]*\$", " ", stripped, flags=re.DOTALL)
     results: list[tuple[int, str]] = []
+    reference_level = None
     for number, line in enumerate(stripped.splitlines(), start=1):
         candidate = line.strip()
+        # Pandoc keeps original bibliographies in the body. Their intentionally English
+        # entries must not force authors back to raw <ol>/<li> just to pass triage.
+        heading = re.match(r"^(#{1,6})\s+(.+?)(?:\s+\{[^}]*\})?$", candidate)
+        if dollar_math and heading:
+            level = len(heading[1])
+            if reference_level is not None and level <= reference_level:
+                reference_level = None
+            if heading[2] in reader.REFERENCE_HEADINGS:
+                reference_level = level
+        if reference_level is not None:
+            continue
         if not candidate or candidate.startswith(("#", "|", "-", "<", "[", "!")):
             continue
         if _ASCII_RUN_RE.search(candidate):
@@ -94,6 +112,7 @@ def check(
     """Run every coverage check for one paper and return the aggregated report."""
     documents = read_content(content_dir)
     joined = "\n".join(documents.values())
+    dollar_math = reader.load_profile(content_dir.parent).get("renderer") == "pandoc"
     report = Report()
 
     for heading in expectations.headings:
@@ -113,11 +132,13 @@ def check(
             report.missing_tables.append(number)
 
     for number in expectations.equations:
-        if f'<span class="eqno">({number})</span>' not in joined:
+        legacy = f'<span class="eqno">({number})</span>' in joined
+        markdown = dollar_math and f"[({number})]{{.eqno}}" in joined
+        if not legacy and not markdown:
             report.missing_equations.append(number)
 
     for name, text in documents.items():
-        for line_number, line in find_english_prose(text):
+        for line_number, line in find_english_prose(text, dollar_math=dollar_math):
             report.english_prose.append((name, line_number, line))
 
     return report

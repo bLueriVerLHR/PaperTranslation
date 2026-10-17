@@ -47,4 +47,13 @@ Roman is requested locally only and is never redistributed.
 
 Third-party packages listed in `requirements.txt` are not vendored. Each keeps its own license
 and is installed by the user into the isolated environment under system TEMP, initialized
-by `tools/dev-env.ps1`.
+by `tools/dev.py` (the PowerShell adapter is optional).
+
+## Document renderer
+
+The optional `requirements-pandoc.txt` installs `pypandoc_binary` into that same external
+environment. The pypandoc wrapper is MIT-licensed; the bundled Pandoc executable is licensed
+under GPL-2.0-or-later and is invoked as a separate process. Neither its code nor its binary
+is vendored in this repository or copied into a reader. These dependencies retain their own
+notices and licenses; the repository MIT license does not replace them. Manuscript and
+quoted-material rights remain those described above, independently of the renderer.

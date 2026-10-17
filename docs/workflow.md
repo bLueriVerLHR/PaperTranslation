@@ -10,6 +10,13 @@ standards in full and the complete affected sections, project maintenance notes 
 Keep this preparation for the batch; do not restart it for every question while scope and
 standards are unchanged. Read an architecture/schema section only when changing that interface.
 
+Before drafting, classify each affected block as manuscript body, reader-facing header notes,
+or non-rendered maintenance material; use the ownership examples in
+[chinese-writing.md](chinese-writing.md#正文与维护材料的边界). A translation retains its source's
+genre and argument. Making terminology visible means source notes, not a new first chapter;
+a chapter-title translation map is maintenance data. Do not apply those exclusions to the
+source author's own definitions or technical discussion.
+
 Use existing source inventories and local references. Do not regenerate manual coverage
 records, rescan unrelated projects, refetch available material or read entire repositories
 just to confirm a localized assertion. Canonical work/reference material is not disposable.
@@ -124,6 +131,21 @@ $Log = Join-Path $ProjectTemp 'reports\batch-unique.jsonl'
 Do not rebuild all readers or run the full suite after every answer. Preserve code, formulas,
 rights and source conditions when polishing. Engineering results and content-audit results
 must be reported separately, with actual failure/partial states.
+
+### Standalone reader check
+
+After a coherent section is revised, inspect it as a reader who has not seen the task dialogue.
+Use only the section and its explicit dependencies. Choose a few concrete questions appropriate
+to its genre: what is the object, how does the mechanism work, what conditions limit the claim,
+and which source supports the conclusion? For a translation, check whether the source author's
+meaning and uncertainty survive rather than inventing answers absent from the source.
+
+A missing definition, unsupported transition or dependence on chat context is a revision target.
+Fix the canonical prose or its necessary links, not by appending instructions, task history or
+an interview transcript. This adapts the reader-testing method cited in
+[authoring skills](authoring-skills.md); self-review is not an independent reader study.
+A fresh model/reviewer can be useful only when authorized; availability alone does not authorize
+new agents, cloud uploads or additional experiments. Report what was actually checked.
 
 ## 5. Publish with maintained entry points
 

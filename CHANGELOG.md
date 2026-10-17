@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### HTML-first reading
 
+- Render opt-in editorial terminology inside title source notes rather than as a body/TOC
+  chapter, retaining the glossary anchor and hashed canonical input. Separate reader-facing
+  translator choices from non-rendered chapter-title maps and writing instructions; preserve
+  the original source's genre, technical definitions and argument order.
+
 - Reuse safe build-time include expansion for structural and language coverage checks,
   including checks inside composed chapters and rejection of escaping includes.
 
@@ -44,6 +49,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Content-first maintenance
 
+- Add an explicitly selected Pandoc document renderer to the existing builder: native Markdown
+  figures/captions, tables, global footnotes, highlighting and build-time MathML without
+  per-paragraph author HTML or runtime math services. Preserve legacy parser behavior and
+  local manuscripts; add pinned optional TEMP-only setup and a focused document/failure contract.
+  Keep original headings on the new path and put editorial notes in explicit header inputs.
+
+- Add portable, instruction-only Chinese writing, source-aligned translation and evidence-review
+  skills that route to canonical standards. Adapt context preparation, reader checks and scenario
+  validation without importing cloud artifact workflows or fixed article templates; distinguish
+  citation-context classification and statement tallies from claim truth and independent evidence.
 - Route documentation by task, consolidate routine workflows and remove duplicated
   setup/layout/rights guidance while retaining technical specifications and constraints.
 - Add read-only bounded views of saved HTML: prose, outline, literal search and explicit

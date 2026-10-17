@@ -39,6 +39,18 @@ def test_find_english_prose_ignores_math_code_and_tables() -> None:
         "<table><tr><td>Benchmark name and metric and shots and score</td></tr></table>\n"
     )
     assert coverage.find_english_prose(text) == []
+    assert (
+        coverage.find_english_prose(
+            r"$$\text{Argument requires the full text here now}$$", dollar_math=True
+        )
+        == []
+    )
+    bibliography = (
+        "## References {#refs}\n1. This original reference title remains in English as required.\n"
+        "## 正文\nThis untranslated paragraph must still be flagged outside the bibliography."
+    )
+    hits = coverage.find_english_prose(bibliography, dollar_math=True)
+    assert len(hits) == 1 and hits[0][0] == 4
 
 
 def test_find_english_prose_allows_short_name_runs() -> None:
@@ -67,12 +79,17 @@ def test_check_uses_expectations_when_there_is_no_report(tmp_path: Path) -> None
     assert result.missing_figures == [1, 2]
 
 
-def test_check_passes_when_everything_is_present(tmp_path: Path) -> None:
+@pytest.mark.parametrize("renderer", ["python-markdown", "pandoc"])
+def test_check_passes_when_everything_is_present(tmp_path: Path, renderer: str) -> None:
     content = _content(tmp_path)
+    (tmp_path / "reader.json").write_text(json.dumps({"renderer": renderer}), encoding="utf-8")
     body = "\n".join(EXPECTATIONS.headings)
     body += "\n" + "\n".join(f"figure-{n:02d}.png" for n in EXPECTATIONS.figures)
     body += "\n" + "\n".join(f"表 {n} | 说明" for n in EXPECTATIONS.tables)
-    body += "\n" + "\n".join(f'<span class="eqno">({n})</span>' for n in EXPECTATIONS.equations)
+    body += "\n" + "\n".join(
+        f"[({n})]{{.eqno}}" if renderer == "pandoc" else f'<span class="eqno">({n})</span>'
+        for n in EXPECTATIONS.equations
+    )
     (content / "01.md").write_text(body, encoding="utf-8")
     report = tmp_path / "report.json"
     report.write_text(

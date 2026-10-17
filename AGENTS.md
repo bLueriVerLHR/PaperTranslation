@@ -22,6 +22,9 @@ rewriting and publishing local revisions require their own explicit authorizatio
 The maintained directory map and routine commands are in `README.md`; schemas are in
 `docs/architecture.md`. Select the task through `docs/workflow.md`, not by reading every
 schema, inventory or archived HTML file. Do not recreate historical paths from CHANGELOG.
+Reusable manuscript entry points live in `.agents/skills/`; selection, explicit Pi commands
+and method sources are in `docs/authoring-skills.md`. Skills route work to the owning standards;
+they do not replace mandatory reading, grant execution rights or supply article templates.
 
 `work` is the directory name, not an underscore-prefixed variant. Keep one canonical copy of
 translation source and metadata there, not a second parallel project-source tree. Reading needs the project HTML/figures plus the sibling library-root `dist/assets/` runtime;
@@ -84,6 +87,25 @@ Routine commands belong to `README.md`; code contribution gates belong to
   temporary plans, pauses, approvals and execution logs belong in task state and TEMP reports.
   Do not turn user dialogue or one-off operations into permanent documentation rules.
 
+## Manuscript output boundary
+
+Choose the work's kind before drafting. A translation preserves the original genre, voice
+and argument: a research essay is not rewritten as an academic review. Requirements to
+explain mechanisms or add derivations guide self-authored exposition, not additions to a
+translation.
+
+| Material | Canonical location | Reader placement |
+|---|---|---|
+| Original/translated argument, the source author's definitions and discussion | `work/content/` | Body, in source order for translations |
+| Source/rights, brief translator choices about wording or genre | `work/reader-meta.md`; reader-facing term pairs in `work/glossary.md` | Title's **出处与说明**, not a body/TOC chapter |
+| Writing instructions, chapter-title translation maps, batch/review records | Linked non-rendered maintenance files or task records | Not in the reading page, including its source notes |
+
+**Visible to the reader does not mean part of the body.** Do not put authoring instructions
+or a chapter-title map into the auto-rendered glossary. The source author's own terminology
+chapter or discussion of its title is still source content: do not relocate it by keyword.
+The detailed ownership rules and examples are in `docs/chinese-writing.md`; rendering is in
+`docs/reader.md`. Check these boundaries before treating a successful build as completion.
+
 ## Mandatory reading before manuscript work
 
 Before every manuscript task (new writing, expansion, rewriting, translation or polishing),
@@ -103,10 +125,12 @@ Do not rely only on summaries, remembered rules or keyword scans:
 - Before changing an existing project manuscript, read its canonical `work/README.md`,
   glossary, relevant source map/research records and the complete affected sections.
 
-Explain how mechanisms work, how they differ from prior approaches, why their benefits
-can arise and what assumptions and costs constrain them. Include necessary derivations
-with explicit premises; distinguish mathematical properties, explanatory inference and
-reported experiments. Writing requirements and task dialogue are not reader prose.
+In self-authored explanations, show how mechanisms work, how they differ from prior
+approaches, why their benefits can arise and what assumptions and costs constrain them.
+Include necessary derivations with explicit premises; distinguish mathematical properties,
+explanatory inference and reported experiments. In translations, preserve the source's
+reasoning and qualifications without inventing these additions.
+Writing requirements and task dialogue are not reader prose.
 Keep document-build checks separate from mathematical or empirical validation, and do
 not execute upstream projects or experiments without separate explicit authorization.
 Detailed requirements belong to the linked specifications, not duplicate project templates.
@@ -122,9 +146,10 @@ than expanding the task or declaring them checked. Never auto-promote coverage b
 - Additive changes keep existing reader deliverables buildable. Do not commit generated output
   to main; only approved, validated reader-only exports belong on `pages-content`.
 - Translate one section at a time in source order. Do not translate ahead of the source.
-- Follow the mandatory manuscript reading requirements above. Translations
-  and reviews use academic prose; source-code analyses use analysis-centred technical-book
-  prose with relevant practical cases. Task prompts, meeting/interview framing, answer scripts,
+- Follow the mandatory manuscript reading requirements above. Translations retain the
+  source's genre and voice; original reviews use academic prose; source-code analyses use
+  analysis-centred technical-book prose with relevant practical cases. Task prompts,
+  meeting/interview framing, answer scripts,
   authoring progress and delivery/rebuild chatter do not belong in reader prose. Keep useful
   technical conditions, evidence, attribution and verification limits; do not substitute keyword
   deletion or boilerplate templates for paragraph-level review.
@@ -132,7 +157,11 @@ than expanding the task or declaring them checked. Never auto-promote coverage b
   excerpts, documented challenges, evidence limits and safe Markdown composition.
   Never compile/run upstream projects, tests, benchmarks or ablations for research without
   separate explicit authorization. Read-only source checks and reader tests are distinct.
-- Author math directly as MathML. Do not add LaTeX or runtime math renderers to delivered pages.
+- Deliver math as native MathML, without unresolved TeX or runtime math renderers. In an
+  explicitly selected Pandoc project, use its documented Markdown/math source syntax and
+  build-time conversion; preserve existing MathML rather than bulk-rewriting old manuscripts.
+  Prefer supported Markdown semantics over hand-written layout HTML; syntax and renderer
+  selection belong to `docs/markdown.md`, presentation to the shared theme/template.
 - Keep figures, CSS and scripts as real files referenced by relative paths. Do not introduce
   `data:` image URIs into the default reader. `tools/pack.py` is an opt-in export only.
 - Offline builds use installed fonts and do not embed or download them. The authorized

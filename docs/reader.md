@@ -28,6 +28,16 @@ supported by the builder; a design recommendation is not a new directive.
   local font sizes, fixed widths or copies of reader CSS/JS. Do not rewrite source paragraphs,
   mathematics or stable anchors just to match one screenshot.
 
+## Markdown sources, generated HTML
+
+Author new Markdown-first projects using the supported [document syntax](markdown.md), not
+hand-written layout HTML. An explicit Pandoc profile converts semantic figures, footnotes,
+tables and math at build time; it uses this same reader/template and shared runtime. Existing
+projects retain their parser unless deliberately migrated. The Pandoc path does not infer
+that an original author's headings should be relocated: header notes are explicit maintenance
+inputs, while original body material stays in source order. The compatibility extraction rules
+below describe the Python-Markdown path, not new author instructions.
+
 ## One shared reader
 
 `src/styles/reader.css` owns typography for papers, source analyses and surveys. Mixed
@@ -85,9 +95,10 @@ For authoring and typography changes:
   complete glyph/feature coverage and OpenType MATH table: visible-text-only subsetting
   would miss implicit math alphabets, radicals, script forms and stretchy assemblies.
   Do not download a font from article code or silently change the offline policy.
-- A different generator does not by itself fix formula typography. Runtime renderers,
-  build-time CHTML/SVG or another math source language need an explicit interface/policy
-  decision; they are not a reason to replace the existing MathML with images during polishing.
+- A different generator does not by itself fix formula typography. The documented Pandoc
+  profile supports build-time TeX-to-MathML; this changes author syntax, not the delivered
+  native layout or font policy. It is not permission to replace existing math with images
+  during polishing. Other math outputs or runtime renderers need a separate interface decision.
 
 Reader fixes must be tested against the staged public snapshot as well as local builds.
 Every reader references one library-root asset tree, not a project copy. `tools/assets.py`
@@ -147,6 +158,12 @@ Passing these checks establishes presentation behavior, not mathematical or tech
 
 ## Compact metadata without lost originals
 
+Classify material by authorship and purpose, not merely by a heading's wording. The source
+author's technical definitions, glossary chapter or discussion of its title remain manuscript
+content in their original position. Editorial term choices and brief genre notes belong below
+the title; chapter-title translation maps and authoring instructions belong in non-rendered
+maintenance files, not even in source notes.
+
 The shared builder recognizes explicit auxiliary headings such as paper information,
 acknowledgements/declarations, publication notes and references. It preserves technical
 headings (for example a discussion of variable declarations). Source/rights blocks move
@@ -172,13 +189,25 @@ see `pages.md` for explicit local-only flags and snapshot approval.
 
 ## Visible terminology from one canonical glossary
 
-Set `"show_glossary": true` in `work/reader.json` to render `work/glossary.md` as the first
-body section and include its headings in the TOC. Use a level-two heading such as
-`## 术语对应表`; do not copy the table into `content/`. The glossary contributes to the content
-hash and generated section inventory. The field must be boolean; a missing glossary or a
-colliding `sec-glossary` content section stops the build. Default/false keeps existing readers
-unchanged. English term, manuscript wording and distinctions belong in the table; see
-[chinese-writing.md](chinese-writing.md).
+Set `"show_glossary": true` in `work/reader.json` to render the reader-facing
+`work/glossary.md` inside the title's **出处与说明**, after `reader-meta.md`. This does **not**
+create a body section or add glossary headings to the body TOC. Use a level-two heading such
+as `## 译名与文体约定`; keep only reader-relevant term pairs, distinctions and brief descriptive
+notes there. Do not copy the table into `content/` or `reader-meta.md`.
+
+The glossary remains a canonical input: it contributes to the content hash and is listed in
+`reader_inputs`, not `sections`. The existing `sec-glossary` anchor remains available in the
+header for saved links. The field must be boolean; a missing glossary or a colliding
+`sec-glossary` content section stops the build. Default/false does not render this editorial
+file. An original author's glossary written in `content/` remains body content independently
+of this switch.
+
+Before enabling the switch on an old mixed maintenance glossary, separate its contents:
+keep English/translated term pairs in `glossary.md`, source/rights and genre descriptions in
+`reader-meta.md`, and move chapter-title maps, batch instructions and review records to the
+appropriate non-rendered maintenance files. The renderer does not infer or delete those
+passages by keyword. Full ownership rules and contrasting examples are in
+[chinese-writing.md](chinese-writing.md#正文与维护材料的边界).
 
 ## Contextual citations, not a full visible bibliography
 

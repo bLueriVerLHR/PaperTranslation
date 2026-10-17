@@ -1,7 +1,9 @@
 # Paper Translation Project
 
-A Python pipeline for offline-readable Chinese HTML: PDF/web extraction,
-native MathML, modular Markdown, shared reader assets, citations and optional question banks.
+A Markdown-first pipeline for offline-readable Chinese HTML. Python handles extraction and
+build orchestration; the optional Pandoc renderer supplies document-native Markdown, figures,
+footnotes and build-time MathML. Existing Python-Markdown projects remain buildable.
+Shared reader assets, citations and optional question banks use the same delivery pipeline.
 Translations are authored in source order; original reviews and source-code books use the
 same reader without inventing a PDF manifest.
 
@@ -30,6 +32,9 @@ standard-library `venv`, installs pinned requirements with pip, and routes Pytho
 caches to system TEMP. `env` prints its interpreter, `project_temp` and environment as JSON.
 No shell activation, PowerShell or Node package installation is required. Add `--pages` to
 `setup` for publication dependencies, or `--browser` for optional Playwright (not a browser download).
+For new Markdown-first projects use `python tools/dev.py setup --pandoc`, then select
+`"renderer": "pandoc"` in `work/reader.json`; see [supported author syntax](docs/markdown.md).
+The pinned binary stays in the external venv; builds do not download it or add a math runtime.
 
 Use `python tools/dev.py run -- ...` to invoke that interpreter with the correct environment.
 TEMP contains `tasks/` for plans, `reports/` for evidence and `scratch/` for experiments. Recreate
@@ -77,6 +82,7 @@ dist/<slug>/work/
   reader.json, reader-meta.md     citation/presentation metadata and rights notes
   assets/figures/                 retained rebuild figures
   reference/                     useful local source material and research records
+.agents/skills/                  portable manuscript task-entry skills
 src/                             shared templates, styles and scripts
 tools/                           pipeline and maintenance entry points
 tests/                           synthetic fixtures and regression tests
@@ -93,6 +99,8 @@ build directories belong in TEMP, not in those checkouts.
 Start with [the task workflow](docs/workflow.md), not the entire documentation directory.
 [docs/README.md](docs/README.md) routes to the specific authoring, schema, reader or publication
 specification. Writing standards still apply in full to the relevant manuscript task.
+For reusable writing, translation and review entry points, see [project writing Skills](docs/authoring-skills.md).
+They work with the local reader pipeline, not a new cloud-document or fixed article-template workflow.
 
 - Content review: reuse local sources, inspect complete answers and check only the disputed
   claims. A download, source count or passing structural test is not semantic coverage.
