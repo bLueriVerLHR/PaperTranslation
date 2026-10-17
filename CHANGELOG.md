@@ -25,6 +25,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Pages deployment compatibility
 
+- Treat SVG as XML text for Git CRLF/LF verification while rejecting substantive SVG
+  changes and retaining byte-exact checks for raster images and WOFF2 fonts.
+
 - Deploy the uploader's exact Pages artifact ID instead of relying on inconsistent
   artifact-list discovery/counts. Validate artifact/run identity, expiry and size; tolerate
   briefly missing read-only metadata but never automatically replay deployment creation.

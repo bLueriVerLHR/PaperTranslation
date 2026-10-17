@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 from tools import pages  # noqa: E402
 
-TEXT_TYPES = {".html", ".css", ".js", ".json", ".txt", ".yml"}
+TEXT_TYPES = {".html", ".css", ".js", ".json", ".txt", ".yml", ".svg"}
 
 
 def git(checkout: Path, *arguments: str, data: bytes | None = None) -> bytes:

@@ -163,9 +163,35 @@ def test_verify_git_object_bytes_and_text_newlines(published: tuple[Path, Path])
         pages_verify.verify_snapshot(checkout, site)
 
 
-def test_binary_bytes_must_match_exactly(published: tuple[Path, Path]) -> None:
+def test_svg_allows_only_text_newline_normalization(published: tuple[Path, Path]) -> None:
     site, checkout = published
-    path = site / "a/fixture.png"
+    name = "a/figure.svg"
+    text = '<svg xmlns="http://www.w3.org/2000/svg">\n<text>原图</text>\n</svg>\n'
+    write(site / name, text)
+    write(checkout / name, text)
+    git(checkout, "add", ".")
+    git(checkout, "commit", "-m", "synthetic SVG")
+    git(checkout, "push", "origin", "pages-content")
+    (site / name).write_bytes(text.replace("\n", "\r\n").encode())
+    result, _ = pages_verify.verify_snapshot(checkout, site)
+    assert result["git_normalized_text_files"] == [name]
+    write(site / name, text.replace("原图", "改图"))
+    with pytest.raises(ValueError, match="content differs"):
+        pages_verify.verify_snapshot(checkout, site)
+
+
+@pytest.mark.parametrize("name", ["a/fixture.png", "assets/fonts/math.woff2"])
+def test_binary_bytes_must_match_exactly(published: tuple[Path, Path], name: str) -> None:
+    site, checkout = published
+    if name.endswith(".woff2"):
+        for root in (site, checkout):
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"wOF2\r\n\x00synthetic")
+        git(checkout, "add", ".")
+        git(checkout, "commit", "-m", "synthetic font bytes")
+        git(checkout, "push", "origin", "pages-content")
+    path = site / name
     path.write_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
     with pytest.raises(ValueError, match="content differs"):
         pages_verify.verify_snapshot(checkout, site)
