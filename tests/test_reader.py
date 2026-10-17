@@ -34,6 +34,49 @@ def test_auxiliary_blocks_leave_technical_prose_and_math_intact() -> None:
     assert references["1"]["url"] == "https://example.org/work"
 
 
+@pytest.mark.parametrize(
+    "bibliography",
+    [
+        "1. Original Author. [Work](https://example.org/work).",
+        '<ol markdown="1"><li markdown="1"><p markdown="span">'
+        "Original Author. [Work](https://example.org/work).</p></li></ol>",
+    ],
+)
+def test_composed_essay_preserves_original_sections_notes_and_anchors(
+    tmp_path: Path, bibliography: str
+) -> None:
+    content = tmp_path / "work/content"
+    content.mkdir(parents=True)
+    (content / "00-essay.md").write_text(
+        '<div class="translated-essay" markdown="1">\n\n'
+        "## 正文 {#original-body}\n\n原有论证 [1] 与注释[^one]。\n\n"
+        "## 致谢 {#original-ack}\n\n原有致谢。\n\n"
+        "## References {#original-refs}\n\n"
+        + bibliography
+        + "\n\n[^one]: 完整原有注释。\n\n</div>\n",
+        encoding="utf-8",
+    )
+    (content.parent / "reader.json").write_text(
+        json.dumps(
+            {
+                "references": {
+                    "1": {"text": "Original Author. Work.", "url": "https://example.org/work"}
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "reader"
+    manifest = build.build(output, content, metadata={"title": "Synthetic essay"})
+    page = (output / "index.html").read_text(encoding="utf-8")
+    body = page.split('<article class="body">', 1)[1].split("</article>", 1)[0]
+    for anchor in ("original-body", "original-ack", "original-refs", "fn:one"):
+        assert f'id="{anchor}"' in body
+    assert "原有论证" in body and "原有致谢。" in body
+    assert "Original Author." in body and "完整原有注释。" in body
+    assert manifest["citations_linked"] == 1
+
+
 def test_reference_numbering_and_explicit_doi() -> None:
     references = reader.ReferenceItems(
         '<ol start="3"><li>First. 10.1000/example.</li>'

@@ -94,11 +94,15 @@ Default offline builds continue to request installed fonts. The Pages exporter a
 - English: locally installed **Times New Roman** first; **Tinos** as a self-hosted,
   Times-compatible substitute when Times New Roman is absent (usual on phones).
   This is not an identical Microsoft face; no Microsoft font files are redistributed.
+- Native MathML: **STIX Two Math 2.13b171**, pinned to commit
+  `744a22a4dd626cd14d75728aef34fc8ad7c85db0`, renamed **Paper Math**. Its complete
+  glyph coverage, layout features and OpenType MATH table are retained: implicit math
+  alphabets, radicals and stretchy assemblies are not determined by visible text alone.
 
 Sources and SHA-256 checksums are pinned in `tools/font-sources.json`. Originals download
-only into system TEMP; failed hashes stop the export. WOFF2 subsets contain actual used glyphs;
-Chinese text is split into frequency-ordered chunks, and code fonts contain only used code
-characters. `font-display: swap` keeps text immediately readable. Files are real, same-origin
+only into system TEMP; failed hashes stop the export. Text/code WOFF2 subsets contain actual
+used glyphs; Chinese text is split into frequency-ordered chunks, and code fonts contain only
+used code characters. The separate math WOFF2 face deliberately retains complete coverage. `font-display: swap` keeps text immediately readable. Files are real, same-origin
 assets, not data URIs. Subsets are renamed to respect OFL Reserved Font Names; original
 copyright and full SIL OFL 1.1 licenses accompany them in `assets/fonts/`.
 
@@ -192,8 +196,10 @@ licensed fonts remain in the approved content snapshot; no new translation is pu
 
 Local runtime refresh: `& $Python tools\assets.py`. To migrate or update a reader-only TEMP
 snapshot explicitly: `& $Python tools\pages.py --refresh-shared $Site`. The first migration
-changes only standard resource URLs and removes duplicate generated copies; later refreshes
-change only root assets/inventory. The validator rejects reintroduced copies/noncanonical URLs.
+rewrites standard resource URLs, removes duplicate generated copies and upgrades complete,
+verified-locator legacy source captions into native source cards without changing code.
+Already converted cards are unchanged; other prose is not rebuilt or replaced. Later
+refreshes update root assets/inventory. The validator rejects reintroduced copies/noncanonical URLs.
 Pushes to either branch and manual workflow dispatch deploy the latest approved snapshot.
 The deployment is serialized; deployment failure leaves the previous live version untouched.
 

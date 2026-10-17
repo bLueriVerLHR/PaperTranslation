@@ -288,6 +288,7 @@ def check_site(site: Path, *, allow_legacy_assets: bool = False) -> list[str]:
             "assets/fonts/han-OFL.txt",
             "assets/fonts/maple-OFL.txt",
             "assets/fonts/tinos-OFL.txt",
+            "assets/fonts/stix-OFL.txt",
         }:
             errors.append(f"unexpected text/source file: {relative}")
         refs = []

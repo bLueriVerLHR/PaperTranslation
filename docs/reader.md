@@ -5,6 +5,29 @@ notice do not grant permission to distribute translations or extracted figures. 
 original license and any necessary permission before public sharing; never describe a
 personal-use disclaimer as a legal guarantee.
 
+## HTML-first layout guidance
+
+HTML is the delivery target; a browser print stylesheet is a fallback, not a requirement to
+produce PDF editions. Screen layout must not inherit A4 dimensions, millimetre-based page
+widths or simulated paper margins. The shared reader separates a fluid shell from a 46rem
+prose measure, and adds a chapter rail on enhanced screens at least 1100px wide. Narrower
+screens retain a single reading column and TOC dialog. Use only source syntax actually
+supported by the builder; a design recommendation is not a new directive.
+
+- Separate the page shell from the prose reading measure. Wide screens may accommodate a
+  chapter rail and wider code, tables or diagrams without stretching every paragraph across
+  the viewport. Keep ordinary prose at a comfortable line length and align short equations
+  with that reading column; allow genuinely wide material more space when available.
+- Collapse to one reading column on phones. Navigation must not consume the narrow content
+  area or cover headings. Keep touch targets usable and preserve start-aligned Chinese/Latin
+  prose instead of adding justification, forced line breaks or global text shrinking.
+- Contain horizontal overflow in the code, table or equation that needs it, not the whole
+  page. A scrollable region needs a visible affordance and keyboard access; a clipped right
+  edge or a hover-only explanation is not a mobile fallback.
+- Keep layout decisions in the shared runtime. Manuscripts supply structure and content, not
+  local font sizes, fixed widths or copies of reader CSS/JS. Do not rewrite source paragraphs,
+  mathematics or stable anchors just to match one screenshot.
+
 ## One shared reader
 
 `src/styles/reader.css` owns typography for papers, source analyses and surveys. Mixed
@@ -13,7 +36,9 @@ including forced line breaks. Do not append project-specific font, fixed-size or
 overrides that disappear when the Pages exporter installs the shared stylesheet. Reading-size
 controls use `--reading-scale`; code and ASCII diagrams remain monospaced.
 
-The script's modal service is shared by the library, article TOC and citation details. Cards
+The script's modal service is shared by the library, article TOC, citation details and
+Markdown footnotes. Footnote links retain their native target/backlink fallback, and complete
+note text remains in the saved document; a dialog never becomes its only copy. Cards
 are centered in the native top layer, scroll internally and lock the background. Backdrop,
 close button and Escape restore the opener and original scroll position. Tab and Shift+Tab
 cycle within the card. Choosing a TOC heading closes the card *before* scrolling to and
@@ -38,13 +63,87 @@ Keep MathML's native `math` layout and text baseline. Inline expressions must no
 never download or redistribute proprietary system fonts. Ordinary inline math remains in
 prose. Display equations and expressions wider than the reading column use a padded,
 keyboard-accessible block scroller; resize and reading-scale changes recompute that layout
-without modifying the MathML expression. Print restores visible overflow.
+without modifying the MathML expression. Without scripts, native MathML width caps keep
+oversized expressions local without turning ordinary inline symbols into inline-blocks.
+Print restores visible overflow.
+
+For authoring and typography changes:
+
+- Keep variables, operators, subscripts, fractions, delimiters and upright function names
+  semantically correct. Use aligned rows only for a meaningful derivation or mathematical
+  grouping, not as a page-layout table. Do not insert arbitrary spacing or split expressions
+  by text matching to make them fit a phone.
+- Give display mathematics sufficient size and vertical clearance without inflating inline
+  symbols or compressing every long formula. Keep equation numbers outside the scrollable
+  expression so they neither overlap nor disappear with it.
+- Inspect the actual font result, not just the configured `font-family` list. STIX Two Math
+  and Latin Modern Math are possible MATH-table fonts; their presence on a desktop says
+  nothing about availability on a phone. Offline builds still use installed fonts only.
+  Any authorized Pages math-font addition must follow `pages.md`'s licensing, version/hash
+  pinning and naming requirements, and verify mathematical variants and stretchy assemblies
+  after conversion. The Pages exporter now supplies a renamed STIX Two Math face with its
+  complete glyph/feature coverage and OpenType MATH table: visible-text-only subsetting
+  would miss implicit math alphabets, radicals, script forms and stretchy assemblies.
+  Do not download a font from article code or silently change the offline policy.
+- A different generator does not by itself fix formula typography. Runtime renderers,
+  build-time CHTML/SVG or another math source language need an explicit interface/policy
+  decision; they are not a reason to replace the existing MathML with images during polishing.
 
 Reader fixes must be tested against the staged public snapshot as well as local builds.
 Every reader references one library-root asset tree, not a project copy. `tools/assets.py`
 refreshes local runtime code without rebuilding prose. Actions composes the current runtime
 from main into the approved snapshot, so pipeline UI fixes update all readers automatically;
 this never authorizes publishing new article content.
+
+## Compact source-code presentation
+
+A source excerpt should lead with its technical purpose and readable code, not a paragraph
+of version/path bookkeeping. For a source-card design, a short repository label, file basename
+and real line range can form the default summary; keep the complete evidence required by
+[source-analysis.md](source-analysis.md) beside the same excerpt in an expandable source record.
+Do not shorten the canonical commit or source URL, discard the repository-relative path, or
+move all identity into inaccessible machine metadata. Full records must remain available in
+the saved HTML without fetching GitHub or relying on JavaScript.
+
+Native `details`/`summary` is a compatible progressive disclosure option. Its summary must be
+meaningful on a phone, work with touch and keyboard, and leave the code visible when closed.
+Existing plain Markdown captions remain valid. `tools/source_cards.py` provides a bounded
+compatibility upgrade for the complete legacy caption emitted by the excerpt generator:
+`源码摘录` purpose, repository, full commit, path, real line range, symbol and a matching
+HTTPS GitHub fixed-version permalink, immediately followed by code. Commit/path/range and
+code line count must agree; partial or inconsistent captions remain untouched. This is not a
+general prose recognizer or a new Markdown directive. The builder and explicit runtime
+refresh use the same idempotent upgrade; the original `pre`/`code` subtree is retained
+verbatim. Source verification still belongs to the research records and excerpt generator,
+not to this presentation adapter. Reuse structured records when authoring new generators.
+
+Enhanced source cards visually hide common leading spaces without changing `textContent`.
+Their copy control writes the original text, with an original-text selection fallback when
+clipboard access fails. No-JS readers retain visible code and native source disclosure; they
+do not show an unusable copy button. Source ranges are shown, not synthetic gutter numbers.
+
+Display line numbers and copy controls must not contaminate the copied source. Visual removal
+of common indentation must preserve the original text and relative indentation, be disclosed,
+and leave an original-text copy/fallback. Editing code is not a typography fix. The source
+analysis specification owns excerpt verification and permission requirements.
+
+## Presentation review
+
+Check representative narrow and wide views, for example 320/390/768/1440 CSS pixels, as well
+as light/dark themes and supported reading-size changes. Verify that:
+
+- prose and the document root do not overflow horizontally; wide content scrolls locally;
+- inline math retains its baseline, display symbols are not clipped, equation numbers remain
+  readable, and scroll regions can be operated without a pointer;
+- source records expand by touch and keyboard, retain full fixed-version identity offline,
+  and remain usable with no scripts; unavailable enhanced controls are not left as dead buttons;
+- code text, mathematical structure, citations and stable IDs survive the presentation change;
+  any display-only normalization is kept separate from canonical content and verification;
+- the inspected browser/font environment and any untested mobile engines are reported honestly.
+  Desktop viewport emulation is not a real-device or cross-browser typography test.
+
+Use synthetic fixtures and TEMP comparison pages before touching canonical manuscripts.
+Passing these checks establishes presentation behavior, not mathematical or technical validity.
 
 ## Compact metadata without lost originals
 

@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # allow `python tools/coverage.py` to import the package
     sys.path.insert(0, str(ROOT))
 
-from tools import paper  # noqa: E402  (must follow the sys.path bootstrap above)
+from tools import manuscript, paper  # noqa: E402  (must follow the sys.path bootstrap above)
 
 _MATH_OR_CODE_RE = re.compile(
     r"<math\b.*?</math>|<pre\b.*?</pre>|```.*?```|<table\b.*?</table>",
@@ -57,8 +57,8 @@ class Report:
 
 
 def read_content(content_dir: Path) -> dict[str, str]:
-    """Return ``{filename: text}`` for every content file."""
-    return {p.name: p.read_text(encoding="utf-8") for p in sorted(content_dir.glob("*.md"))}
+    """Return top-level documents after the builder's safe local include expansion."""
+    return {p.name: manuscript.expand(p, content_dir)[0] for p in sorted(content_dir.glob("*.md"))}
 
 
 def extracted_figures(report_path: Path | None, expected: list[int]) -> list[int]:

@@ -8,5 +8,7 @@
   {"file": "tinos-bold.ttf", "url": "https://raw.githubusercontent.com/google/fonts/ba95515f1333efe9342c2ad988b9c2f6bef6dbad/ofl/tinos/Tinos-Bold.ttf", "sha256": "393269dbab8899f938db19783eca5eac92eb431f7ae0ab45b8349ca895f1a06b"},
   {"file": "tinos-italic.ttf", "url": "https://raw.githubusercontent.com/google/fonts/ba95515f1333efe9342c2ad988b9c2f6bef6dbad/ofl/tinos/Tinos-Italic.ttf", "sha256": "5942266ed398b155d7dc23e36833e7ec6be988f2439bdbeb8ef1bede808eaa91"},
   {"file": "tinos-bolditalic.ttf", "url": "https://raw.githubusercontent.com/google/fonts/ba95515f1333efe9342c2ad988b9c2f6bef6dbad/ofl/tinos/Tinos-BoldItalic.ttf", "sha256": "a5de79f0fe863ea0954757acb3d47b3ccd0a930ce3dd5b97230cd3866790a06e"},
-  {"file": "tinos-license.txt", "url": "https://raw.githubusercontent.com/googlefonts/tinos/5df023370055d3fe8f05aa288fe0ba9a6928068a/OFL.txt", "sha256": "cb3382d4643e8b02c12e322c220a3c76a5020d667e4fd4e7c75e744cca6caa6b"}
+  {"file": "tinos-license.txt", "url": "https://raw.githubusercontent.com/googlefonts/tinos/5df023370055d3fe8f05aa288fe0ba9a6928068a/OFL.txt", "sha256": "cb3382d4643e8b02c12e322c220a3c76a5020d667e4fd4e7c75e744cca6caa6b"},
+  {"file": "stix-math.otf", "url": "https://raw.githubusercontent.com/stipub/stixfonts/744a22a4dd626cd14d75728aef34fc8ad7c85db0/fonts/static_otf/STIXTwoMath-Regular.otf", "sha256": "3a5f3f26f40d5698b3c62dd085d48d6663696a3f80825aab8b553d5097518e8c"},
+  {"file": "stix-license.txt", "url": "https://raw.githubusercontent.com/stipub/stixfonts/744a22a4dd626cd14d75728aef34fc8ad7c85db0/OFL.txt", "sha256": "0c8825913b60d858aacdb33c4ca6660a7d64b0d6464702efbb19313f5765861a"}
 ]

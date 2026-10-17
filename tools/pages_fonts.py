@@ -59,16 +59,35 @@ def download_sources(cache: Path) -> dict[str, Path]:
     return paths
 
 
-def write_subset(source: Path | io.BytesIO, target: Path, points: set[int], family: str) -> None:
-    """Subset and rename a font without dropping its copyright/license records."""
+def write_subset(
+    source: Path | io.BytesIO,
+    target: Path,
+    points: set[int],
+    family: str,
+    *,
+    preserve_math: bool = False,
+) -> None:
+    """Rename/convert fonts, retaining complete math coverage when requested.
+
+    MathML can select unencoded size assemblies and implicit mathematical alphabets,
+    radicals and script forms. A visible-text-only subset is unsafe for that face.
+    """
     font = TTFont(source, recalcTimestamp=False)
+    if preserve_math and "MATH" not in font:
+        font.close()
+        raise ValueError("mathematical font must contain an OpenType MATH table")
     options = subset.Options()
+    if preserve_math:
+        options.layout_features = ["*"]
     options.flavor = "woff2"
     options.name_IDs = ["*"]
     options.name_languages = ["*"]
     options.name_legacy = True
     worker = subset.Subsetter(options=options)
-    worker.populate(unicodes=points)
+    worker.populate(
+        unicodes=set(font.getBestCmap()) if preserve_math else points,
+        glyphs=font.getGlyphOrder() if preserve_math else [],
+    )
     worker.subset(font)
     # Rename family/full/PostScript names; preserve style and all legal records.
     for record in font["name"].names:
@@ -95,7 +114,7 @@ def font_rule(family: str, name: str, weight: int, style: str, points: set[int])
 
 
 def install_fonts(site: Path, cache: Path) -> None:
-    """Create CJK regular/bold chunks, Maple code faces and a Times-compatible fallback."""
+    """Create text/code subsets and a full-coverage, renamed OpenType math face."""
     sources = download_sources(cache)
     out = site / "assets/fonts"
     out.mkdir(parents=True, exist_ok=True)
@@ -163,23 +182,30 @@ def install_fonts(site: Path, cache: Path) -> None:
                 points,
             )
         )
+    math_source = sources["stix-math.otf"]
+    with TTFont(math_source) as font:
+        math_points = set(font.getBestCmap())
+    write_subset(math_source, out / "math.woff2", math_points, "Paper Math", preserve_math=True)
+    rules.append(font_rule("Paper Math", "math.woff2", 400, "normal", math_points))
     rules.append("""
 :root {
   --font-serif: "Times New Roman", "Paper Times Fallback", "Paper Han Serif", "Source Han Serif SC", serif;
   --font-cjk: var(--font-serif);
+  --font-math: "Paper Math", "STIX Two Math", "Cambria Math", "Latin Modern Math", math;
   --font-mono: "Paper Maple Mono", "Maple Mono CN", "Paper Han Serif", monospace;
 }
 code, pre, kbd, samp { font-family: var(--font-mono); }
 """)
     (out / "fonts.css").write_text("\n".join(rules), encoding="utf-8")
-    for family in ("han", "maple", "tinos"):
+    for family in ("han", "maple", "tinos", "stix"):
         (out / f"{family}-OFL.txt").write_bytes(sources[f"{family}-license.txt"].read_bytes())
     notice = (
-        "Self-hosted fonts: Source Han Serif SC 2.003, Maple Mono CN v7.9, Tinos.\n"
+        "Self-hosted fonts: Source Han Serif SC 2.003, Maple Mono CN v7.9, Tinos, STIX Two Math 2.13b171.\n"
         "All are SIL Open Font License 1.1; full copyright and licenses accompany this file.\n"
-        "Subsets renamed Paper Han Serif, Paper Maple Mono and Paper Times Fallback.\n"
+        "Faces renamed Paper Han Serif, Paper Maple Mono, Paper Times Fallback and Paper Math.\n"
         "Tinos is a Times-compatible fallback, not Microsoft Times New Roman.\n"
-        "Subset modifications: used glyphs only; WOFF2 conversion and family renaming.\n\n"
+        "Text/code: used-glyph subsets. Math: complete glyph/feature coverage and MATH table.\n"
+        "All faces converted to WOFF2 and renamed; license/copyright records retained.\n\n"
     )
     notice += LOCK.read_text(encoding="utf-8")
     (out / "NOTICE.txt").write_text(notice, encoding="utf-8")

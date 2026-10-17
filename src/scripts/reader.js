@@ -168,15 +168,49 @@
     update();
   }
 
+  function initFootnotes() {
+    var links = document.querySelectorAll("a.footnote-ref[href^='#']");
+    if (!links.length) { return; }
+    var modal = createModal("footnote-dialog", "注释", document.createElement("div"));
+    if (!modal) { return; }
+    links.forEach(function (link) {
+      var id;
+      try { id = decodeURIComponent(link.getAttribute("href").slice(1)); }
+      catch (_) { return; }
+      var target = document.getElementById(id);
+      if (!target) { return; }
+      link.addEventListener("click", function (event) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || activeModal) { return; }
+        var detail = document.createElement("div");
+        detail.className = "footnote-detail";
+        Array.from(target.childNodes).forEach(function (node) { detail.appendChild(node.cloneNode(true)); });
+        detail.querySelectorAll("[id]").forEach(function (node) { node.removeAttribute("id"); });
+        detail.querySelectorAll(".footnote-backref").forEach(function (node) { node.remove(); });
+        modal.body.replaceChildren(detail);
+        event.preventDefault();
+        modal.open(link);
+      });
+    });
+  }
+
   function initToc() {
     var toc = document.getElementById("toc");
     var toolbar = document.querySelector(".toolbar");
     if (!toc || !toolbar) { return; }
     var nav = toc.querySelector("nav");
     if (!nav || !nav.querySelector("a")) { toc.hidden = true; return; }
+    // A desktop rail and the narrow-screen dialog share the same generated TOC.
+    var rail = document.createElement("aside");
+    rail.className = "reading-rail";
+    rail.setAttribute("aria-label", "章节导航");
+    var railNav = nav.cloneNode(true);
+    railNav.querySelectorAll("[id]").forEach(function (element) { element.removeAttribute("id"); });
+    rail.appendChild(railNav);
     // Keep the native details tree unchanged if the modal enhancement is unavailable.
     var modal = createModal("toc-dialog", "文内目录", document.createElement("div"));
     if (!modal) { return; }
+    var page = document.querySelector(".page");
+    if (page) { page.prepend(rail); }
     nav.classList.add("toc-content");
     modal.body.replaceChildren(nav);
     var trigger = document.createElement("button");
@@ -349,7 +383,7 @@
   }
 
   function initScrollSpy() {
-    var links = Array.prototype.slice.call(document.querySelectorAll(".toc a[href^='#'], .toc-content a[href^='#']"));
+    var links = Array.prototype.slice.call(document.querySelectorAll(".toc a[href^='#'], .toc-content a[href^='#'], .reading-rail a[href^='#']"));
     if (!links.length || !("IntersectionObserver" in window)) {
       return;
     }
@@ -359,8 +393,8 @@
       var id = decodeURIComponent(link.getAttribute("href").slice(1));
       var heading = document.getElementById(id);
       if (heading) {
-        byId[id] = link;
-        targets.push(heading);
+        if (!byId[id]) { byId[id] = []; targets.push(heading); }
+        byId[id].push(link);
       }
     });
 
@@ -372,11 +406,12 @@
           }
           links.forEach(function (link) {
             link.classList.remove("active");
+            link.removeAttribute("aria-current");
           });
-          var link = byId[entry.target.id];
-          if (link) {
+          (byId[entry.target.id] || []).forEach(function (link) {
             link.classList.add("active");
-          }
+            link.setAttribute("aria-current", "location");
+          });
         });
       },
       { rootMargin: "-10% 0px -75% 0px", threshold: 0 }
@@ -408,11 +443,96 @@
         }
         wrapper.setAttribute("role", "region");
         wrapper.setAttribute("aria-label", "公式");
-        if (wrapper.scrollWidth > wrapper.clientWidth + 1) {
+        var overflow = wrapper.scrollWidth > wrapper.clientWidth + 1;
+        wrapper.classList.toggle("has-overflow", overflow);
+        if (overflow) {
           wrapper.tabIndex = 0;
           wrapper.setAttribute("aria-label", "公式，可横向滚动");
-        } else { wrapper.removeAttribute("tabindex"); }
-      } else if (wrapped) { wrapper.replaceWith(element); }
+        } else {
+          wrapper.removeAttribute("tabindex");
+          wrapper.setAttribute("aria-label", "公式");
+        }
+        var hint = wrapper.nextElementSibling;
+        if (!hint || !hint.classList.contains("math-overflow-note")) {
+          hint = document.createElement("span");
+          hint.className = "math-overflow-note";
+          hint.textContent = "左右滑动查看完整公式 ↔";
+          hint.setAttribute("aria-hidden", "true");
+          wrapper.after(hint);
+        }
+        hint.hidden = !overflow;
+      } else if (wrapped) {
+        var oldHint = wrapper.nextElementSibling;
+        if (oldHint && oldHint.classList.contains("math-overflow-note")) { oldHint.remove(); }
+        wrapper.replaceWith(element);
+      }
+    });
+  }
+
+  function initSourceExcerpts() {
+    document.querySelectorAll(".source-excerpt").forEach(function (card) {
+      var code = card.querySelector("pre code");
+      if (!code) { return; }
+      var original = code.textContent;
+      var indents = original.split("\n").filter(function (line) { return line.trim(); })
+        .map(function (line) { return (line.match(/^ */) || [""])[0].length; });
+      var common = indents.length ? Math.min.apply(null, indents) : 0;
+      if (common > 0) {
+        var walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+        var nodes = [];
+        while (walker.nextNode()) { nodes.push(walker.currentNode); }
+        var column = 0;
+        nodes.forEach(function (node) {
+          var fragment = document.createDocumentFragment();
+          var buffer = "", hidden = false;
+          function flush() {
+            if (!buffer) { return; }
+            if (hidden) {
+              var span = document.createElement("span");
+              span.className = "code-indent";
+              span.textContent = buffer;
+              fragment.appendChild(span);
+            } else { fragment.appendChild(document.createTextNode(buffer)); }
+            buffer = "";
+          }
+          Array.from(node.data).forEach(function (character) {
+            var hide = character === " " && column < common;
+            if (hide !== hidden) { flush(); hidden = hide; }
+            buffer += character;
+            column = character === "\n" ? 0 : column + 1;
+          });
+          flush();
+          node.replaceWith(fragment);
+        });
+        var note = card.querySelector(".source-indent-note");
+        if (note) { note.hidden = false; }
+      }
+      var copy = card.querySelector("[data-copy-code]");
+      if (copy) {
+        copy.hidden = false;
+        copy.addEventListener("click", function () {
+          function selectOriginal() {
+            // Never silently copy dedented/line-numbered display text.
+            var previous = card.querySelector(".source-copy-fallback");
+            if (previous) { previous.remove(); }
+            var textarea = document.createElement("textarea");
+            textarea.value = original;
+            textarea.setAttribute("aria-label", "源码原文，请复制后按 Escape 关闭");
+            textarea.className = "source-copy-fallback";
+            card.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            textarea.addEventListener("keydown", function (event) {
+              if (event.key === "Escape") { textarea.remove(); copy.focus(); }
+            });
+            copy.textContent = "已选中原文";
+          }
+          if (!navigator.clipboard || !navigator.clipboard.writeText) { selectOriginal(); return; }
+          navigator.clipboard.writeText(original).then(function () {
+            copy.textContent = "已复制原文";
+          }, selectOriginal);
+        });
+      }
     });
   }
 
@@ -449,9 +569,13 @@
   }
 
   function init() {
+    // Remove the native no-script width cap before measuring true formula widths.
+    root.classList.add("reader-enhanced");
     initReadingTools();
+    initSourceExcerpts();
     initToc();
     initCitations();
+    initFootnotes();
     initQuestions();
     initTheme();
     initTopButton();

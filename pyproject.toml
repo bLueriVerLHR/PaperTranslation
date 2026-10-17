@@ -1,7 +1,7 @@
 [project]
 name = "paper-translation"
 version = "0.1.0"
-description = "Reproducible pipeline that translates research papers into a single A4 HTML page."
+description = "Reproducible pipeline for responsive, offline-readable research HTML."
 requires-python = ">=3.12"
 license = { text = "MIT" }
 
@@ -31,6 +31,7 @@ known-first-party = ["tools"]
 "tools/pages.py" = ["RUF001", "RUF002", "RUF003"]
 "tools/build.py" = ["RUF001"]
 "tools/reader.py" = ["RUF001"]
+"tools/source_cards.py" = ["RUF001"]
 
 [tool.ruff.format]
 quote-style = "double"

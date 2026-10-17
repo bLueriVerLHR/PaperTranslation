@@ -172,6 +172,14 @@ def reader_site(tmp_path: Path) -> Path:
         '<div class="equation"><math display="block" id="display-math">'
         '<mfrac><mi>a</mi><mi>b</mi></mfrac></math><span class="eqno">(1)</span></div>',
     ]
+    commit = "a" * 40
+    sections.append(
+        "**源码摘录：预算示例。** 仓库 `repo`，固定提交 `"
+        + commit
+        + "`；文件 `src/example.py`，第 13–14 行，符号 `run`。"
+        + f"[对应源码](https://github.com/example/repo/blob/{commit}/src/example.py#L13-L14)。"
+        + "\n\n```python\n            value = 1\n            return value\n```"
+    )
     for index in range(40):
         sections.extend(
             [
@@ -290,6 +298,38 @@ def test_reader_toc_citations_spacing_and_print(browser, reader_site: Path, widt
         assert not errors
 
 
+@pytest.mark.parametrize("scripts", [False, True])
+def test_source_card_preserves_identity_and_original_code(
+    browser, reader_site: Path, scripts: bool
+) -> None:
+    """Disclosure is native; display indentation and copy fallback preserve exact source."""
+    original = "            value = 1\n            return value\n"
+    with browser.new_context(
+        java_script_enabled=scripts, viewport={"width": 390, "height": 844}
+    ) as context:
+        page = context.new_page()
+        page.goto((reader_site / "index.html").as_uri(), wait_until="load")
+        card = page.locator(".source-excerpt")
+        assert card.locator("pre code").text_content() == original
+        assert card.locator("pre").is_visible()
+        card.locator("summary").click()
+        assert card.locator("details").get_attribute("open") is not None
+        assert "a" * 40 in card.locator(".source-fields").inner_text()
+        assert "src/example.py" in card.locator(".source-fields").inner_text()
+        if scripts:
+            assert card.locator(".code-indent").count() > 0
+            page.evaluate(
+                "Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true})"
+            )
+            card.locator("[data-copy-code]").click()
+            assert card.locator("textarea").input_value() == original
+            page.keyboard.press("Escape")
+            assert card.locator("textarea").count() == 0
+        else:
+            assert not card.locator("[data-copy-code]").is_visible()
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
 @pytest.mark.parametrize("mode", ["no-js", "no-dialog"])
 def test_reader_toc_native_fallback(browser, reader_site: Path, mode: str) -> None:
     """Native details still navigates correctly with no enhancement, including file://."""
@@ -302,6 +342,71 @@ def test_reader_toc_native_fallback(browser, reader_site: Path, mode: str) -> No
         assert page.locator("#toc a:visible").count() == 41
         page.locator("#toc a[href='#topic-29']").click()
         page.wait_for_url("**#topic-29")
+
+
+def test_no_script_display_equation_keeps_overflow_local(browser, tmp_path: Path) -> None:
+    from tools import build
+
+    content = tmp_path / "work/content"
+    content.mkdir(parents=True)
+    formula = (
+        '<math display="block" id="long-equation"><mrow>'
+        + "<mi>"
+        + "m" * 200
+        + "</mi><mo>+</mo><mn>1</mn></mrow></math>"
+    )
+    (content / "01-math.md").write_text(
+        '## 长公式\n\n<div class="equation">' + formula + '<span class="eqno">(1)</span></div>\n',
+        encoding="utf-8",
+    )
+    output = tmp_path / "reader"
+    build.build(output, content, metadata={"title": "Synthetic math fallback"})
+    with browser.new_context(
+        java_script_enabled=False, viewport={"width": 390, "height": 844}
+    ) as context:
+        page = context.new_page()
+        page.goto((output / "index.html").as_uri(), wait_until="load")
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        assert page.locator("#long-equation").evaluate("e => e.scrollWidth > innerWidth * 2")
+        assert page.locator(".eqno").is_visible()
+        assert page.locator("#long-equation .eqno").count() == 0
+        for _ in range(12):
+            page.keyboard.press("Tab")
+            if page.evaluate("document.activeElement.id") == "long-equation":
+                break
+        assert page.evaluate("document.activeElement.id") == "long-equation"
+        page.keyboard.press("ArrowRight")
+        page.wait_for_function("document.getElementById('long-equation').scrollLeft > 0")
+
+
+@pytest.mark.parametrize("scripts", [False, True])
+def test_footnote_modal_keeps_native_offline_fallback(
+    browser, tmp_path: Path, scripts: bool
+) -> None:
+    from tools import build
+
+    content = tmp_path / "work/content"
+    content.mkdir(parents=True)
+    (content / "01-notes.md").write_text(
+        "## 注释示例\n\n正文带注释[^one]。\n\n[^one]: 完整注释及其证据边界。\n", encoding="utf-8"
+    )
+    target = tmp_path / "reader"
+    build.build(target, content, metadata={"title": "Synthetic notes"})
+    with browser.new_context(java_script_enabled=scripts) as context:
+        page = context.new_page()
+        page.goto((target / "index.html").as_uri(), wait_until="load")
+        link = page.locator("a.footnote-ref")
+        link.click()
+        if scripts:
+            modal = page.locator("#footnote-dialog")
+            playwright.expect(modal).to_be_visible()
+            assert "完整注释及其证据边界。" in modal.inner_text()
+            assert modal.locator(".footnote-backref").count() == 0
+            page.keyboard.press("Escape")
+            playwright.expect(link).to_be_focused()
+        else:
+            assert page.url.endswith("#fn:one")
+        assert "完整注释及其证据边界。" in page.locator(".footnote").inner_text()
 
 
 @pytest.fixture

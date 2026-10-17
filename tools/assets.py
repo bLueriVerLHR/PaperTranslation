@@ -14,6 +14,11 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools import source_cards  # noqa: E402
+
 SOURCES = {
     "assets/styles/reader.css": ROOT / "src/styles/reader.css",
     "assets/scripts/reader.js": ROOT / "src/scripts/reader.js",
@@ -64,7 +69,7 @@ def rewrite(text: str, page: Path) -> str:
 
 
 def refresh(site: Path) -> dict[str, list[str]]:
-    """Migrate rendered URLs once, then refresh just the shared tree on later calls.
+    """Refresh shared resources and upgrade complete, fixed-version source captions.
 
     Canonical work, figures, fonts and nonstandard resources are never removed.
     Only obsolete copies of these five generated standard files are retired.
@@ -78,7 +83,7 @@ def refresh(site: Path) -> dict[str, list[str]]:
         if path.is_symlink():
             raise ValueError(f"reader page is a symlink: {path}")
         text = path.read_text(encoding="utf-8")
-        rewritten = rewrite(text, relative)
+        rewritten = source_cards.upgrade(rewrite(text, relative))
         if rewritten != text:
             path.write_text(rewritten, encoding="utf-8", newline="\n")
             pages.append(relative.as_posix())

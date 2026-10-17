@@ -2,9 +2,11 @@
 
 ## What this repository is
 
-A small, reproducible pipeline that turns a research paper into an A4-sized HTML reading page
-in Simplified Chinese. It is deliberately not a general translation engine: translation is
-authored by an agent one section at a time, while the pipeline guarantees that the mechanical
+A small, reproducible pipeline that turns a research paper into an offline-readable HTML page
+in Simplified Chinese. HTML-first screen-layout guidance belongs to [reader.md](reader.md);
+browser print styles do not define the screen reading width. It is deliberately not a general
+translation engine: translation is authored by an agent one section at a time, while the pipeline
+guarantees that the mechanical
 parts — source extraction, layout, math markup and packaging — are deterministic and
 re-runnable for every registered paper.
 
@@ -49,7 +51,13 @@ print stylesheet, and the reader script. The output graph is shared too: every p
 survey detail and homepage references the one `dist/assets/{styles,scripts}/` tree. No per-project
 runtime copies exist. `tools/assets.py` refreshes that tree independently of article building;
 `tools/pages.py --refresh-shared` composes the same runtime into an approved public snapshot.
-Actions performs that composition from main at deployment, without publishing new prose. Adding a paper therefore means
+Actions performs that composition from main at deployment, without publishing new prose.
+The builder and explicit runtime refresh also share `tools/source_cards.py`: a bounded,
+idempotent compatibility adapter for complete fixed-version excerpt captions. It checks
+permalink/locator/line-count agreement and retains the original code subtree; it does not
+fetch source, infer missing metadata or introduce a new manuscript directive. See
+[reader.md](reader.md#compact-source-code-presentation) for the presentation contract.
+Adding a paper therefore means
 writing a manifest — no tool changes, no new constants. `tools/paper.py` loads the manifest and
 derives every path (`content_dir`, `figures_dir`, `output_dir`, `output_path`, …), so tools
 select registered paper inputs by slug rather than per-paper constants.
@@ -292,7 +300,9 @@ resumable; larger original reviews and analyses can use standalone `{{include:pa
 directives to compose focused project/topic subdocuments. Only top-level `content/*.md`
 files become sections, in filename order. `tools/manuscript.py` expands relative Markdown
 includes inside the content root, rejecting escapes, cycles, missing files and excessive
-expansion. Dependencies enter the content hash and manifest. See [source-analysis.md](source-analysis.md)
+expansion. Dependencies enter the content hash and manifest. Coverage checks use the same
+expansion for structural markers and language scanning; passing these checks is not semantic
+review. See [source-analysis.md](source-analysis.md)
 for syntax, source excerpt provenance and design-comparison requirements.
 
 **CJK-safe heading anchors.** The stock `toc` slugify in python-markdown strips non-ASCII
@@ -302,9 +312,11 @@ registers a slugify that keeps `\w` (which includes CJK) and falls back to `sect
 **Offline fonts and Pages fonts are separate.** The shared stylesheet requests installed
 Times New Roman, Source Han Serif SC and Maple Mono, with system fallbacks. Default offline
 builds and optional packed files contain no downloaded fonts. The authorized Pages export
-adds self-hosted OFL WOFF2 subsets from hash-pinned sources, including a Times-compatible
-Tinos fallback for phones. Font binaries never enter main; original licenses accompany the
-renamed subsets on pages-content. See `pages.md` for the publication and subsetting steps.
+adds self-hosted OFL WOFF2 faces from hash-pinned sources, including a Times-compatible
+Tinos fallback for phones and a dedicated Paper Math face. Text/code faces are used-glyph
+subsets; math retains complete glyph/feature coverage and its OpenType MATH table. Font
+binaries never enter main; original licenses accompany the renamed faces on pages-content.
+See [pages.md](pages.md#fonts) for the publication and conversion steps.
 
 **Highlighting is offline.** Explicit-language Markdown fences receive Pygments token
 spans at build time while retaining their `pre/code` and language classes. Unknown languages
@@ -313,8 +325,8 @@ highlighter or network resource is loaded. Existing semantic pseudocode classes
 (`alg-keyword`, `alg-comment`, …) remain supported.
 
 **Code and mathematics use different font paths.** The monospace stack includes CJK fallbacks
-for code comments. MathML uses a dedicated math font. Glyph availability depends on installed
-fonts; do not silently change mathematical meaning to accommodate a missing code glyph.
+for code comments. MathML uses a dedicated math font: installed faces offline, the pinned
+renamed face on Pages. Missing glyphs are not permission to change mathematical meaning.
 
 **Inline math convention.** Inline MathML is used whenever the expression has structure
 (subscripts, superscripts, fractions, operators); a bare single variable may be written as

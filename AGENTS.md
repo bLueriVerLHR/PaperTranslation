@@ -4,7 +4,7 @@ Operating manual for coding agents in this repository.
 
 ## Project and publication boundary
 
-A reproducible pipeline translates research papers (PDF or web) into A4-sized,
+A reproducible pipeline translates research papers (PDF or web) into responsive,
 offline-readable HTML. The `main` branch publishes only the pipeline. An explicitly
 approved reader-only export is published separately on `pages-content` and GitHub Pages;
 translations and figure crops retain the original authors' rights, not the MIT license.
@@ -147,7 +147,8 @@ than expanding the task or declaring them checked. Never auto-promote coverage b
   links/cards. Never invent reference identities or choose ambiguous matches.
 - Reader typography and modal behavior belong to the shared styles/script. Keep source,
   licensing and reading-limit notes beneath the title, not as publishing-style body sections;
-  see `docs/reader.md` for presentation profiles and progressive fallback behavior.
+  see `docs/reader.md` for HTML-first layout guidance, presentation profiles and progressive
+  fallback behavior.
 - Before translating a rights-restricted published paper, first look for its corresponding
   arXiv preprint. Confirm authors, identity, fixed version and a license permitting adaptations;
   being on arXiv is not itself permission. Use that version as the full translation source.

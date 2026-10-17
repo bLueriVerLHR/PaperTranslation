@@ -84,6 +84,27 @@ def test_check_passes_when_everything_is_present(tmp_path: Path) -> None:
     assert result.ok, result
 
 
+def test_included_content_receives_structural_and_language_checks(tmp_path: Path) -> None:
+    content = _content(tmp_path)
+    (content / "parts").mkdir()
+    (content / "01.md").write_text("{{include:parts/body.md}}\n", encoding="utf-8")
+    (content / "parts/body.md").write_text(
+        "## 摘要\n\nThis untranslated sentence must still be detected inside an included chapter.\n",
+        encoding="utf-8",
+    )
+    result = coverage.check(content, paper.Expectations(headings=["## 摘要"]))
+    assert result.missing_headings == []
+    assert result.english_prose and result.english_prose[0][0] == "01.md"
+
+
+def test_coverage_cannot_read_an_escaping_include(tmp_path: Path) -> None:
+    content = _content(tmp_path)
+    (content / "01.md").write_text("{{include:../private.md}}\n", encoding="utf-8")
+    (tmp_path / "private.md").write_text("private", encoding="utf-8")
+    with pytest.raises(ValueError, match="escapes content root"):
+        coverage.read_content(content)
+
+
 def test_registered_papers_pass_coverage() -> None:
     """Every registered paper that has content must satisfy its own expectation table."""
     checked = 0

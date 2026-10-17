@@ -36,8 +36,9 @@ Publication does not transfer or relicense the original authors' rights.
 
 No font binaries are bundled on main or in default offline builds. Those readers request
 installed Times New Roman, Source Han Serif SC and Maple Mono, with system fallbacks.
-The authorized Pages export self-hosts renamed, glyph-subset WOFF2 versions of Source Han
-Serif SC, Maple Mono CN and the Times-compatible Tinos fallback, under SIL OFL 1.1.
+The authorized Pages export self-hosts renamed WOFF2 faces under SIL OFL 1.1: glyph subsets
+of Source Han Serif SC, Maple Mono CN and the Times-compatible Tinos fallback, plus STIX Two
+Math with its complete glyph/feature coverage and OpenType MATH table retained.
 Original copyright notices, full licenses, versioned source URLs and SHA-256 values accompany
 those files under `assets/fonts/`. Their font licenses, not MIT, apply. Microsoft Times New
 Roman is requested locally only and is never redistributed.

@@ -192,6 +192,15 @@ def test_relative_urls_support_project_pages_prefix() -> None:
     )
 
 
+def test_math_font_license_is_allowed_without_allowing_arbitrary_source_text(
+    tmp_path: Path,
+) -> None:
+    write(tmp_path / "assets/fonts/stix-OFL.txt", "Synthetic reviewed font license")
+    assert pages.check_site(tmp_path) == []
+    write(tmp_path / "assets/fonts/essay.txt", "This source must not ship")
+    assert any("unexpected text/source file" in error for error in pages.check_site(tmp_path))
+
+
 def test_check_blocks_sources_and_bad_links(tmp_path: Path) -> None:
     write(
         tmp_path / "a.html",

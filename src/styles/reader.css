@@ -1,4 +1,4 @@
-/* Reader stylesheet: A4 page, light/dark themes, MathML, print rules. */
+/* Shared HTML-first reader: responsive layout, native MathML and print fallback. */
 
 /* ------------------------------------------------------------------ fonts */
 /* Offline builds use installed fonts. The Pages exporter adds self-hosted, licensed
@@ -62,7 +62,7 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
-  background: var(--canvas);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--font-cjk);
   font-size: 16px;
@@ -71,13 +71,35 @@ body {
 }
 
 .page {
-  width: 210mm;
+  width: min(90rem, calc(100% - 5rem));
   max-width: 100%;
-  margin: 24px auto 64px;
-  padding: 22mm 18mm;
+  margin: 0 auto;
+  padding: 4.5rem 0 6rem;
   background: var(--paper);
-  box-shadow: var(--shadow);
 }
+
+.body p, .body ul, .body ol, .body blockquote { max-width: 46rem; }
+.reading-rail { display: none; }
+@media screen and (min-width: 1100px) {
+  .page:has(> .reading-rail) {
+    display: grid; grid-template-columns: 11.5rem minmax(0, 1fr);
+    column-gap: clamp(2.5rem, 5vw, 5.5rem); align-items: start;
+  }
+  .page > .reading-rail {
+    display: block; grid-column: 1; grid-row: 1 / span 4; position: sticky;
+    top: 5.5rem; max-height: calc(100svh - 7rem); overflow-y: auto;
+    border-right: 1px solid var(--rule); padding-right: 1.5rem;
+    font-size: .85rem; line-height: 1.6;
+  }
+  .reading-rail ol { list-style: none; margin: 0; padding-left: .75rem; }
+  .reading-rail nav > ol { padding-left: 0; }
+  .reading-rail a { display: block; padding: .55rem 0; color: var(--ink-soft); text-decoration: none; }
+  .reading-rail a:hover, .reading-rail a:focus-visible, .reading-rail a.active { color: var(--accent); }
+  .reading-rail a.active { font-weight: 700; }
+  .page:has(> .reading-rail) > :not(.reading-rail) { grid-column: 2; min-width: 0; }
+  .page:has(> .reading-rail) > .toc { display: none; }
+}
+
 
 .title-block {
   border-bottom: 2px solid var(--rule);
@@ -105,7 +127,7 @@ body {
   font-family: var(--font-serif);
 }
 
-.body { font-size: calc(1rem * var(--reading-scale)); overflow-wrap: anywhere; }
+.body { font-size: calc(1.125rem * var(--reading-scale)); overflow-wrap: anywhere; }
 .title-block, .colophon, .toc { overflow-wrap: anywhere; }
 .body img, .body svg { max-width: 100%; height: auto; }
 .body > *, .body section { min-width: 0; }
@@ -247,30 +269,25 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
 
 /* ------------------------------------------------------------------- math */
 .equation {
-  position: relative;
-  margin: 1.35rem 0;
-  padding: .3em 3.2em;
-  text-align: center;
-  overflow-x: auto;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  gap: .6rem; margin: 1.4rem 0 1.7rem; padding: .45rem 0;
+  max-width: 46rem; min-width: 0;
 }
-
-.equation > math { display: block; margin: 0 auto; }
-
-.equation > .eqno {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: .9rem;
-  color: var(--ink-soft);
-}
+.equation > math, .equation > .math-scroll { grid-column: 1; grid-row: 1; min-width: 0; }
+.body .equation > math { display: block; margin: 0 auto; max-width: 100%; overflow-x: auto; }
+.equation > .eqno { grid-column: 2; grid-row: 1; font-size: .8rem; color: var(--ink-soft); }
+.math-overflow-note { display: block; max-width: 46rem; color: var(--ink-soft); font-size: .7rem; text-align: end; }
+.equation > .math-overflow-note { grid-column: 1 / -1; grid-row: 2; }
+.math-scroll.has-overflow { border-bottom: 1px solid var(--rule); scrollbar-width: thin; }
 
 /* Preserve native MathML layout, MATH-table spacing and the text baseline.
    Inline symbols are never scroll boxes; only display/wide expressions receive
    a separate padded block scroller through the progressive reader script. */
 math { font-family: var(--font-math); font-size: 1em; }
-.body math { display: math; max-width: none; overflow: visible; vertical-align: baseline; }
-.body math[display="block"], .body math:has(mtable) { display: block math; }
+.body math { display: math; max-width: none; overflow: visible; vertical-align: baseline; overflow-wrap: normal; word-break: normal; }
+/* Native MathML stays native in no-script readers, but cannot widen the document. */
+html:not(.reader-enhanced) .body math { max-width: 100%; overflow-x: auto; }
+.body math[display="block"], .body math:has(mtable) { display: block math; font-size: 1.12em; }
 /* Native display fallback remains local even when JavaScript is unavailable. */
 .body :not(.math-scroll):not(.equation) > math[display="block"],
 .body :not(.math-scroll):not(.equation) > math:has(mtable) {
@@ -444,19 +461,52 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   html[data-theme="auto"] pre.algorithm .alg-fn { color: #8ab6e0; }
 }
 
+/* Explicit fixed-version source cards. Ordinary code blocks remain unchanged. */
+.body figure.source-excerpt { padding: 0; border: 0; background: none; text-align: start; }
+.body .source-excerpt > figcaption { color: var(--ink); font: inherit; font-size: .94em; font-weight: 600; margin: 0 0 .75rem; }
+.code-source > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: .7rem;
+  min-height: 49px; padding: .65rem 1rem; list-style: none; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: .7rem .7rem 0 0;
+  background: var(--code-bg); font-size: .8rem; line-height: 1.5;
+}
+.code-source > summary::-webkit-details-marker { display: none; }
+.source-brief { display: flex; align-items: baseline; gap: .6rem; min-width: 0; }
+.source-repo { font-weight: 700; flex-shrink: 0; white-space: nowrap; }
+.source-file { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.source-lines { color: var(--ink-soft); white-space: nowrap; }
+.source-toggle { color: var(--accent); flex-shrink: 0; }
+.source-toggle::after { content: " ⌄"; }
+.code-source[open] .source-toggle::after { content: " ⌃"; }
+.source-fields { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); gap: .5rem .8rem; margin: 0; padding: 1rem; border-inline: 1px solid var(--rule); font-size: .78rem; line-height: 1.8; }
+.source-fields dt { color: var(--ink-soft); }
+.source-fields dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.body .source-fields code { padding: 0; background: none; font-size: 1em; }
+.body .source-excerpt pre { margin: 0; border-radius: 0; font-size: .875rem; line-height: 1.85; }
+.body .code-indent { font-size: 0; }
+.body .source-tools { display: flex; align-items: center; justify-content: space-between; gap: .8rem; max-width: none; margin: 0; padding: .15rem 1rem; min-height: 44px; border: 1px solid var(--rule); border-top: 0; border-radius: 0 0 .7rem .7rem; color: var(--ink-soft); font-size: .75rem; }
+.source-tools button { min-height: 44px; min-width: 68px; flex-shrink: 0; background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; }
+.source-tools:has(> [hidden]):not(:has(> :not([hidden]))) { display: none; }
+.source-copy-fallback { display: block; width: 100%; min-height: 12rem; font-family: var(--font-mono); }
+
 /* ---------------------------------------------------------- narrow screens */
 @media screen and (max-width: 760px) {
   body { font-size: 17px; line-height: 1.95; background: var(--paper); }
   .body { font-size: calc(1.0625rem * var(--reading-scale)); }
   .body p { text-align: start; }
   .page {
-    margin: 0; padding: 1.5rem max(1rem, env(safe-area-inset-left))
+    width: 100%; margin: 0; padding: 1.5rem max(1rem, env(safe-area-inset-left))
       max(3rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-right));
     box-shadow: none;
   }
   .title-block h1 { font-size: 1.5rem; text-wrap: balance; }
   .equation { padding: .5rem 0; }
-  .equation > .eqno { position: static; display: block; transform: none; text-align: end; }
+  .equation > .eqno { text-align: end; }
+  .code-source > summary { padding-inline: .75rem; }
+  .source-brief { gap: .4rem; }
+  .source-fields { grid-template-columns: 4em minmax(0, 1fr); padding: .85rem .75rem; }
+  .source-lines { font-size: .7rem; }
+  .body .source-tools { padding-inline: .75rem; }
   .toolbar {
     position: sticky; top: 0; right: auto; flex-wrap: wrap;
     padding: .4rem max(.5rem, env(safe-area-inset-right)) .4rem
@@ -492,7 +542,12 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   .body { font-size: inherit; }
   body { background: #fff; color: #000; font-size: 10.5pt; line-height: 1.7; }
   .page { width: auto; margin: 0; padding: 0; box-shadow: none; }
-  .toolbar, .skip-link, .toc, .reader-dialog, .qa-controls { display: none !important; }
+  .toolbar, .skip-link, .toc, .reading-rail, .reader-dialog, .qa-controls,
+  .source-tools, .math-overflow-note { display: none !important; }
+  .page:has(> .reading-rail) { display: block; }
+  .code-source::details-content { content-visibility: visible; }
+  .code-source > summary { border: 0; }
+  .source-fields { border: 0; }
   .qa-bank[data-qa-mode="test"] > .qa-item > .qa-answer,
   .qa-bank > .qa-item[hidden] { display: block !important; }
   .qa-item { border: 0; padding: 0; }
@@ -514,7 +569,8 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
      scrollbar widget over the right margin, which covers the equation number, and clips
      any formula wider than the column. */
   .equation, .math-scroll { overflow: visible; max-width: none; }
-  .body math { overflow: visible; max-width: none; }
+  .body math, .body .equation > math,
+  html:not(.reader-enhanced) .body math { overflow: visible; max-width: none; }
   .body table { font-size: 7.6pt; line-height: 1.35; }
   .body th, .body td { padding: .18rem .28rem; overflow-wrap: anywhere; }
 }

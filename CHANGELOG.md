@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### HTML-first reading
+
+- Reuse safe build-time include expansion for structural and language coverage checks,
+  including checks inside composed chapters and rejection of escaping includes.
+
+- Separate the fluid screen shell from the prose measure; add a wide-screen chapter rail
+  and wider code regions without imposing A4 dimensions on screen reading.
+- Upgrade complete fixed-version legacy source captions into native expandable cards only
+  when commit/path/range and permalink agree. Preserve the original code subtree and full
+  offline provenance; visual common-indent removal and copy/selection retain source text.
+- Improve native MathML display spacing, external equation numbers and local overflow hints.
+  Pin an OFL STIX Two Math source for Pages, rename it Paper Math and preserve all glyphs,
+  layout features and the OpenType MATH table. Default offline builds still use installed fonts.
+- Add shared footnote dialogs while retaining native links, complete endnotes and no-script
+  fallbacks. Cover source fidelity, font structure and responsive/modal behavior with
+  synthetic regression cases; keep manuscripts and font binaries out of main.
+
 ### Pages deployment compatibility
 
 - Deploy the uploader's exact Pages artifact ID instead of relying on inconsistent

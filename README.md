@@ -1,6 +1,6 @@
 # Paper Translation Project
 
-A Python pipeline for A4-sized, offline-readable Chinese HTML: PDF/web extraction,
+A Python pipeline for offline-readable Chinese HTML: PDF/web extraction,
 native MathML, modular Markdown, shared reader assets, citations and optional question banks.
 Translations are authored in source order; original reviews and source-code books use the
 same reader without inventing a PDF manifest.

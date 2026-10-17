@@ -41,6 +41,7 @@ from tools import (  # noqa: E402  (must follow the sys.path bootstrap above)
     paper,
     questions,
     reader,
+    source_cards,
 )
 
 TEMPLATE_PATH = ROOT / "src" / "templates" / "page.html"
@@ -503,7 +504,9 @@ def build(
     notes_path = work / "reader-meta.md"
     if notes_path.exists():
         header_notes.insert(0, make_markdown().convert(notes_path.read_text(encoding="utf-8")))
-    content = rewrite_source_links(wrap_tables(wrap_sections(body_sections)), source_targets or {})
+    content = source_cards.upgrade(
+        rewrite_source_links(wrap_tables(wrap_sections(body_sections)), source_targets or {})
+    )
     citations = reader.CitationLinker(
         content, references, profile.get("source_url"), profile.get("citation_style", "mixed")
     )
