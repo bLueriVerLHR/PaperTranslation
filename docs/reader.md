@@ -9,15 +9,17 @@ personal-use disclaimer as a legal guarantee.
 
 HTML is the delivery target; a browser print stylesheet is a fallback, not a requirement to
 produce PDF editions. Screen layout must not inherit A4 dimensions, millimetre-based page
-widths or simulated paper margins. The shared reader separates a fluid shell from a 46rem
-prose measure, and adds a chapter rail on enhanced screens at least 1100px wide. Narrower
-screens retain a single reading column and TOC dialog. Use only source syntax actually
-supported by the builder; a design recommendation is not a new directive.
+widths or simulated paper margins. Screen articles use the available viewport width with
+responsive side gutters, not a fixed `rem`, character-count or paper-size content ceiling.
+Paragraphs, headings, title notes and equations share that fluid content area. Chapter
+navigation is closed by default at every screen width and opens from the toolbar; there is
+no permanent side rail or duplicated outline. Use only source syntax actually supported by
+the builder; a design recommendation is not a new directive.
 
-- Separate the page shell from the prose reading measure. Wide screens may accommodate a
-  chapter rail and wider code, tables or diagrams without stretching every paragraph across
-  the viewport. Keep ordinary prose at a comfortable line length and align short equations
-  with that reading column; allow genuinely wide material more space when available.
+- Let article content expand with the screen instead of centering a fixed-width reading
+  strip inside a larger shell. Keep side gutters responsive and bounded; do not bound the
+  article width itself. Phone safe-area padding remains available. Dialogs and the library
+  card grid are separate UI regions and may retain their own size constraints.
 - Collapse to one reading column on phones. Navigation must not consume the narrow content
   area or cover headings. Keep touch targets usable and preserve start-aligned Chinese/Latin
   prose instead of adding justification, forced line breaks or global text shrinking.
@@ -53,6 +55,14 @@ are centered in the native top layer, scroll internally and lock the background.
 close button and Escape restore the opener and original scroll position. Tab and Shift+Tab
 cycle within the card. Choosing a TOC heading closes the card *before* scrolling to and
 focusing that heading; it does not restore the old position over the intended destination.
+
+The TOC uses one canonical nested list, moved into its dialog rather than cloned for a second
+navigation. Major chapters use larger, stronger labels; nested subjects use smaller text,
+indentation and a quiet branch rule. Sibling entries within a subject are compact, while
+chapter groups have an extra gap. Avoid equal large margins on every row or a global font
+reduction. Touch pointers retain usable targets; long outlines scroll only in the opened
+panel, with a subtle visible scrollbar. Native-details and dialog outlines share these styles.
+Current-location highlighting updates only the previous/new entry and retains `aria-current`.
 
 Without JavaScript or native dialog support, the original details/TOC tree remains usable.
 The same scripts work with `file://`. Print hides interactive cards and overrides background

@@ -52,12 +52,18 @@ original in place; rebuilding needs only the retained work materials.
 python tools/dev.py run -- tools/extract.py --paper my-paper --pdf "PATH_TO_EXTERNAL_ORIGINAL.pdf"
 python tools/dev.py run -- tools/build.py --paper my-paper
 python tools/dev.py run -- tools/coverage.py --paper my-paper
+python tools/dev.py run -- tools/manuscript_check.py --paper my-paper
 python tools/dev.py run -- tools/assets.py
 python tools/dev.py run -- tools/pack.py --paper my-paper --out dist/my-paper.html
 ```
 
 Replace the PDF placeholder with its existing external absolute path. Asset refresh changes
 shared runtime, not article prose; the pack command is an optional single-file export.
+The manuscript check triages prose against the writing standards (Han/Latin spacing,
+amount units, punctuation, quotes, term case) and adds advisories for number grouping, range
+connectors, in-paragraph term mixing and acronyms missing from `work/glossary.md`. It masks
+code, math, markup and URLs, so its hits still need paragraph-level reading; `--strict` gates
+only unambiguous violations.
 
 A source-code book instead uses its canonical `work/meta.json`, sections and local
 `work/rebuild.py`, which calls the shared builder. The legacy survey builder is separate:
@@ -104,6 +110,8 @@ They work with the local reader pipeline, not a new cloud-document or fixed arti
 
 - Content review: reuse local sources, inspect complete answers and check only the disputed
   claims. A download, source count or passing structural test is not semantic coverage.
+- Manuscript prose: run `tools/manuscript_check.py` before and after editing, then read the
+  flagged paragraphs; a clean scan is a formatting result, not a writing-quality result.
 - HTML research: use the bounded readable view described in the workflow before raw markup.
 - Code changes: see [CONTRIBUTING.md](CONTRIBUTING.md); agent safety rules are in [AGENTS.md](AGENTS.md).
 - Publishing: follow [docs/pages.md](docs/pages.md). Stage approved readers in TEMP, validate,

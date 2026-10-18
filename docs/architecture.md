@@ -385,7 +385,7 @@ folder and ship an image the page no longer references.
 
 | Failure | Guard |
 |---|---|
-| A translated section repeats the source's own table of contents | `build.py`'s `_DropBodyToc` preprocessor removes a heading that introduces a list of headings, so the folded TOC is the only one and the section headings it was burying become sidebar entries again |
+| A translated section repeats the source's own table of contents | `build.py`'s `_DropBodyToc` preprocessor removes a heading that introduces a list of headings, so the folded TOC is the only one and the section headings it was burying become navigation entries again |
 | A cross-reference to another part of the source leaves the offline page | `build.rewrite_source_links` aims each source-site URL at `#sec-<name>` of the section that now holds it; a link to any other host is left as written, and a PDF paper has no map at all |
 | A source-site deep link (`Part-3#kernel-1`) cannot become a page-internal one | Nothing to guess from: the built page never recorded the source's anchor names, so the link lands at the top of the containing section instead |
 | Content uses a CJK glyph the reader's fonts lack | Nothing to guard: glyphs come from the reader's system, and the browser falls back on its own |

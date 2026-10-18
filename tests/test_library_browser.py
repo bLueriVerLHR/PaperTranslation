@@ -187,8 +187,13 @@ def reader_site(tmp_path: Path) -> Path:
                 "研究正文，含 English identifiers 与中文。" * 20,
             ]
         )
+        if index == 0:
+            sections.extend(
+                ["### 实现细节 {#subtopic}", "#### 异常路径 {#detail}", "完整的层级样例。"]
+            )
     sections.extend(
         [
+            "# 边界与总结 {#appendix-overview}",
             "## 论文信息",
             "仅在标题下出现的元信息。",
             "## 参考文献",
@@ -207,11 +212,13 @@ def reader_site(tmp_path: Path) -> Path:
     return target
 
 
-@pytest.mark.parametrize("width", [320, 390, 768, 1280])
+@pytest.mark.parametrize("width", [320, 390, 768, 1280, 1920])
 def test_reader_toc_citations_spacing_and_print(browser, reader_site: Path, width: int) -> None:
     """Exercise the actual shared builder, script and styles from an offline file URL."""
     with browser.new_context(
-        viewport={"width": width, "height": 844}, reduced_motion="reduce"
+        viewport={"width": width, "height": 844},
+        reduced_motion="reduce",
+        has_touch=width <= 390,
     ) as context:
         page = context.new_page()
         errors = []
@@ -222,7 +229,14 @@ def test_reader_toc_citations_spacing_and_print(browser, reader_site: Path, widt
         assert page.locator(".body .references").count() == 0
         assert page.locator("footer.colophon").count() == 0
         assert page.locator("#toc").count() == 0
+        assert page.locator(".reading-rail").count() == 0
+        assert page.locator("#toc-dialog[open]").count() == 0
+        assert page.locator("nav[aria-label='目录']").count() == 1
         probe = page.locator("#spacing-probe")
+        content_width = page.locator(".body").bounding_box()["width"]
+        assert content_width >= width * 0.89
+        for selector in (".title-block", "#spacing-probe", "#overview", ".equation"):
+            assert abs(page.locator(selector).first.bounding_box()["width"] - content_width) < 2
         assert probe.evaluate("e => getComputedStyle(e).textAlign") == "start"
         gap = probe.evaluate(
             "e => { var r = document.createRange(); r.setStart(e.firstChild, 5); r.setEnd(e.firstChild, 6); return r.getBoundingClientRect().width; }"
@@ -251,8 +265,19 @@ def test_reader_toc_citations_spacing_and_print(browser, reader_site: Path, widt
             assert page.evaluate("location.hash") == initial_hash
             modal = page.locator("#toc-dialog")
             playwright.expect(modal).to_be_visible()
-            assert modal.locator("a").count() == 41
+            assert modal.locator("a").count() == 44
             assert modal.locator("a[href='#overview']").count() == 1
+            levels = [
+                modal.locator(f"a[href='#{name}']") for name in ("overview", "topic-0", "subtopic")
+            ]
+            sizes = [
+                link.evaluate("e => parseFloat(getComputedStyle(e).fontSize)") for link in levels
+            ]
+            lefts = [link.bounding_box()["x"] for link in levels]
+            assert sizes[0] > sizes[1] > sizes[2]
+            assert lefts[0] < lefts[1] < lefts[2]
+            row = levels[1].bounding_box()["height"]
+            assert 24 <= row <= (40 if width <= 390 else 32)
             assert modal.locator("a").filter(has_text="论文信息").count() == 0
             page.keyboard.press("Shift+Tab")
             assert modal.evaluate("e => e.contains(document.activeElement)")
@@ -274,6 +299,10 @@ def test_reader_toc_citations_spacing_and_print(browser, reader_site: Path, widt
         assert page.locator("#topic-29").evaluate("e => e.getBoundingClientRect().top") >= 0
         assert page.locator("#topic-29").evaluate("e => e.getBoundingClientRect().top") < 160
         assert page.evaluate("document.activeElement.id") == "topic-29"
+        page.wait_for_function(
+            "document.querySelector('.toc-content a[href=\"#topic-29\"]').getAttribute('aria-current') === 'location'"
+        )
+        assert page.locator(".toc-content [aria-current='location']").count() == 1
         cite = page.locator("a.citation")
         assert "First source" in cite.get_attribute("title")
         assert "Second source" in cite.get_attribute("title")
@@ -338,8 +367,10 @@ def test_reader_toc_native_fallback(browser, reader_site: Path, mode: str) -> No
             context.add_init_script("HTMLDialogElement.prototype.showModal = undefined")
         page = context.new_page()
         page.goto((reader_site / "index.html").as_uri(), wait_until="load")
+        assert page.locator("#toc").get_attribute("open") is None
         page.locator("#toc summary").click()
-        assert page.locator("#toc a:visible").count() == 41
+        assert page.locator("#toc a:visible").count() == 44
+        assert page.locator("#toc ol ol ol").count() > 0
         page.locator("#toc a[href='#topic-29']").click()
         page.wait_for_url("**#topic-29")
 

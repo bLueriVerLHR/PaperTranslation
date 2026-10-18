@@ -18,7 +18,6 @@
   --ink-soft: #5b5b5b;
   --rule: #d8d8d8;
   --accent: #1f4e79;
-  --canvas: #eceae6;
   --code-bg: #f5f3ef;
   --figure-bg: #fbfaf8;
   --shadow: 0 2px 10px rgb(0 0 0 / 12%);
@@ -30,7 +29,6 @@ html[data-theme="dark"] {
   --ink-soft: #a5a29c;
   --rule: #3a3c40;
   --accent: #8ab6e0;
-  --canvas: #0e0f10;
   --code-bg: #202225;
   --figure-bg: #1d1f21;
   --shadow: 0 2px 10px rgb(0 0 0 / 55%);
@@ -43,7 +41,6 @@ html[data-theme="dark"] {
     --ink-soft: #a5a29c;
     --rule: #3a3c40;
     --accent: #8ab6e0;
-    --canvas: #0e0f10;
     --code-bg: #202225;
     --figure-bg: #1d1f21;
     --shadow: 0 2px 10px rgb(0 0 0 / 55%);
@@ -71,36 +68,15 @@ body {
 }
 
 .page {
-  width: min(90rem, calc(100% - 5rem));
+  width: calc(100% - 2 * clamp(1rem, 3vw, 4rem));
   max-width: 100%;
   margin: 0 auto;
   padding: 4.5rem 0 6rem;
   background: var(--paper);
 }
 
-.body p, .body ul, .body ol, .body blockquote { max-width: 46rem; }
-.reading-rail { display: none; }
-@media screen and (min-width: 1100px) {
-  .page:has(> .reading-rail) {
-    display: grid; grid-template-columns: 11.5rem minmax(0, 1fr);
-    column-gap: clamp(2.5rem, 5vw, 5.5rem); align-items: start;
-  }
-  .page > .reading-rail {
-    display: block; grid-column: 1; grid-row: 1 / span 4; position: sticky;
-    top: 5.5rem; max-height: calc(100svh - 7rem); overflow-y: auto;
-    border-right: 1px solid var(--rule); padding-right: 1.5rem;
-    font-size: .85rem; line-height: 1.6;
-  }
-  .reading-rail ol { list-style: none; margin: 0; padding-left: .75rem; }
-  .reading-rail nav > ol { padding-left: 0; }
-  .reading-rail a { display: block; padding: .55rem 0; color: var(--ink-soft); text-decoration: none; }
-  .reading-rail a:hover, .reading-rail a:focus-visible, .reading-rail a.active { color: var(--accent); }
-  .reading-rail a.active { font-weight: 700; }
-  .page:has(> .reading-rail) > :not(.reading-rail) { grid-column: 2; min-width: 0; }
-  .page:has(> .reading-rail) > .toc { display: none; }
-}
-
-
+/* Screen content fills the available width; only the gutters are bounded.
+   Keep print pagination and dialog sizing independent of article layout. */
 .title-block {
   border-bottom: 2px solid var(--rule);
   padding-bottom: 1.2rem;
@@ -131,23 +107,22 @@ body {
 .title-block, .colophon, .toc { overflow-wrap: anywhere; }
 .body img, .body svg { max-width: 100%; height: auto; }
 .body > *, .body section { min-width: 0; }
-.body blockquote { margin-inline: 0; padding-left: 1rem; border-left: 3px solid var(--rule); }
+.body blockquote { padding-left: 1rem; border-left: 3px solid var(--rule); }
 .math-scroll {
   display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden;
   padding-block: .55em; margin-block: .6em;
-  overscroll-behavior-inline: contain; -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
 }
 .math-scroll > math { margin-inline: auto; }
 .equation > .math-scroll { margin: 0; }
 .body pre, .table-wrap, .equation {
   overscroll-behavior-inline: contain;
-  -webkit-overflow-scrolling: touch;
 }
 .body pre { overflow-wrap: normal; }
 .body :not(pre) > code { overflow-wrap: anywhere; }
 .site-home { color: var(--accent); font-size: .9rem; text-decoration: none; }
+.page > .site-home { display: block; }
 .toolbar a { align-self: center; padding: .5rem; }
-.toc a { display: inline-block; padding-block: .35rem; }
 
 /* Never justify mixed CJK/Latin prose: forced breaks and long identifiers otherwise
    stretch spaces/characters. This shared rule also replaces local typography patches. */
@@ -155,25 +130,25 @@ body {
   text-align: start; text-align-last: auto; text-justify: none;
   letter-spacing: normal; word-spacing: normal; hyphens: none;
 }
-.body p { margin: 0 0 .85em; }
+.body p { margin-block: 0 .85em; }
 .body h1 {
-  font-size: 1.55em; line-height: 1.5; margin: 2.4rem 0 1rem;
+  font-size: 1.55em; line-height: 1.5; margin-block: 2.4rem 1rem;
   padding-bottom: .5rem; border-bottom: 2px solid var(--rule); scroll-margin-top: 5rem;
 }
 
 .body h2 {
   font-size: 1.35rem;
-  margin: 2.2rem 0 .9rem;
+  margin-block: 2.2rem .9rem;
   padding-bottom: .3rem;
   border-bottom: 1px solid var(--rule);
   scroll-margin-top: 5rem;
 }
 
-.body h3 { font-size: 1.12rem; margin: 1.7rem 0 .7rem; scroll-margin-top: 5rem; }
+.body h3 { font-size: 1.12rem; margin-block: 1.7rem .7rem; scroll-margin-top: 5rem; }
 section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
-.body h4 { font-size: 1rem; margin: 1.3rem 0 .5rem; }
+.body h4 { font-size: 1rem; margin-block: 1.3rem .5rem; }
 
-.body ul, .body ol { margin: 0 0 .9em; padding-left: 1.6em; }
+.body ul, .body ol { margin-block: 0 .9em; padding-left: 1.6em; }
 .body li { margin: .2em 0; }
 
 .body a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
@@ -279,8 +254,8 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
 /* ------------------------------------------------------------------- math */
 .equation {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
-  gap: .6rem; margin: 1.4rem 0 1.7rem; padding: .45rem 0;
-  max-width: 46rem; min-width: 0;
+  gap: .6rem; margin: 1.4rem auto 1.7rem; padding: .45rem 0;
+  min-width: 0;
 }
 /* Flatten renderer-generated paragraphs for layout, not the source/MathML tree. */
 .equation > p { display: contents; }
@@ -294,7 +269,7 @@ section[id], [id^="sec-"] { scroll-margin-top: 5rem; }
 .equation > .eqno, .equation > p > .eqno {
   grid-column: 2; grid-row: 1; font-size: .8rem; color: var(--ink-soft);
 }
-.math-overflow-note { display: block; max-width: 46rem; color: var(--ink-soft); font-size: .7rem; text-align: end; }
+.math-overflow-note { display: block; color: var(--ink-soft); font-size: .7rem; text-align: end; }
 .equation > .math-overflow-note, .equation > p > .math-overflow-note {
   grid-column: 1 / -1; grid-row: 2;
 }
@@ -350,13 +325,36 @@ math menclose[notation="downdiagonalstrike"] {
 .toc > summary::before { content: "▸ "; color: var(--ink-soft); }
 .toc[open] > summary::before { content: "▾ "; }
 
-.toc nav { padding: .4rem 0 .2rem; }
-.toc ol, .toc-content ol { list-style: none; margin: 0; padding-left: 1.1rem; }
-.toc > nav > ol, .toc-content > ol { padding-left: 0; }
-.toc li, .toc-content li { margin: .15rem 0; font-size: .95rem; }
-.toc a, .toc-content a { display: block; padding-block: .5rem; color: var(--ink); text-decoration: none; border-bottom: none; }
-.toc a:hover, .toc-content a:hover { color: var(--accent); }
-.toc a.active, .toc-content a.active { color: var(--accent); font-weight: 700; }
+.toc nav { padding: .4rem 0 .2rem; max-height: 60svh; overflow-y: auto; scrollbar-width: thin; }
+/* The same semantic list hierarchy serves dialog and native-details reading. */
+:is(.toc nav, .toc-content) ol { list-style: none; margin: 0; padding: 0; }
+:is(.toc nav, .toc-content) ol ol {
+  margin-inline-start: .15rem; padding-inline-start: .85rem;
+  border-inline-start: 1px solid var(--rule);
+}
+:is(.toc nav, .toc-content) li { margin: 0; }
+:is(.toc nav, .toc-content) a {
+  display: block; min-height: 24px; padding: .18rem .35rem;
+  font-size: .94rem; line-height: 1.4; color: var(--ink);
+  text-decoration: none; border: 0; border-radius: .2rem;
+}
+:is(.toc nav, .toc-content) > ol > li > a { font-size: 1.04rem; font-weight: 700; }
+:is(.toc nav, .toc-content) ol ol ol a { font-size: .86rem; color: var(--ink-soft); }
+/* Separate chapters, not every entry: flat outlines and sibling subtopics stay tight. */
+:is(.toc nav, .toc-content) > ol > li + li:has(> ol),
+:is(.toc nav, .toc-content) > ol > li:has(> ol) + li { margin-block-start: .85rem; }
+:is(.toc nav, .toc-content) ol ol > li + li:has(> ol),
+:is(.toc nav, .toc-content) ol ol > li:has(> ol) + li { margin-block-start: .35rem; }
+:is(.toc nav, .toc-content) a:hover { color: var(--accent); }
+:is(.toc nav, .toc-content) a[aria-current="location"] {
+  color: var(--accent); font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  box-shadow: inset 2px 0 var(--accent);
+}
+#toc-dialog .reader-dialog-body { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+@media (pointer: coarse) {
+  :is(.toc nav, .toc-content) a { min-height: 36px; padding-block: .25rem; }
+}
 
 /* ---------------------------------------------------------- question banks */
 .qa-bank { margin-block: 1.2rem; }
@@ -539,9 +537,6 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
   .body h2 { font-size: 1.25em; }
   .body h3 { font-size: 1.1em; }
   .body pre { padding: .75rem; }
-  .toc nav { max-height: 60svh; overflow-y: auto; }
-  .toc a { padding-block: .5rem; }
-  .toc ol, .toc-content ol { padding-left: .8rem; }
   .reader-dialog-header { gap: .5rem; padding: .75rem 1rem; }
   .reader-dialog-body { padding-inline: 1rem; }
 }
@@ -555,16 +550,15 @@ html[data-theme="dark"] pre.algorithm .alg-fn { color: #8ab6e0; }
 @media print {
   html[data-theme] {
     --paper: #fff; --ink: #000; --ink-soft: #555; --rule: #bbb;
-    --accent: #000; --canvas: #fff; --code-bg: #f5f5f5; --figure-bg: #fff;
+    --accent: #000; --code-bg: #f5f5f5; --figure-bg: #fff;
     --reading-scale: 1;
   }
   html { scroll-behavior: auto; }
   .body { font-size: inherit; }
   body { background: #fff; color: #000; font-size: 10.5pt; line-height: 1.7; }
   .page { width: auto; margin: 0; padding: 0; box-shadow: none; }
-  .toolbar, .skip-link, .toc, .reading-rail, .reader-dialog, .qa-controls,
+  .toolbar, .skip-link, .toc, .reader-dialog, .qa-controls,
   .source-tools, .math-overflow-note { display: none !important; }
-  .page:has(> .reading-rail) { display: block; }
   .code-source::details-content { content-visibility: visible; }
   .code-source > summary { border: 0; }
   .source-fields { border: 0; }

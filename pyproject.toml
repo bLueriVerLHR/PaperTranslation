@@ -32,6 +32,8 @@ known-first-party = ["tools"]
 "tools/build.py" = ["RUF001"]
 "tools/reader.py" = ["RUF001"]
 "tools/source_cards.py" = ["RUF001"]
+# The manuscript checker matches and reports Chinese typography itself.
+"tools/manuscript_check.py" = ["RUF001"]
 
 [tool.ruff.format]
 line-ending = "lf"

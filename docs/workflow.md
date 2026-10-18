@@ -123,7 +123,7 @@ $Log = Join-Path $ProjectTemp 'reports\batch-unique.jsonl'
 
 | Change | Checks |
 |---|---|
-| Prose/references | Affected build, anchors, citations and declared coverage expectations |
+| Prose/references | Affected build, anchors, citations and declared coverage expectations; run the typography/terminology triage and read the flagged paragraphs |
 | Parser/builder/runtime | Targeted synthetic tests during implementation; full tests/lint/format before commit |
 | Interaction/layout | Browser regression on the affected reader or publication candidate |
 | Publication | Reader-only export validation, preserved-project comparison, remote commit and selected live files |

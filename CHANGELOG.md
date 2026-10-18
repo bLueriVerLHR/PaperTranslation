@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format follows
 
 ### HTML-first reading
 
+- Let screen articles fill the available viewport with responsive side gutters instead of
+  fixed shell/prose width ceilings. Expand title notes, headings and equations with the body;
+  retain phone safe areas, local overflow scrolling and independent dialog/print sizing.
+
+- Replace the always-visible desktop rail and cloned outline with one default-closed TOC
+  on every screen. Use compact nested entries, larger chapter labels and selective group
+  spacing in dialog and native-details views. Keep prose and wide materials in the fluid body;
+  remove unused canvas styling and obsolete touch-scrolling declarations. Preserve font,
+  MathML, table-scrolling and offline navigation behavior.
+
 - Render opt-in editorial terminology inside title source notes rather than as a body/TOC
   chapter, retaining the glossary anchor and hashed canonical input. Separate reader-facing
   translator choices from non-rendered chapter-title maps and writing instructions; preserve
@@ -61,6 +71,9 @@ All notable changes to this project are documented here. The format follows
   citation-context classification and statement tallies from claim truth and independent evidence.
 - Route documentation by task, consolidate routine workflows and remove duplicated
   setup/layout/rights guidance while retaining technical specifications and constraints.
+- Add a read-only manuscript typography/terminology checker that masks code, math, markup and
+  URLs and separates gating violations from advisories. It also warns when Markdown inline code
+  sits inside a raw HTML block, where it renders literally; synthetic cases cover both.
 - Add read-only bounded views of saved HTML: prose, outline, literal search and explicit
   scope/continuation, with code whitespace and MathML structure retained. Recover common
   omitted paragraph/list end tags and reject excessive nesting before recursive rendering.
