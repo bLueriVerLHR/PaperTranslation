@@ -185,7 +185,7 @@
         detail.className = "footnote-detail";
         Array.from(target.childNodes).forEach(function (node) { detail.appendChild(node.cloneNode(true)); });
         detail.querySelectorAll("[id]").forEach(function (node) { node.removeAttribute("id"); });
-        detail.querySelectorAll(".footnote-backref").forEach(function (node) { node.remove(); });
+        detail.querySelectorAll(".footnote-backref, .footnote-back").forEach(function (node) { node.remove(); });
         modal.body.replaceChildren(detail);
         event.preventDefault();
         modal.open(link);
@@ -199,18 +199,10 @@
     if (!toc || !toolbar) { return; }
     var nav = toc.querySelector("nav");
     if (!nav || !nav.querySelector("a")) { toc.hidden = true; return; }
-    // A desktop rail and the narrow-screen dialog share the same generated TOC.
-    var rail = document.createElement("aside");
-    rail.className = "reading-rail";
-    rail.setAttribute("aria-label", "章节导航");
-    var railNav = nav.cloneNode(true);
-    railNav.querySelectorAll("[id]").forEach(function (element) { element.removeAttribute("id"); });
-    rail.appendChild(railNav);
-    // Keep the native details tree unchanged if the modal enhancement is unavailable.
+    // One default-closed TOC at every width; move the canonical tree, never clone it.
+    // Keep native details unchanged when the dialog enhancement is unavailable.
     var modal = createModal("toc-dialog", "文内目录", document.createElement("div"));
     if (!modal) { return; }
-    var page = document.querySelector(".page");
-    if (page) { page.prepend(rail); }
     nav.classList.add("toc-content");
     modal.body.replaceChildren(nav);
     var trigger = document.createElement("button");
@@ -383,19 +375,17 @@
   }
 
   function initScrollSpy() {
-    var links = Array.prototype.slice.call(document.querySelectorAll(".toc a[href^='#'], .toc-content a[href^='#'], .reading-rail a[href^='#']"));
-    if (!links.length || !("IntersectionObserver" in window)) {
-      return;
-    }
-    var byId = {};
+    var links = document.querySelectorAll(".toc nav a[href^='#'], .toc-content a[href^='#']");
+    if (!links.length || !("IntersectionObserver" in window)) { return; }
+    var byId = new Map();
     var targets = [];
+    var current = null;
     links.forEach(function (link) {
-      var id = decodeURIComponent(link.getAttribute("href").slice(1));
+      var id;
+      try { id = decodeURIComponent(link.getAttribute("href").slice(1)); }
+      catch (_) { return; }
       var heading = document.getElementById(id);
-      if (heading) {
-        if (!byId[id]) { byId[id] = []; targets.push(heading); }
-        byId[id].push(link);
-      }
+      if (heading) { byId.set(id, link); targets.push(heading); }
     });
 
     var observer = new IntersectionObserver(
@@ -404,14 +394,13 @@
           if (!entry.isIntersecting) {
             return;
           }
-          links.forEach(function (link) {
-            link.classList.remove("active");
-            link.removeAttribute("aria-current");
-          });
-          (byId[entry.target.id] || []).forEach(function (link) {
-            link.classList.add("active");
-            link.setAttribute("aria-current", "location");
-          });
+          if (current) {
+            current.classList.remove("active");
+            current.removeAttribute("aria-current");
+          }
+          current = byId.get(entry.target.id);
+          current.classList.add("active");
+          current.setAttribute("aria-current", "location");
         });
       },
       { rootMargin: "-10% 0px -75% 0px", threshold: 0 }
