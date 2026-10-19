@@ -104,6 +104,11 @@ def validate(source: str) -> list[dict]:
             key = item.attrs.get("id") or ""
             if item.tag != "article" or not re.fullmatch(r"[a-z][a-z0-9-]*", key):
                 raise ValueError("qa-item must be an article with a stable ASCII id")
+            # Optional editorial depth metadata: present it must be one known level, and it
+            # never carries the answer's technical claim or the question's identity.
+            level = item.attrs.get("data-level")
+            if level is not None and level not in {"basic", "principle", "scenario"}:
+                raise ValueError(f"{key}: data-level must be basic, principle or scenario")
             if len(item.children) != 2:
                 raise ValueError(f"{key}: require exactly one question followed by one answer")
             question, answer = item.children

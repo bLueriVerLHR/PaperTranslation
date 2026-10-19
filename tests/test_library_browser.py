@@ -456,15 +456,19 @@ def question_site(tmp_path: Path) -> Path:
     pairs = []
     for index in range(3):
         answer = rich if index == 0 else f"**回答。** 第 {index} 题的完整答案。"
+        level = ("basic", "principle", "scenario")[index]
         pairs.append(
-            f'<article class="qa-item" id="qa-{index}" markdown="1">\n'
+            f'<article class="qa-item" id="qa-{index}" data-level="{level}" markdown="1">\n'
             f'<p class="qa-question">问题 {index}：资源与生命周期？</p>\n'
             f'<div class="qa-answer" markdown="1">\n\n{answer}\n\n</div>\n</article>'
         )
     (content / "01.md").write_text(
         '## 普通章节 {#ordinary}\n\n<p id="ordinary-answer">不会折叠的正文。</p>\n\n'
         '## 问答章节\n\n<div class="qa-bank" id="synthetic-bank" markdown="1">\n\n'
-        + "\n\n".join(pairs)
+        "### 第一部分 举例 {#part-example}\n\n#### 主题甲 {#topic-a}\n\n"
+        + pairs[0]
+        + "\n\n#### 主题乙 {#topic-b}\n\n"
+        + "\n\n".join(pairs[1:])
         + '\n\n</div>\n\n<div class="qa-bank" id="second-bank" markdown="1">\n\n'
         '<article class="qa-item" id="qa-second" markdown="1">\n'
         '<p class="qa-question">独立题库问题</p>\n'
@@ -501,6 +505,7 @@ def test_questions_modes_cards_filter_print_and_links(
         modal = page.locator("#qa-dialog-synthetic-bank")
         assert bank.get_attribute("data-qa-mode") == "read"
         assert bank.locator(".qa-answer:visible").count() == 3
+        assert "基础" in trigger.evaluate("e => getComputedStyle(e, '::before').content")
         playwright.expect(trigger).to_be_disabled()
         toggle.click()
         assert bank.get_attribute("data-qa-mode") == "test"
@@ -571,6 +576,69 @@ def test_questions_modes_cards_filter_print_and_links(
         assert page.evaluate(
             "(() => { const ids = [...document.querySelectorAll('[id]')].map(e=>e.id); return new Set(ids).size === ids.length; })()"
         )
+        assert not errors
+
+
+def test_random_practice_uses_topic_scope_and_folds_answers(browser, question_site: Path) -> None:
+    """Draw one question from the chosen themes, keep its answer folded, restore every node."""
+    with browser.new_context(viewport={"width": 1280, "height": 900}) as context:
+        context.route(
+            "https://example.org/**", lambda route: route.fulfill(body="Synthetic source")
+        )
+        page = context.new_page()
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto((question_site / "index.html").as_uri(), wait_until="load")
+        bank = page.locator("#synthetic-bank")
+        trigger = bank.locator(".qa-random-toggle")
+        dialog = page.locator("#qa-random-synthetic-bank")
+        trigger.click()
+        playwright.expect(dialog).to_be_visible()
+        topics = dialog.locator(".qa-random-topic")
+        assert topics.count() == 2
+        assert "第一部分 举例" in dialog.locator(".qa-random-part").first.inner_text()
+        # Keep only the theme that holds the rich answer, so each draw is deterministic.
+        topics.locator("input").last.uncheck()
+        dialog.locator(".qa-random-draw").click()
+        assert dialog.locator(".qa-random-question").inner_text().startswith("问题 0")
+        assert dialog.locator(".qa-random-answer").inner_text() == ""
+        assert dialog.locator("#answer-probe").count() == 0
+        assert page.locator("#answer-probe").count() == 1
+        assert "基础" in dialog.locator(".qa-random-meta").inner_text()
+        dialog.get_by_role("button", name="查看答案").click()
+        assert dialog.locator("#answer-probe").count() == 1
+        assert page.locator(".qa-item #answer-probe").count() == 0
+        assert dialog.locator(".qa-random-answer code.language-cpp").count() >= 1
+        dialog.get_by_role("button", name="收起答案").click()
+        assert page.locator("#answer-probe").count() == 1
+        assert dialog.locator(".qa-random-draw").inner_text() == "再抽一题"
+        # An empty scope is reported instead of drawing anything.
+        dialog.get_by_role("button", name="清空").click()
+        dialog.locator(".qa-random-draw").click()
+        assert "请至少选择一个主题" in dialog.locator(".qa-random-status").inner_text()
+        dialog.get_by_role("button", name="全选").click()
+        # Jumping back focuses the original item and returns the canonical answer.
+        topics.locator("input").last.uncheck()
+        dialog.locator(".qa-random-draw").click()
+        assert dialog.locator(".qa-random-question").inner_text().startswith("问题 0")
+        dialog.get_by_role("button", name="跳到原题").click()
+        playwright.expect(dialog).not_to_be_visible()
+        page.wait_for_function("document.activeElement.id === 'qa-0'")
+        assert page.locator("#answer-probe").count() == 1
+        # The pool follows the question-only search and reports an emptied scope.
+        bank.locator("input[type=search]").fill("问题 2")
+        trigger.click()
+        playwright.expect(dialog).to_be_visible()
+        assert dialog.locator(".qa-random-topic input").first.is_checked()
+        assert not dialog.locator(".qa-random-topic input").last.is_checked()
+        dialog.get_by_role("button", name="全选").click()
+        dialog.locator(".qa-random-draw").click()
+        assert dialog.locator(".qa-random-question").inner_text().startswith("问题 2")
+        assert "场景" in dialog.locator(".qa-random-meta").inner_text()
+        topics.locator("input").last.uncheck()
+        dialog.locator(".qa-random-draw").click()
+        assert "没有可抽的题目" in dialog.locator(".qa-random-status").inner_text()
+        assert bank.locator("input[type=search]").input_value() == "问题 2"
         assert not errors
 
 

@@ -378,6 +378,47 @@ math menclose[notation="downdiagonalstrike"] {
 .qa-controls input { width: min(16rem, 100%); max-width: 100%; }
 .body .qa-status { flex-basis: 100%; margin: 0; color: var(--ink-soft); font-size: .9em; }
 .qa-card-content { min-width: 0; }
+/* Editorial depth level: a display-only chip driven by data-level, never part of the question text. */
+.qa-item[data-level] > .qa-question::before,
+.qa-item[data-level] > .qa-question > .qa-question-button::before {
+  display: inline-block; margin-inline-end: .45em; padding: .05em .45em;
+  border: 1px solid var(--rule); border-radius: .3rem;
+  font-size: .76em; font-weight: 400; line-height: 1.5; vertical-align: .1em;
+  color: var(--ink-soft);
+}
+/* With scripting the question text moves into the button; keep exactly one chip. */
+.qa-item[data-level] > .qa-question:has(.qa-question-button)::before { content: none; }
+.qa-item[data-level="basic"] > .qa-question::before,
+.qa-item[data-level="basic"] > .qa-question > .qa-question-button::before { content: "基础"; }
+.qa-item[data-level="principle"] > .qa-question::before,
+.qa-item[data-level="principle"] > .qa-question > .qa-question-button::before { content: "原理"; }
+.qa-item[data-level="scenario"] > .qa-question::before,
+.qa-item[data-level="scenario"] > .qa-question > .qa-question-button::before { content: "场景"; }
+
+/* Random practice: choose themes, draw one question, keep its answer folded. */
+.body .qa-random-scope-title { margin: 0 0 .4rem; font-weight: 700; }
+.qa-random-scope-list {
+  max-height: 32svh; overflow-y: auto; overscroll-behavior: contain;
+  padding: .2rem .5rem .2rem .1rem; border: 1px solid var(--rule); border-radius: .5rem;
+  scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
+}
+.body .qa-random-part { margin: .5rem 0 .15rem; color: var(--ink-soft); font-size: .9em; font-weight: 700; }
+.qa-random-part:first-child { margin-top: .1rem; }
+.qa-random-topic { display: flex; align-items: center; gap: .5rem; min-height: 32px; }
+.qa-random-topic input { flex: none; width: 1.1rem; height: 1.1rem; margin: 0; }
+.qa-random-topic-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.qa-random-count { flex: none; color: var(--ink-soft); font-size: .85em; }
+.qa-random-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .8rem; }
+.qa-random-actions button {
+  font: inherit; min-height: 44px; padding: .4rem .7rem; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: .4rem; background: var(--paper); color: var(--ink);
+}
+.qa-random-actions button:hover { border-color: var(--accent); color: var(--accent); }
+.body .qa-random-status { margin: .7rem 0 0; color: var(--ink-soft); font-size: .9em; }
+.qa-random-result:not(:empty) { margin-top: .9rem; border-top: 1px solid var(--rule); padding-top: .8rem; }
+.body .qa-random-meta { margin: 0 0 .4rem; color: var(--ink-soft); font-size: .9em; }
+.body .qa-random-question { margin: 0 0 .6rem; font-weight: 700; overflow-wrap: anywhere; }
+.qa-random-answer:not(:empty) { margin-top: .6rem; border-top: 1px dashed var(--rule); padding-top: .6rem; }
 
 /* ------------------------------------------------------------------ cards */
 .reader-dialog {

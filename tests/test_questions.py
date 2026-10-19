@@ -6,7 +6,7 @@ import pytest
 
 from tools import build, questions
 
-PAIR = """<article class="qa-item" id="qa-one" markdown="1">
+PAIR = """<article class="qa-item" id="qa-one" data-level="basic" markdown="1">
 <p class="qa-question">为什么需要 RAII？</p>
 <div class="qa-answer" markdown="1">
 
@@ -50,6 +50,7 @@ def test_bank_markdown_and_manifest(tmp_path: Path) -> None:
     ]
     assert 'class="qa-answer"' in html and 'class="syn-kt"' in html
     assert "<math>" in html and "<strong>回答。</strong>" in html
+    assert 'data-level="basic"' in html
     assert 'class="citation"' in html
     assert 'markdown="1"' not in html
     assert '<div class="qa-answer" hidden' not in html
@@ -78,6 +79,8 @@ def test_ordinary_question_prose_is_not_a_bank() -> None:
         PAIR.replace('class="qa-question"', 'class="question"'),
         PAIR.replace("为什么需要 RAII？", " "),
         PAIR.replace('id="qa-one"', 'id="Bad ID"'),
+        PAIR.replace('data-level="basic"', 'data-level="deep"'),
+        PAIR.replace('data-level="basic"', 'data-level=""'),
         PAIR.replace('class="qa-answer"', 'class="qa-answer" hidden'),
         PAIR.replace('class="qa-question"', 'class="qa-question" hidden'),
         PAIR.replace('class="qa-item"', 'class="qa-item" hidden'),

@@ -71,10 +71,13 @@ scroll locking so an open modal cannot clip the printed article.
 ## Opt-in question/answer chapters
 
 Explicit question banks can switch between complete paired reading and question-only
-self-testing with answer cards. They reuse the shared modal, preserve no-JS/no-dialog
+self-testing with answer cards. They also offer topic-scoped random practice: the reader
+chooses themes derived from the bank's own heading levels, draws one question, and keeps
+its answer folded until asked. They reuse the shared modal, preserve no-JS/no-dialog
 readability and print all canonical answers. Only marked banks are enhanced; ordinary
 chapters are unchanged. See [question-bank authoring and interaction](questions.md) for
-the HTML/Markdown contract, search semantics, manifest inventory and validation scope.
+the HTML/Markdown contract, `data-level` metadata, search and random-practice semantics,
+manifest inventory and validation scope.
 
 ## Native mathematics
 

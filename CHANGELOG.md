@@ -38,6 +38,18 @@ All notable changes to this project are documented here. The format follows
   fallbacks. Cover source fidelity, font structure and responsive/modal behavior with
   synthetic regression cases; keep manuscripts and font binaries out of main.
 
+### Question-bank organisation and practice
+
+- Regroup the standalone C++ question bank into seven thematic parts and 42 topics, ordered
+  basic → principle → scenario inside each topic, with display questions renumbered along the
+  new reading order and optional `data-level` metadata validated by the question-bank checker.
+  Question IDs, answers, citations and MathML stay unchanged; only three positional
+  cross-references became stable anchors.
+- Add topic-scoped random practice to the shared question-bank runtime: choose themes derived
+  from the bank's own heading levels, draw one question, keep the canonical answer folded
+  until revealed, and jump back to the original item without duplicating anchors or detaching
+  citation handlers. The control appears only when the dialog enhancement is available.
+
 ### Pages deployment compatibility
 
 - Add portable Python external-venv setup, pip installation and command execution without
