@@ -1,52 +1,57 @@
 # Paper Translation Library
 
-文档、写作规范与阅读页渲染资源的仓库。成稿的正文、源 PDF、参考材料与执行工具都在仓库之外，
-因此一次克隆只能得到规范与呈现层，不能重建页面。
+保存阅读页源文档、页面组成与写作规范的仓库。源文档是 Markdown 与 SVG，页面组成是模板、
+样式与脚本；渲染、测试与发布都在仓库之外执行，产物不进入此仓库。
 
 ## 仓库里有什么
 
 ```text
-docs/                写作规范、方法、阅读页规则、流水线接口（见 docs/README.md）
-.agents/skills/      写作、翻译、综述三个可复用入口
-src/                 阅读页模板、样式与脚本（页面呈现的唯一来源）
-NOTICE.md/LICENSE    流水线 MIT 许可与第三方权利边界
+papers/<slug>/     每篇阅读页的源文档（见下）
+src/               页面组成：模板、样式、脚本
+docs/              写作规范、方法、阅读页规则、流水线接口
+.agents/skills/    写作、翻译、综述三个可复用入口
+NOTICE.md LICENSE  流水线 MIT 许可与第三方权利边界
 ```
 
-`src/` 是页面呈现的权威来源：版式、术语表与出处说明的样式、原生 MathML 的排版、问答页的交互
-与无脚本回退都在这里。修改样式只改 `src/`，重新发布时由本地流水线把运行时组合进快照。
+`papers/<slug>/` 的结构：
 
-## 仓库外有什么
-
-| 位置 | 内容 |
+| 文件 | 作用 |
 |---|---|
-| `%TEMP%\PaperTranslationWork\pipeline\` | Python 工具、测试、`pyproject.toml` 与依赖锁定 |
-| `%TEMP%\PaperTranslationWork\dist\` | 各项目的正文、图、术语表与已构建的阅读页 |
-| `%TEMP%\PaperTranslationWork\repos\` | 源码解读所用的固定提交检出 |
-| `%TEMP%\PaperTranslationWork\sources\` | 外部原件（论文与书籍 PDF） |
+| `meta.json` | 标题、副标题、作者、体裁、章节顺序、发布日期、导出标记 |
+| `content/*.md` | 正文，按 `meta.json` 的章节顺序排列，公式为原生 MathML |
+| `reader.json` | 引用表、引用样式、是否显示术语表 |
+| `glossary.md` | 可见术语对照表 |
+| `reader-meta.md` | 出处、许可与阅读限制说明 |
+| `assets/figures/` | 插图（SVG、PNG 等真实文件，按相对路径引用） |
+| `source-map.md` | 断言到来源的对应，便于复核 |
+| `README.md` | 该篇的维护说明 |
 
-流水线目录用目录联接把仓库的 `src/` 与数据根的 `dist/`、`repos/` 挂进来，所以工具看到的是同一份
-数据，仓库不需要知道它们的位置。TEMP 会被系统清理，这些内容没有第二份副本。
+## 如何把源文档渲染成页面
 
-常用命令（PowerShell，先设一次 `$PIPE`）：
+渲染器在仓库之外的临时流水线里（见 [docs/pipeline.md](docs/pipeline.md)）。它只依赖
+Markdown 与语法高亮两个库，离线完成 Markdown、MathML、SVG 到 HTML 的转换：
 
 ```powershell
 $PIPE = "$env:TEMP\PaperTranslationWork\pipeline"
-python "$PIPE\tools\dev.py" setup --pages
-python "$PIPE\tools\dev.py" run -- "$PIPE\dist\<slug>\work\rebuild.py"
-python "$PIPE\tools\dev.py" run -- "$PIPE\tools\manuscript_check.py" --paper <slug>
+$OUT  = "$env:TEMP\PaperTranslationWork\dist"
+python "$PIPE\tools\dev.py" run -- "$PIPE\tools\render.py" `
+    --work "<仓库路径>\papers\<slug>" --out "$OUT\<slug>" --library-root $OUT
 ```
+
+输出目录里是 `index.html`、插图与共享运行时，可以直接用 `file://` 打开。<slug> 的
+`meta.json` 与 `content/` 决定章节顺序，缺章节或多章节都会在渲染前报错。
 
 ## 发布
 
-站点由 `pages-content` 分支直接发布（GitHub Pages 的分支部署，Source 设为该分支的根目录），
-不再经过 Actions：仓库里没有部署脚本，也没有工作流。发布流程是本地导出、本地校验、推送内容
-分支，具体步骤与校验项见 [docs/pipeline.md](docs/pipeline.md)。
+站点由 `pages-content` 分支直接发布（GitHub Pages 的分支部署，Source 设为该分支的根目录）。
+渲染结果先在本地校验再推送，流程与校验项见 [docs/pipeline.md](docs/pipeline.md)。
 
-`pages-content` 只含渲染结果与字体许可声明，不含 `work/`、源 PDF、抽取数据或本仓库的脚本。
-翻译与其裁图保留原作者权利，不适用本仓库的 MIT 许可。
+`pages-content` 只含渲染结果与字体许可声明，不含源文档、参考材料或执行工具。翻译与其裁图
+保留原作者权利，不适用本仓库的 MIT 许可。
 
 ## 边界
 
-- 仓库不接收 Python 脚本、系统专用配置或数据文件；它们属于流水线目录。
-- 翻译类项目的阅读页仅在本地保留；公开快照只包含明确批准的自撰综述与源码解读。
-- 事实与写作要求以 docs 为准；当前目录结构以 [docs/pipeline.md](docs/pipeline.md) 为准。
+- 仓库保存源文档、页面组成与技能文档；参考材料（抽取的第三方文本、PDF 副本）、构建产物与
+  执行工具放在外部临时目录。
+- 正文改动落在 `papers/<slug>/content/`，呈现改动落在 `src/`，写作要求落在 `docs/`。
+- 翻译类篇目只在本地渲染；公开分支只包含明确批准的自撰综述与源码解读。

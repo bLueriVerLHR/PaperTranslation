@@ -1,0 +1,21 @@
+### 采样改变分布，搜索改变决策目标
+
+模型 logits 先被温度 τ>0 缩放，再走 softmax 得到概率。降温让相对偏好更尖锐，正温度不会改变最大 logit 落在哪个位置。Top-k 把支持集砍到前 k 个候选，nucleus 采样按累计概率圈出一个候选集合，再在集合内重新归一化。这些步骤产出的是处理后的分布。语法掩码进一步按当前解析状态过滤候选，它保证的只是输出符合形式约束，字段里的事实对错另说。
+
+贪心每步取条件概率最高的 token，整条序列的概率未必最大。举个两候选的例子：第一步 A、B 的概率是 0.6 与 0.4，从 A 出发最好的完整后续概率是 0.5，从 B 出发是 0.9，两条最好完整路径的概率分别是 0.30 与 0.36。贪心选 A，B 那条路整体概率更高。Beam search 保留多个部分序列来缓解这种局部短视，有限的束宽仍会丢候选，长度归一化又把比较目标改了；模型概率高与任务质量高是两回事。[6]
+
+### 投机采样为什么能保住目标分布
+
+投机采样让一个小模型便宜地吐出短草稿，再由目标模型并行算出草稿各位置的条件分布。历史已知时，多个候选位置可以像预填充一样并行打分；接受却必须从左到右，一旦拒绝，后面的条件历史就不再成立。Chen 等的算法把这种计算组织与修正拒绝采样配对；直接采信目标模型排名靠前的 token 得不到这个保证。[25]
+
+以下统一用 p 表示目标分布、q 表示草稿分布，与那篇论文的符号相反。固定同一段历史和同一个 token 空间，草稿 <math><mi>x</mi><mo>∼</mo><mi>q</mi></math> 以 <math><mi>a</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><mi mathvariant="normal">min</mi><mo>(</mo><mn>1</mn><mo>,</mo><mi>p</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>/</mo><mi>q</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>)</mo></math> 被接受。q(x)=0 的 token 永远采不到，那里不必算比值。接受分支对 x 贡献的概率质量是 min(p(x),q(x))，总拒绝概率 <math><mi>Z</mi><mo>=</mo><mn>1</mn><mo>−</mo><msub><mo>∑</mo><mi>x</mi></msub><mi mathvariant="normal">min</mi><mo>(</mo><mi>p</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>,</mo><mi>q</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>)</mo></math>。拒绝之后从 <math><mi>r</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><msub><mrow><mo>[</mo><mi>p</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>−</mo><mi>q</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>]</mo></mrow><mo>+</mo></msub><mo>/</mo><mi>Z</mi></math> 采样，这里 <math><msub><mrow><mo>[</mo><mi>u</mi><mo>]</mo></mrow><mo>+</mo></msub><mo>=</mo><mi mathvariant="normal">max</mi><mo>(</mo><mi>u</mi><mo>,</mo><mn>0</mn><mo>)</mo></math>。两条路加起来，最终输出的概率恰好是：
+
+<math display="block"><mi>q</mi><mo>(</mo><mi>x</mi><mo>)</mo><mi>a</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>+</mo><mi>Z</mi><mi>r</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>=</mo><mi mathvariant="normal">min</mi><mo>(</mo><mi>p</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>,</mo><mi>q</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>)</mo><mo>+</mo><msub><mrow><mo>[</mo><mi>p</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>−</mo><mi>q</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>]</mo></mrow><mo>+</mo></msub><mo>=</mo><mi>p</mi><mo>(</mo><mi>x</mi><mo>)</mo></math>
+
+Z=0 意味着两个分布完全相同，拒绝分支永不触发。对每个已接受前缀重复这步单步关系，条件概率的链式法则就把整段序列的分布还原回目标分布。若 K 个候选全部接受，目标模型在最后一个位置的 logits 还能多生成一个 token。整套证明依赖真正用于生成的那个条件分布：用了温度、截断或语法约束，接受与残差就必须改用处理后的概率；量化与浮点实现差异则在精确实数证明的范围之外。参见原论文 Algorithm 2 与 Theorem 1。[25]
+
+平均单步接受率可以写成 <math><mi>α</mi><mo>=</mo><msub><mo>∑</mo><mi>x</mi></msub><mi mathvariant="normal">min</mi><mo>(</mo><mi>p</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>,</mo><mi>q</mi><mo>(</mo><mi>x</mi><mo>)</mo><mo>)</mo><mo>=</mo><mn>1</mn><mo>−</mo><mi mathvariant="normal">TV</mi><mo>(</mo><mi>p</mi><mo>,</mo><mi>q</mi><mo>)</mo></math>，TV 是总变差距离。举例：p=(0.7,0.3)、q=(0.5,0.5)，α=0.5+0.3=0.8，总变差 0.2。这个式子说明有用的草稿要贴近目标在真实历史处的分布，在某个独立测试集上准替代不了这一点。在各位置接受率都近似 α、条件变化可以忽略的简化模型下，一轮输出数的期望是 1+α+⋯+αᴷ；这个期望值依赖上述简化假设，推广到一般情形要重新验证。
+
+设一轮草稿、验证和管理的时间分别是 Kt_d、t_v(K)、t_o，理想情况下平均每个 token 时间约为 [Kt_d+t_v(K)+t_o]/E[N]。它低于普通目标解码时间才有净收益。α 变大提高有效输出，K 变大同时带来更多草稿开销、更宽的验证形状和额外状态；批量已经摊薄权重读取时，验证更可能加计算压力。原论文的小批量 Chinchilla／TPU 结果支持的是那套执行条件，推不出任意框架的倍数。[25]
+
+分布校正还得配上一套状态校正。首个拒绝之后，目标 KV、草稿进度和语法状态都属于报废路径；只换输出 token 继续用这些状态，下一步的条件就和证明对不上。投机执行因此是一段“暂存候选—确认有效前缀—回收无效后缀”的状态事务，框架层的页保护、回滚和多 rank 同步与概率算法同样重要。

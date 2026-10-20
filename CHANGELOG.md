@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Reader sources live in the repository
+
+- Move each reader's canonical sources into `papers/<slug>/`: `meta.json`, `content/*.md`,
+  `reader.json`, `glossary.md`, `reader-meta.md`, `assets/figures/`, `source-map.md` and the
+  project note. Extracted third-party text, page rasters and figure scripts stay in the local
+  data root, so the checkout carries the writing but not the reference material.
+- Rendering moved to the external pipeline as a single entry point,
+  `tools/render.py --work <papers>/<slug> --out <dist>/<slug>`. All five readers re-render from
+  `papers/` byte-for-byte identical to the published pages, which is the recovery guarantee this
+  layout is meant to provide.
+- Describe the layout positively in `README.md` and `AGENTS.md`: sources, page composition and
+  skills live here; rendering, tests and publication run outside. No rule forbids tooling in the
+  checkout.
+
 ### Repository reduced to docs, skills and rendering assets
 
 - Move `tools/`, `tests/`, `pyproject.toml` and the dependency pins to

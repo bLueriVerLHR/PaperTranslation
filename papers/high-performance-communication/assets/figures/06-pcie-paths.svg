@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-labelledby="title desc">
+<title id="title">节点内路径与载荷折减</title>
+<desc id="desc">标称速率经编码、事务头与往返后成为可用载荷；跳数累加固定延迟。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="620" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">节点内路径与载荷折减</text>
+<rect x="40" y="90" width="150" height="70" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="131.0" font-size="22">计算单元</text>
+<rect x="240" y="90" width="190" height="70" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="254" y="131.0" font-size="22">根复合体</text>
+<rect x="480" y="90" width="170" height="70" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="494" y="131.0" font-size="22">交换机</text>
+<rect x="700" y="90" width="160" height="70" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="714" y="131.0" font-size="22">设备</text>
+<line x1="190" y1="125" x2="235" y2="125" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="430" y1="125" x2="475" y2="125" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="650" y1="125" x2="695" y2="125" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="40" y="240" width="820" height="56" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="54" y="273.0" font-size="20">标称链路速率</text>
+<rect x="40" y="314" width="800" height="56" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="347.0" font-size="20">扣编码</text>
+<rect x="40" y="388" width="720" height="56" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="54" y="421.0" font-size="20">扣事务头</text>
+<rect x="40" y="462" width="620" height="56" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="495.0" font-size="20">可用载荷</text>
+<text x="35" y="590" font-size="22">小事务的头部占比更高，因此小消息的有效带宽低于大消息；这是形式关系，不是某一型号的取值。</text>
+</svg>

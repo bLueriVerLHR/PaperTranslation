@@ -1,20 +1,19 @@
-# All local paper inputs, retained work materials and generated reader output.
-# dist/<slug>/work/ contains derivative works and verbatim figure extracts too.
+# Sources, page composition and skills are tracked; these paths are not.
+# dist/ holds generated pages and local reference extracts in the data root.
 /dist/
 
 # Local survey prose and translated abstracts; anchored to keep src/survey tracked.
 /survey/
 
-# Owner-approved local source checkouts; independent Git history and licenses.
+# Owner-approved source checkouts; independent Git history and licenses.
 # Never stage or publish these external repositories as pipeline source.
-/repos/
+/repositories/
 
 # Harness configuration and the system-TEMP task junction.
 /.pi/
 
 # Defensive denylist for retired workspace folders. These are NOT storage conventions;
-# new temporary/development state must use system TEMP via tools/dev-env.ps1.
-/papers/
+# new temporary/development state must use system TEMP.
 /.local/
 /.tasks/
 /.logs/

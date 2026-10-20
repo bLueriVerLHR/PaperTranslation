@@ -1,0 +1,30 @@
+{
+  "slug": "high-performance-communication",
+  "kind": "review",
+  "title": "高性能通信与数据移动：从内存层次到集合通信与拥塞控制",
+  "subtitle": "数据移动的账本、节点内路径、跨节点集合算子与 DCQCN",
+  "author": "原创研读与整理",
+  "source": {"kind": "original-review"},
+  "public_export": true,
+  "created_on": "2026-10-08",
+  "updated_on": "2026-10-16",
+  "sections": [
+    {"file": "01-why-movement.md", "title": "为什么瓶颈在移动"},
+    {"file": "02-layers.md", "title": "数据移动的层次地图"},
+    {"file": "03-dram-hbm.md", "title": "DRAM 与 HBM：物理约束与带宽墙"},
+    {"file": "04-pcie-cxl.md", "title": "PCIe 与 CXL：两种节点内互连语义"},
+    {"file": "05-dma-queues.md", "title": "DMA、队列与设备互连"},
+    {"file": "06-reduce-movement.md", "title": "减少移动：量化、稀疏与压缩"},
+    {"file": "07-rooted.md", "title": "有根集合算子：复制、分发、汇集与归约"},
+    {"file": "08-all.md", "title": "全体集合算子与语义组合"},
+    {"file": "09-algorithms.md", "title": "从算子语义到通信算法"},
+    {"file": "10-hierarchy.md", "title": "跨节点、跨网络与分层通信"},
+    {"file": "11-workloads.md", "title": "训练依赖如何塑造通信"},
+    {"file": "12-libraries.md", "title": "xCCL 与 HCCL：库的边界与取舍"},
+    {"file": "13-linux-paths.md", "title": "Linux 网络数据路径"},
+    {"file": "14-rdma.md", "title": "RDMA：资源、驱动与完成语义"},
+    {"file": "15-congestion.md", "title": "从队列积累到 PFC、ECN"},
+    {"file": "16-dcqcn.md", "title": "DCQCN：反馈、减速与恢复"},
+    {"file": "17-performance.md", "title": "性能解释与系统归因"}
+  ]
+}

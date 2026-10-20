@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700" role="img" aria-labelledby="title desc">
+<title id="title">数据移动的层次与量级</title>
+<desc id="desc">自上而下为片上存储、HBM、主机内存、节点内互连、网络端口与跨域。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="700" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">数据移动的层次与量级</text>
+<rect x="40" y="90" width="820" height="66" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="129.0" font-size="22">片上存储</text>
+<text x="50" y="142" font-size="22">与计算同频</text>
+<text x="880" y="130" font-size="20">计算单元独占</text>
+<rect x="40" y="172" width="700" height="66" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="54" y="211.0" font-size="22">HBM（单栈）</text>
+<text x="50" y="224" font-size="22">&gt;1.2 TB/s</text>
+<text x="760" y="212" font-size="20">节点内共享控制器</text>
+<rect x="40" y="254" width="660" height="66" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="54" y="293.0" font-size="22">HBM（系统实测）</text>
+<text x="50" y="306" font-size="22">3.4 TB/s</text>
+<text x="720" y="294" font-size="20">全部计算单元共享</text>
+<rect x="40" y="336" width="560" height="66" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="375.0" font-size="22">主机内存 LPDDR5X</text>
+<text x="50" y="388" font-size="22">486 GB/s</text>
+<text x="620" y="376" font-size="20">CPU 与设备共享</text>
+<rect x="40" y="418" width="420" height="66" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="54" y="457.0" font-size="22">节点内互连 PCIe 5.0</text>
+<text x="50" y="470" font-size="22">64 GB/s（x16）</text>
+<text x="480" y="458" font-size="20">root complex 下设备共享</text>
+<rect x="40" y="500" width="340" height="66" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="54" y="539.0" font-size="22">网络端口</text>
+<text x="50" y="552" font-size="22">12.5～50 GB/s</text>
+<text x="400" y="540" font-size="20">同端口 rank 与流共享</text>
+<rect x="40" y="582" width="260" height="66" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="621.0" font-size="22">跨节点／跨域</text>
+<text x="50" y="634" font-size="22">叠加多跳</text>
+<text x="320" y="622" font-size="20">全网共享</text>
+<text x="35" y="672" font-size="22">条目宽度表示量级差异（对数感觉），不代表实测；速率与共享方式见第 2.1 节表。</text>
+</svg>

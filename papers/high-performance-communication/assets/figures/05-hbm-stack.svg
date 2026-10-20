@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-labelledby="title desc">
+<title id="title">HBM 的堆叠与带宽来源</title>
+<desc id="desc">多层裸片经硅通孔垂直连接，通过中介层与计算芯片相连。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="620" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">HBM 的堆叠与带宽来源</text>
+<rect x="120" y="110" width="420" height="50" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="134" y="140.0" font-size="20">裸片 4</text>
+<rect x="120" y="172" width="420" height="50" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="134" y="202.0" font-size="20">裸片 3</text>
+<rect x="120" y="234" width="420" height="50" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="134" y="264.0" font-size="20">裸片 2</text>
+<rect x="120" y="296" width="420" height="50" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="134" y="326.0" font-size="20">裸片 1</text>
+<line x1="560" y1="100" x2="560" y2="360" stroke="#2563a8" stroke-width="3"/>
+<text x="575" y="130" font-size="20">硅通孔：垂直连接</text>
+<text x="575" y="162" font-size="20">走线短，可并行更多位</text>
+<rect x="120" y="372" width="420" height="60" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="134" y="407.0" font-size="20">逻辑裸片（接口与控制）</text>
+<rect x="120" y="452" width="420" height="60" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="134" y="487.0" font-size="20">中介层与计算芯片</text>
+<rect x="590" y="452" width="270" height="130" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="604" y="477.0" font-size="20">单栈带宽</text>
+<text x="604" y="507.0" font-size="20">= 接口位宽 × 引脚速率</text>
+<text x="604" y="537.0" font-size="20">HBM3E: &gt;1.2 TB/s</text>
+<text x="604" y="567.0" font-size="20">HBM4: &gt;2.8 TB/s</text>
+<text x="35" y="600" font-size="22">接口位宽是堆叠工艺换来的：引脚数、硅通孔数量与散热决定上限。</text>
+</svg>

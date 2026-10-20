@@ -1,0 +1,43 @@
+{
+  "kind": "analysis",
+  "citation_style": "author-year",
+  "show_glossary": true,
+  "public_export": true,
+  "references": {
+    "tvm2018": {
+      "text": "Tianqi Chen, Thierry Moreau, Ziheng Jiang, Lianmin Zheng, Eddie Yan, Haichen Shen, Meghan Cowan, Leyuan Wang, Yuwei Hu, Luis Ceze, Carlos Guestrin, Arvind Krishnamurthy. 2018. TVM: An Automated End-to-End Optimizing Compiler for Deep Learning. 13th USENIX Symposium on Operating Systems Design and Implementation (OSDI 18), 578–594. arXiv:1802.04799.",
+      "url": "https://www.usenix.org/conference/osdi18/presentation/chen",
+      "aliases": [
+        "Chen et al. 2018"
+      ]
+    },
+    "triton2019": {
+      "text": "Philippe Tillet, H. T. Kung, David Cox. 2019. Triton: An Intermediate Language and Compiler for Tiled Neural Network Computations. Proceedings of the 3rd ACM SIGPLAN International Workshop on Machine Learning and Programming Languages (MAPL 2019), 10–19. DOI: 10.1145/3315508.3329973.",
+      "url": "https://doi.org/10.1145/3315508.3329973",
+      "aliases": [
+        "Tillet et al. 2019"
+      ]
+    },
+    "ansor2020": {
+      "text": "Lianmin Zheng, Chengfan Jia, Minmin Sun, Zhao Wu, Cody Hao Yu, Ameer Haj-Ali, Yida Wang, Jun Yang, Danyang Zhuo, Koushik Sen, Joseph E. Gonzalez, Ion Stoica. 2020. Ansor: Generating High-Performance Tensor Programs for Deep Learning. 14th USENIX Symposium on Operating Systems Design and Implementation (OSDI 20), 863–879. arXiv:2006.06762.",
+      "url": "https://www.usenix.org/conference/osdi20/presentation/zheng",
+      "aliases": [
+        "Zheng et al. 2020"
+      ]
+    },
+    "pytorch2-2024": {
+      "text": "Jason Ansel, Edward Z. Yang, Horace He, Natalia Gimelshein, Animesh Jain, Michael Voznesensky, Bin Bao, Peter Bell, David Berard, Evgeni Burovski, Geeta Chauhan, Anjali Chourdia, Will Constable, Alban Desmaison, Zachary DeVito, Elias Ellison, Will Feng, Jiong Gong, Michael Gschwind, Brian Hirsh, Sherlock Huang, Kshiteej Kalambarkar, Laurent Kirsch, et al. 2024. PyTorch 2: Faster Machine Learning Through Dynamic Python Bytecode Transformation and Graph Compilation. ASPLOS '24, Volume 2, 929–947. DOI: 10.1145/3620665.3640366.",
+      "url": "https://doi.org/10.1145/3620665.3640366",
+      "aliases": [
+        "Ansel et al. 2024"
+      ]
+    },
+    "tilelang2025": {
+      "text": "Lei Wang, Yu Cheng, Yining Shi, Zhengju Tang, Zhiwen Mo, Wenhao Xie, Lingxiao Ma, Yuqing Xia, Jilong Xue, Fan Yang, Zhi Yang. 2025. TileLang: A Composable Tiled Programming Model for AI Systems. arXiv:2504.17577v2 [cs.LG].",
+      "url": "https://arxiv.org/abs/2504.17577v2",
+      "aliases": [
+        "Wang et al. 2025"
+      ]
+    }
+  }
+}

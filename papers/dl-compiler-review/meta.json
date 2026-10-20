@@ -1,0 +1,173 @@
+{
+  "slug": "dl-compiler-review",
+  "kind": "analysis",
+  "title": "编译栈：前端抽象、Pass 与后端",
+  "subtitle": "LLVM、MLIR、TVM、Triton、TileLang、CuTe、PyTorch 与昇腾的源码分析",
+  "author": "本地源码研读与分析",
+  "source": {
+    "kind": "local-source-code",
+    "inspected_on": "2026-10-20",
+    "checkouts": "各仓库以工作区根 repos/ 下的同一份检出为准；正文用仓库名标识来源路径，不复制源码树。",
+    "repositories": [
+      {
+        "name": "tvm",
+        "url": "https://github.com/apache/tvm",
+        "commit": "2bb1a553be19c0c9907bd186f7ce42e412c8f223",
+        "branch": "main",
+        "commit_date": "2026-10-05",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "triton",
+        "url": "https://github.com/triton-lang/triton",
+        "commit": "ebdd5b6b485600bdd62fb3becab87e0f6bf15b6f",
+        "branch": "main",
+        "commit_date": "2026-10-02",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "tilelang",
+        "url": "https://github.com/tile-ai/tilelang",
+        "commit": "876a59e6eb8091ea608c14a84d5300190c3735ce",
+        "branch": "main",
+        "commit_date": "2026-10-20",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "cutlass",
+        "url": "https://github.com/NVIDIA/cutlass",
+        "commit": "0b55a2f691d69981583568fd9eb69687b1f0de8a",
+        "branch": "main",
+        "commit_date": "2026-09-23",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "pytorch",
+        "url": "https://github.com/pytorch/pytorch",
+        "commit": "92f43bbed42c61d2553a49cbd85bc8b5078b1cf0",
+        "branch": "main",
+        "commit_date": "2026-10-16",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "llvm-project",
+        "url": "https://github.com/llvm/llvm-project",
+        "commit": "6b122ae88eff63cc3e6ad3cd9a29a81faa6bb0dd",
+        "branch": "main",
+        "commit_date": "2026-10-01",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "torch-npu",
+        "url": "https://github.com/Ascend/pytorch",
+        "commit": "f38351b66d9edcb32ac71b372d68d18baa797106",
+        "branch": "main",
+        "commit_date": "2026-10-16",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "mindspore",
+        "url": "https://atomgit.com/mindspore/mindspore",
+        "commit": "c91ca93fd5b37e4f61b0db00994573da86127c5e",
+        "branch": "master",
+        "commit_date": "2026-10-16",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "vllm-ascend",
+        "url": "https://github.com/vllm-project/vllm-ascend",
+        "commit": "4ebb3090fc3c13c26557dcaae353882e70246649",
+        "branch": "main",
+        "commit_date": "2026-10-02",
+        "dirty_at_inspection": false
+      },
+      {
+        "name": "deepinfer",
+        "url": "https://github.com/deepseek-ai/DeepInfer",
+        "commit": "774ce244b87cc0eb8d4b94ab9f5de2ab22049f01",
+        "branch": "main",
+        "commit_date": "2026-10-20",
+        "dirty_at_inspection": false,
+        "usage": "only as a production consumer of TileLang kernels (multi-backend reuse boundary); the engine itself is not a compilation-stack subject here"
+      }
+    ]
+  },
+  "public_export": true,
+  "scope": {
+    "subject": "compilation stacks: front-end abstraction, IR and passes, back-end code generation",
+    "stacks": [
+      "triton",
+      "tilelang",
+      "pytorch",
+      "tvm",
+      "llvm",
+      "cutlass (cute)",
+      "ascend (torch_npu, mindspore)"
+    ],
+    "infrastructure": [
+      "llvm",
+      "mlir"
+    ],
+    "evidence": "static reading of the pinned checkouts; no upstream build, test or benchmark is run"
+  },
+  "created_on": "2026-10-16",
+  "updated_on": "2026-10-20",
+  "sections": [
+    {
+      "file": "01-overview.md",
+      "title": "编译栈的分层与研究对象"
+    },
+    {
+      "file": "02-frontend-triton.md",
+      "title": "Triton：块级程序与布局驱动的后端"
+    },
+    {
+      "file": "03-frontend-tilelang.md",
+      "title": "TileLang：计算块级程序与编译期布局推导"
+    },
+    {
+      "file": "04-frontend-pytorch.md",
+      "title": "PyTorch：从字节码捕获到算子生成"
+    },
+    {
+      "file": "05-frontend-graph.md",
+      "title": "计算图：捕获、改写、分区与两级调度"
+    },
+    {
+      "file": "06-ir.md",
+      "title": "中间表示：三种组织方式与 MLIR 的位置"
+    },
+    {
+      "file": "07-tvm.md",
+      "title": "TVM：计算与调度分离之后"
+    },
+    {
+      "file": "08-llvm.md",
+      "title": "LLVM 中端：从 C/C++ 到 SSA 与可分析的循环"
+    },
+    {
+      "file": "09-llvm-loops.md",
+      "title": "LLVM 中端：循环变换、向量化与并行"
+    },
+    {
+      "file": "10-llvm-backend.md",
+      "title": "LLVM 后端：寄存器分配与机器资源"
+    },
+    {
+      "file": "11-cute.md",
+      "title": "CuTe：布局代数与模板实例化"
+    },
+    {
+      "file": "12-ascend.md",
+      "title": "昇腾：适配层、图编译与算子生成"
+    },
+    {
+      "file": "13-operator-path.md",
+      "title": "贯穿对照：一次融合注意力在六个栈里的落点"
+    },
+    {
+      "file": "14-boundaries.md",
+      "title": "代价、退化与选择边界"
+    }
+  ]
+}

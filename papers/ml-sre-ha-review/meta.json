@@ -1,0 +1,43 @@
+{
+  "slug": "ml-sre-ha-review",
+  "kind": "review",
+  "title": "机器学习系统的 SRE 与高可用：容器、编排与故障预算",
+  "subtitle": "从错误预算、容器隔离、调度与共识，到存储带宽账本与训推算力运营",
+  "author": "原创研读与整理",
+  "source": {
+    "kind": "original-review",
+    "note": "按机制重新组织的原创技术综述，来源见 work/source-map.md；不转载原文、图表或代码。"
+  },
+  "public_export": true,
+  "created_on": "2026-10-21",
+  "updated_on": "2026-10-21",
+  "scope": {
+    "subject": "大规模生成式 AI 训练与推理系统的站点可靠性工程（SRE）与高可用设计",
+    "layers": [
+      "服务等级与错误预算",
+      "容器隔离与运行时",
+      "Kubernetes 控制回路、调度与弹性",
+      "副本、共识与故障切换",
+      "分布式存储与数据可靠性",
+      "网络与算力共享",
+      "可观测性与变更管理"
+    ],
+    "evidence": "已读来源的固定版本、页码或提交；机制推导与参数取值在正文标注类别"
+  },
+  "sections": [
+    {"file": "01-reliability-object.md", "title": "可靠性对象：训练作业与推理服务的不同失效语义"},
+    {"file": "02-slo-error-budget.md", "title": "SLI、SLO 与错误预算：把风险写成可计算的量"},
+    {"file": "03-capacity-queueing.md", "title": "容量、排队与冗余：从 QPS 到算力预算"},
+    {"file": "04-incident-response.md", "title": "故障处理：值班、事件管理与复盘"},
+    {"file": "05-container-mechanism.md", "title": "容器：隔离与限制的实际机制"},
+    {"file": "06-kubernetes-control.md", "title": "Kubernetes 的控制回路、资源模型与探针"},
+    {"file": "07-scheduling.md", "title": "调度器：从 Borg 到 kube-scheduler 的双循环"},
+    {"file": "08-heterogeneous-gpu.md", "title": "异构算力编排：设备抽象、切分与干扰"},
+    {"file": "09-replication-consensus.md", "title": "副本、主备与共识：故障切换的成立条件"},
+    {"file": "10-storage-durability.md", "title": "存储：数据可靠性与带宽账本"},
+    {"file": "11-network-fault-domain.md", "title": "网络作为共享故障域"},
+    {"file": "12-pooling-colocation.md", "title": "训推算力并池、混部与可抢占实例"},
+    {"file": "13-observability.md", "title": "可观测性：信号选择、基数与告警设计"},
+    {"file": "14-change-delivery.md", "title": "变更、交付与工程化沉淀"}
+  ]
+}

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" role="img" aria-labelledby="title desc">
+<title id="title">DRAM 的访问路径与行缓冲</title>
+<desc id="desc">RAS 选行把整行读入行缓冲，CAS 选列送出数据。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="560" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">DRAM 的访问路径与行缓冲</text>
+<rect x="40" y="90" width="150" height="70" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="131.0" font-size="22">地址</text>
+<rect x="250" y="90" width="170" height="70" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="264" y="131.0" font-size="22">RAS：选行</text>
+<rect x="480" y="90" width="190" height="70" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="494" y="131.0" font-size="22">行缓冲（整行）</text>
+<rect x="730" y="90" width="130" height="70" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="744" y="131.0" font-size="22">CAS：选列</text>
+<line x1="190" y1="125" x2="245" y2="125" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="420" y1="125" x2="475" y2="125" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="670" y1="125" x2="725" y2="125" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="40" y="220" width="400" height="150" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="54" y="269.0" font-size="22">命中：行已打开</text>
+<text x="54" y="301.0" font-size="22">只发 CAS</text>
+<text x="54" y="333.0" font-size="22">t ≈ t_CL</text>
+<rect x="470" y="220" width="390" height="150" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="484" y="269.0" font-size="22">未命中：先预充电</text>
+<text x="484" y="301.0" font-size="22">再激活新行，再发 CAS</text>
+<text x="484" y="333.0" font-size="22">t ≈ t_RP + t_RCD + t_CL</text>
+<line x1="300" y1="400" x2="300" y2="470" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="600" y1="400" x2="600" y2="470" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="180" y="500" font-size="22">同一行的连续访问</text>
+<text x="470" y="500" font-size="22">跨行跳跃的访问</text>
+<text x="35" y="540" font-size="22">两种情形的差值就是访问模式对有效带宽的影响，也是第 3.4 节 85% 与 97% 差额的一部分。</text>
+</svg>

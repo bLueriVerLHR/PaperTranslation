@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 635" role="img" aria-labelledby="title desc">
+<title id="title">拥塞：到达之和超过出口服务率</title>
+<desc id="desc">ECN端到端反馈与PFC逐跳反压作用范围不同。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="635" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">拥塞：到达之和超过出口服务率</text>
+<rect x="35" y="100" width="190" height="70" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="141.0" font-size="22">发送者 1</text>
+<line x1="225" y1="135" x2="355" y2="250" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="35" y="220" width="190" height="70" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="261.0" font-size="22">发送者 2</text>
+<line x1="225" y1="255" x2="355" y2="250" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="35" y="340" width="190" height="70" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="381.0" font-size="22">发送者 3</text>
+<line x1="225" y1="375" x2="355" y2="250" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="360" y="200" width="215" height="115" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="374" y="247.5" font-size="22">共享出口队列</text>
+<text x="374" y="279.5" font-size="22">到达 A；服务 C</text>
+<rect x="680" y="220" width="185" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="694" y="266.0" font-size="22">接收端</text>
+<line x1="575" y1="260" x2="675" y2="260" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="300" y="395" width="565" height="76" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="314" y="439.0" font-size="22">ECN → 接收端 CNP → 发送端调速</text>
+<rect x="300" y="495" width="565" height="76" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="314" y="539.0" font-size="22">PFC → 相邻上游的优先级暂停</text>
+<text x="35" y="598" font-size="22">正队列区域：dq/dt = A − C；不描述丢包与离散分包。</text>
+</svg>

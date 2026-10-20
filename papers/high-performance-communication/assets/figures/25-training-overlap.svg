@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 475" role="img" aria-labelledby="title desc">
+<title id="title">梯度 bucket：就绪后归约，尾部仍需等待</title>
+<desc id="desc">计算与通信依赖的教学时间线。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="475" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">梯度 bucket：就绪后归约，尾部仍需等待</text>
+<text x="30" y="105" font-size="22" font-weight="bold">反向计算</text>
+<rect x="160" y="73" width="175" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="174" y="119.0" font-size="22">末层</text>
+<rect x="350" y="73" width="175" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="364" y="119.0" font-size="22">中层</text>
+<rect x="540" y="73" width="175" height="80" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="554" y="119.0" font-size="22">前层</text>
+<text x="30" y="245" font-size="22" font-weight="bold">通信</text>
+<rect x="340" y="203" width="155" height="80" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="354" y="249.0" font-size="22">bucket 1</text>
+<line x1="335" y1="155" x2="370" y2="198" stroke="#243244" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<rect x="510" y="203" width="155" height="80" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="524" y="249.0" font-size="22">bucket 2</text>
+<line x1="525" y1="155" x2="540" y2="198" stroke="#243244" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<rect x="680" y="203" width="155" height="80" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="694" y="249.0" font-size="22">bucket 3</text>
+<line x1="715" y1="155" x2="710" y2="198" stroke="#243244" stroke-width="2.2" stroke-dasharray="7 5" marker-end="url(#arrow)"/>
+<rect x="745" y="320" width="125" height="65" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="759" y="358.5" font-size="22">更新</text>
+<line x1="830" y1="283" x2="810" y2="315" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="30" y="429" font-size="23">最后一块通信暴露在迭代尾部；图宽不是测得的时长。</text>
+</svg>

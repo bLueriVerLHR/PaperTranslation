@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 655" role="img" aria-labelledby="title desc">
+<title id="title">包路径：选择的是处理与所有权位置</title>
+<desc id="desc">XDP可继续到Socket或重定向AF_XDP；DPDK是另一条路径。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="655" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">包路径：选择的是处理与所有权位置</text>
+<rect x="35" y="90" width="185" height="100" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="130.0" font-size="22">NIC RX</text>
+<text x="49" y="162.0" font-size="22">设备队列</text>
+<rect x="310" y="90" width="190" height="100" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="324" y="130.0" font-size="22">驱动 / NAPI</text>
+<text x="324" y="162.0" font-size="22">原生 XDP</text>
+<rect x="630" y="90" width="235" height="100" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="644" y="130.0" font-size="22">协议栈 / Socket</text>
+<text x="644" y="162.0" font-size="22">应用读取</text>
+<line x1="220" y1="140" x2="305" y2="140" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="500" y1="140" x2="625" y2="140" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="505" y="115" font-size="19">PASS</text>
+<rect x="630" y="285" width="235" height="120" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="644" y="319.5" font-size="21">AF_XDP / UMEM</text>
+<text x="644" y="350.5" font-size="21">RX / TX</text>
+<text x="644" y="381.5" font-size="21">FILL / COMPLETION</text>
+<line x1="500" y1="175" x2="625" y2="320" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="430" y="270" font-size="20">REDIRECT</text>
+<rect x="35" y="465" width="230" height="95" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="49" y="502.5" font-size="22">设备控制与映射</text>
+<text x="49" y="534.5" font-size="22">VFIO 等／分岔驱动</text>
+<rect x="360" y="465" width="220" height="95" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="374" y="502.5" font-size="22">用户态 PMD</text>
+<text x="374" y="534.5" font-size="22">队列轮询</text>
+<rect x="650" y="465" width="215" height="95" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="664" y="502.5" font-size="22">DPDK 应用</text>
+<text x="664" y="534.5" font-size="22">自有包处理</text>
+<line x1="265" y1="512" x2="355" y2="512" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="580" y1="512" x2="645" y2="512" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<text x="35" y="620" font-size="21">zero-copy AF_XDP 依赖驱动能力；不是所有包路径都零复制。</text>
+</svg>

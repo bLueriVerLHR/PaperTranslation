@@ -4,24 +4,26 @@ Operating manual for coding agents in this repository.
 
 ## What this repository is
 
-A writing-standards repository: prose conventions, research and source-code analysis methods,
-reader presentation rules, three authoring skills and the reader's templates/styles/scripts.
-It contains **no Python, no build scripts, no data and no manuscripts**. Anything executable
-lives outside the checkout, under `%TEMP%\PaperTranslationWork\`:
+A library of reader sources, page composition and writing standards. `papers/<slug>/` holds each
+reader's Markdown, figures and metadata; `src/` holds the templates, styles and scripts that turn
+them into a page; `docs/` holds the standards and ` .agents/skills/` the authoring entry points.
+Rendering, testing and publication run from an external temporary pipeline; this checkout stays
+usable without it, and generated output never lands here.
 
 | Path | Content |
 |---|---|
-| `pipeline\tools`, `pipeline\tests` | Python tools, tests, `pyproject.toml`, dependency pins |
+| `pipeline\tools`, `pipeline\tests` | renderer, extractor, publication scripts, tests |
 | `pipeline\src` | junction to this repository's `src/` |
-| `pipeline\dist`, `pipeline\repos` | junctions to the data root's `dist/` and `repos/` |
-| `dist\<slug>\work` | canonical per-project content, glossary, figures and metadata |
-| `repos\<name>` | fixed-commit source checkouts used by source-code analyses |
+| `pipeline\dist`, `pipeline\repositories` | junctions to the data root's `dist/` and `repositories/` |
+| `dist\<slug>` | rendered pages built from `papers\<slug>` (disposable output) |
+| `dist\<slug>\work\reference` | extracted third-party text and page rasters (local only) |
+| `repositories\<name>` | fixed-commit source checkouts used by source-code analyses |
 | `sources\` | external originals (papers, books) |
 
-TEMP is disposable and there is no second copy. Never treat `dist/`, `repos/` or `sources/` as
-reproducible from this repository, and never delete them as cleanup. Project rebuild scripts
-locate the pipeline through `PT_PIPELINE`, a sibling `pipeline/` directory, or by walking up for
-`tools/build.py`.
+TEMP is disposable and there is no second copy of it. `papers/` and `src/` are the reproducible
+part; `dist/`, `repositories/` and `sources/` are not, so never treat them as rebuildable from this
+repository and never delete them as cleanup. Project work directories under `dist/<slug>/work`
+keep only local reference material once the sources moved to `papers/`.
 
 ## Publication boundary
 
@@ -45,8 +47,8 @@ Read the owning document in full before drafting or revising, and follow it thro
 - Presentation, Markdown syntax, glossaries, question pages: `docs/reader.md`.
 - Publishing, directory layout, interfaces, task workflow: `docs/pipeline.md`.
 
-Before changing an existing manuscript, read its canonical `work/README.md`, glossary, source map
-and the complete affected sections from the data root.
+Before changing an existing manuscript, read its `papers/<slug>/README.md`, glossary, source map
+and the complete affected sections in `papers/<slug>/content/`.
 
 ## Content rules that survive any refactor
 
@@ -66,11 +68,19 @@ and the complete affected sections from the data root.
 - Do not run upstream projects, tests, benchmarks or experiments for research without separate
   explicit authorization. Read-only source inspection and reader builds are distinct.
 
-## Change discipline
+## Source, composition and rendering
 
+- `papers/<slug>/` is the canonical source of a reader: `meta.json` declares title, genre and
+  section order; `content/` holds one Markdown file per section; figures are real files under
+  `assets/figures/`. Rendering reads only these paths.
 - `src/` is the only source of reader presentation. Change styles or behaviour there, never in a
   built page or in a project folder.
-- Additive changes keep existing readers buildable. Generated HTML is never committed here.
+- Rendering, extraction, checks and publication are executed from the external pipeline. A change
+  here must not assume a local tool path exists; document the command in `docs/pipeline.md`
+  instead of relying on one machine's layout.
+- Generated HTML is never committed to this repository.
+- Additive changes keep existing readers buildable. A source tree must stay self-describing:
+  `meta.json` lists every section in order, and every referenced figure exists as a relative file.
 - Temporary plans, reports, logs and experiments use absolute paths under the managed project
   TEMP; keep no cache directory in this checkout.
 - `docs/` describes durable behaviour only: no task progress, approvals or execution history.

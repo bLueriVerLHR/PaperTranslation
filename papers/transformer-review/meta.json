@@ -1,0 +1,52 @@
+{
+  "slug": "transformer-review",
+  "kind": "review",
+  "title": "Transformer：架构、训练、推理与应用综述",
+  "subtitle": "通用架构与序列建模",
+  "author": "原创研读与整理",
+  "source": {
+    "kind": "original-review"
+  },
+  "public_export": true,
+  "scope": {
+    "architecture_family": "Transformer",
+    "focus": "general architectures and sequence modeling",
+    "domains": [
+      "language",
+      "vision",
+      "audio",
+      "time-series",
+      "biological-sequences",
+      "multimodal"
+    ],
+    "training_stages": "apply only where relevant to the task; not a mandatory lifecycle"
+  },
+  "created_on": "2026-10-05",
+  "updated_on": "2026-10-20",
+  "sections": [
+    {
+      "file": "01-architecture.md",
+      "title": "基础原理与架构演进"
+    },
+    {
+      "file": "02-pretraining.md",
+      "title": "预训练阶段"
+    },
+    {
+      "file": "03-posttraining.md",
+      "title": "后训练阶段"
+    },
+    {
+      "file": "04-inference.md",
+      "title": "推理阶段"
+    },
+    {
+      "file": "05-frameworks.md",
+      "title": "训练／推理框架"
+    },
+    {
+      "file": "06-downstream.md",
+      "title": "下游任务"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "kind": "review",
+  "public_export": true,
+  "show_glossary": true,
+  "citation_style": "numeric",
+  "references": {
+    "1": {
+      "text": "王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。",
+      "url": "https://www.tsinghua.edu.cn/"
+    },
+    "2": {
+      "text": "Charles Bell, Mats Kindahl. 高可用 MySQL：构建健壮的数据中心（第 2 版）. 宁青等译. 北京：电子工业出版社，2015. ISBN 9787121266881. 本文采用第 5 章“面向高可用性的复制”（第 112–117 页）关于冗余、应急计划与故障角色的表述，以及第 3 章关于复制基本步骤的描述。",
+      "url": ""
+    },
+    "3": {
+      "text": "Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O'Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。",
+      "url": "https://sre.google/sre-book/table-of-contents/"
+    },
+    "4": {
+      "text": "Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。",
+      "url": "https://research.google/pubs/pub43438/"
+    },
+    "5": {
+      "text": "Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。",
+      "url": "https://doi.org/10.1007/s11432-024-4227-2"
+    },
+    "6": {
+      "text": "Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。",
+      "url": "https://www.usenix.org/conference/fast25/presentation/qin"
+    },
+    "7": {
+      "text": "DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。",
+      "url": "https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs"
+    },
+    "8": {
+      "text": "Xupeng Miao, Chunan Shi, Jiangfei Duan, Xiaoli Xi, Dahua Lin, Bin Cui, Zhihao Jia. SpotServe: Serving Generative Large Language Models on Preemptible Instances. ASPLOS 2024, pp. 1112–1128. DOI: 10.1145/3620665.3640411. 本文采用其摘要与第 1 节关于抢占宽限期、动态重并行与状态化恢复的表述。",
+      "url": "https://doi.org/10.1145/3620665.3640411"
+    }
+  }
+}

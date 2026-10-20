@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" role="img" aria-labelledby="title desc">
+<title id="title">CXL 的三层协议</title>
+<desc id="desc">CXL 复用 PCIe 物理层，其上叠加 CXL.io、CXL.cache 与 CXL.mem。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:monospace}</style>
+<rect width="900" height="600" rx="12" fill="#fff"/>
+<text x="28" y="40" font-size="27" font-weight="bold">CXL 的三层协议</text>
+<rect x="40" y="210" width="820" height="70" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="54" y="251.0" font-size="22">PCIe 物理层：链路、lane 与事务层数据包</text>
+<rect x="40" y="90" width="260" height="90" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="54" y="141.0" font-size="22">CXL.io</text>
+<text x="52" y="168" font-size="18">配置与 I/O，沿用 PCIe 协议特性</text>
+<line x1="170" y1="185" x2="170" y2="205" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="320" y="90" width="260" height="90" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="334" y="141.0" font-size="22">CXL.cache</text>
+<text x="332" y="168" font-size="18">设备参与主机内存一致性</text>
+<line x1="450" y1="185" x2="450" y2="205" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="600" y="90" width="260" height="90" rx="9" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="614" y="141.0" font-size="22">CXL.mem</text>
+<text x="612" y="168" font-size="18">主机把设备内存当内存访问</text>
+<line x1="730" y1="185" x2="730" y2="205" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<rect x="40" y="330" width="820" height="80" rx="9" fill="#f5f8fc" stroke="#237b65" stroke-width="2"/>
+<text x="54" y="375.0" font-size="20">设备按支持的协议区分用途：只扩充容量不需要一致性协议；带本地内存或缓存的加速器会同时用到后两者</text>
+<rect x="40" y="440" width="820" height="70" rx="9" fill="#f5f8fc" stroke="#b96618" stroke-width="2"/>
+<text x="54" y="480.0" font-size="20">代价：链路传输之外还有主机侧代理、控制器与一致性状态；容量扩展还受页迁移开销影响</text>
+</svg>

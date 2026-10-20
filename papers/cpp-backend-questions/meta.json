@@ -1,0 +1,27 @@
+{
+  "slug": "cpp-backend-questions",
+  "kind": "review",
+  "title": "C++ 后端问答",
+  "subtitle": "编程语言、操作系统、网络、数据库、数据结构、算法与工程工具的机制复习",
+  "author": "原创技术整理与问答",
+  "source": {
+    "kind": "original-question-bank",
+    "topic_sources": [
+      {"repository": "youngyangyang04/TechCPP", "commit": "c7aea7cb835bca777a2343a385a423aad3fcc973"},
+      {"repository": "csguide-dabai/interview-guide", "commit": "9821f6af0cfd5948f2f116b829e62778f842c7b5"}
+    ]
+  },
+  "public_export": true,
+  "created_on": "2026-10-18",
+  "updated_on": "2026-10-19",
+  "sections": [
+    {"file": "06-interview.md", "title": "分主题问答"}
+  ],
+  "verification": {
+    "scope": "Existing answers, stable question IDs and evidence records retained; standalone relocation, thematic regrouping, display renumbering, depth labels and language polishing are editorial and do not promote semantic coverage. Thread-pool citations point at the upstream commit described in the answers, not at another reader project.",
+    "selected_contract_checks_run": false,
+    "upstream_suite_run": false,
+    "performance_benchmarks_run": false,
+    "examples_compiled_or_run": false
+  }
+}
