@@ -100,6 +100,28 @@ Rebuilds preserve `work/`; do not hand-edit generated HTML or figure crops. Exte
 checkouts retain their own Git history, modifications and upstream licenses. Experiments and
 build directories belong in TEMP, not in those checkouts.
 
+## Local data root
+
+`dist/` and `repos/` are local-only by rule, and they may also live outside the checkout. This
+machine keeps both under `%TEMP%\PaperTranslationWork\`, next to `sources/` for external
+originals, and mounts them in the repository as directory junctions so that the documented
+`dist/<slug>/...` and `repos/<name>/...` paths keep working:
+
+```powershell
+$R = Join-Path $env:TEMP 'PaperTranslationWork'
+New-Item -ItemType Junction -Path .\dist  -Target (Join-Path $R 'dist')
+New-Item -ItemType Junction -Path .\repos -Target (Join-Path $R 'repos')
+```
+
+Two consequences matter for maintenance. A project's `work/rebuild.py` must locate the pipeline
+root from its **unresolved** path and resolve only its working tree; `Path.resolve()` on the
+whole path leaves the checkout and the shared builder then rejects its own content directory.
+TEMP is disposable, and the environment helper recreates the venv without restoring this data
+root, so an independent copy of `work/` and of any checkout is still the only durable backup.
+The data root holds canonical reader material only: scratch scripts, extracted page text,
+reports and Pages staging output stay under the managed project TEMP instead, and the checkout
+itself keeps no cache directory.
+
 ## Choose the task, then the document
 
 Start with [the task workflow](docs/workflow.md), not the entire documentation directory.

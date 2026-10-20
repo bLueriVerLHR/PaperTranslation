@@ -6,6 +6,55 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Local data root outside the checkout
+
+- Keep `dist/` and `repos/` in `%TEMP%\PaperTranslationWork\` and mount them as directory
+  junctions, so reader work trees and 35 source checkouts stay out of the checkout without
+  changing any documented path. Project `work/rebuild.py` scripts now locate the pipeline root
+  from the unresolved path and resolve only their working tree; resolving the whole path left
+  the checkout and broke the shared builder's content-directory check. Test, build and Pages
+  staging runs are unchanged.
+
+### Manuscript terminology
+
+- Write `token` as-is in reader prose and keep the English form in glossaries; stop rendering it as an invented Chinese coinage. Update the writing guide's terminology paragraph and the affected local manuscripts; established translations such as 注意力 and 嵌入 stay unchanged.
+
+### Standalone reader pages
+
+- Record that each reader page stands alone: no cross-project page references; restate the needed
+  conclusion with its conditions, and cite primary sources instead of another reader. Repair the
+  nine references left behind by removing cpp-backend-review, and correct the InnoDB 2PC
+  sentence that had confused the internal protocol with XA.
+
+### Question-bank control layout
+
+- Rework the shared qa-controls block from a wrapping flex row to a three-column grid
+  (mode toggle | search label and input | random draw), with the status line spanning all
+  columns and a two-row fallback below 36rem. The search label and input now share one line.
+
+### Quantitative writing requirement
+
+- Add a section requiring four kinds of numbers (specification, measured, derived, pedagogical),
+  worked-out examples before general claims, parameter derivations from hardware constants, and
+  reproducible checks. Cites the two reference books and the author's CuTe swizzle and
+  FlashAttention notes as models.
+
+### Polish-only editing rule
+
+- Forbid regex, keyword sweeps, and scripted word-list replacement during polishing. Each change
+  must follow a full read of the paragraph and its sources; tool output is only a reading list.
+
+### External writing standards
+
+- Adopt locatable rules from Gracker/gracker-writing and luoling8192/technical-writing (both MIT)
+  in the writing guide: filler test, banned-word classes, contrast-sentence cap, five identifiable
+  translationese patterns, list-shaped structure, and a submission checklist. Quote style stays
+  GB/T “”; imaginary-reader openings and social-post rules are excluded.
+
+### Manuscript sentence-level requirements
+
+- Add a sentence-level requirement to the writing guide: plain wording, causal links that point to a real mechanism, and evidence attached to each claim. Record the reconstruction test (who acted, why, with what result) and add it to the review pass; cite a published Chinese survey as the prose model.
+
 ### HTML-first reading
 
 - Let screen articles fill the available viewport with responsive side gutters instead of

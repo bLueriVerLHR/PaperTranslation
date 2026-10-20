@@ -370,13 +370,21 @@ math menclose[notation="downdiagonalstrike"] {
 .qa-question-button:not(:disabled):hover { text-decoration: underline; text-underline-offset: .2em; }
 .qa-bank[data-qa-mode="test"] > .qa-item > .qa-answer { display: none; }
 .qa-bank[data-qa-mode="test"] > .qa-item > .qa-question { margin-bottom: 0; }
-.qa-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem 1rem; padding: 1rem; border: 1px solid var(--rule); border-radius: .6rem; background: var(--code-bg); }
+.qa-controls {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center; gap: .6rem 1rem; padding: .8rem 1rem;
+  border: 1px solid var(--rule); border-radius: .6rem; background: var(--code-bg);
+}
 .qa-controls button, .qa-controls input { font: inherit; min-height: 44px; min-width: 0; padding: .4rem .65rem; border: 1px solid var(--rule); border-radius: .4rem; background: var(--paper); color: var(--ink); }
-.qa-controls button { cursor: pointer; }
+.qa-controls button { cursor: pointer; white-space: nowrap; }
 .qa-controls button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-.qa-controls label { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; min-width: 0; }
-.qa-controls input { width: min(16rem, 100%); max-width: 100%; }
-.body .qa-status { flex-basis: 100%; margin: 0; color: var(--ink-soft); font-size: .9em; }
+.qa-controls label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .5rem; min-width: 0; }
+.qa-controls input { width: 100%; max-width: 100%; }
+.body .qa-status { grid-column: 1 / -1; margin: 0; color: var(--ink-soft); font-size: .9em; }
+@media (max-width: 36rem) {
+  .qa-controls { grid-template-columns: 1fr 1fr; }
+  .qa-controls label { grid-column: 1 / -1; grid-row: 1; }
+}
 .qa-card-content { min-width: 0; }
 /* Editorial depth level: a display-only chip driven by data-level, never part of the question text. */
 .qa-item[data-level] > .qa-question::before,
