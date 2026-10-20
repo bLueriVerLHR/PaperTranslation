@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>机器学习系统的 SRE 与高可用：容器、编排与故障预算</title>
+<meta name="description" content="从错误预算、容器隔离、调度与共识，到存储带宽账本与训推算力运营">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/styles/reader.css">
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+</head>
+<body>
+<a class="skip-link" href="#content">跳到正文</a>
+
+<div class="toolbar" role="toolbar" aria-label="阅读工具栏">
+  <button id="theme-toggle" type="button" aria-live="polite">跟随系统</button>
+  <button id="top-button" type="button" hidden>顶部</button>
+</div>
+
+<main class="page" id="content" data-content-hash="eaf4afa666a1"><a class="site-home" href="../index.html">← 文库</a>
+  <header class="title-block">
+    <h1>机器学习系统的 SRE 与高可用：容器、编排与故障预算</h1>
+    <p class="subtitle">从错误预算、容器隔离、调度与共识，到存储带宽账本与训推算力运营</p>
+    <p class="meta"><span class="latin">原创研读与整理</span> · 原创综述 · 更新于 2026-10-21</p>
+    <p class="meta reading-notice">引用文献与图示遵循各自原有许可与权利要求。</p>
+
+<details class="meta source-details"><summary>出处与说明</summary><p>本文是按机制重新组织的原创技术综述，主题是支撑大规模生成式 AI 训练与推理的可靠性工程，重点在站点可靠性工程（SRE）方法与容器编排技术，并把“高可用”落到可计算的判据上。来源分四组。</p>
+<p>第一组是 SRE 方法论：Google 的《Site Reliability Engineering》（2016）第 3、4、6、15 章，用于可用性的两种计量口径、服务等级指标与目标、错误预算、监控与分页原则、复盘触发条件与无指责原则。第二组是容器与编排：《深入高可用系统原理与设计》（2025）第 1、5、6、7、9 章提供容器演进、命名空间与控制组、资源模型、驱逐机制、调度框架、横向与纵向伸缩、共识算法与可观测性的机制描述；Borg 论文（EuroSys 2015）提供万卡级集群的负载分类、配额与准入、主节点复制、混部收益与干扰测量的报告数据。第三组是数据与存储：《高可用 MySQL（第 2 版）》第 5 章给出冗余、应急计划与故障角色的工程表述；3FS 设计文档（固定提交 <code>22fca04564c7cc230fd8b9523b8b92864e1dad47</code>）给出链式复制、恢复与失败检测的实现细节。第四组是 AI 系统运营案例：MuxFlow（2024）报告了字节跳动生产集群的 GPU 空间共享数据与错误传播分析，SpotServe（ASPLOS 2024）讨论可抢占实例上的推理服务，Mooncake（FAST 2025）给出以 KVCache 为中心的分离式服务架构与 SLO 约束。</p>
+<p>原文、图表、代码与数据集的权利仍归原作者或相应权利人；本文不提供它们的全文译本、扫描页或裁图。本文文字与论断为原创整理，不沿用手册流水线的 MIT 许可。</p>
+<p>文中的数字分三类，标注方式不同。<strong>规格值</strong>来自厂商或标准文档，例如网络接口速率、设备标称容量；<strong>报告值</strong>来自上述论文或书中的实测与统计，保留其平台与时间条件；<strong>推导值与教学取值</strong>由本文按写出的算式计算，用于说明量级，不读作实测性能。凡“取某值”之处均为教学取值，同一结论换参数后需重算。</p>
+<p>本文没有运行任何上游系统、集群、基准测试或故障注入实验，也没有复现论文中的吞吐与时延数字。书中部分实现状态（例如控制组版本的默认选择）以其成书时间为准，读者应回到对应版本的文档核对。涉及具体产品与版本的行为，本文只描述机制，不承诺某个发行版或云厂商的实现细节。</p>
+<div id="sec-glossary"><h1 id="术语对应表">术语对应表</h1>
+<p>本文以“机制名 + 工程动作”两套词表述，避免同一对象换称呼。英文缩写首次出现时给出全称；同一缩写在分布式共识与容器编排中含义不同，按下表区分。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>英文／缩写</th>
+<th>本文用语</th>
+<th>层次与区别</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SRE（Site Reliability Engineering）</td>
+<td>站点可靠性工程</td>
+<td>用软件工程手段管理服务风险的职能与方法集，不是“运维”的同义词</td>
+</tr>
+<tr>
+<td>SLI（Service Level Indicator）</td>
+<td>服务等级指标</td>
+<td>被量化的观测对象，如请求成功率、时延分位数、作业有效算力占比</td>
+</tr>
+<tr>
+<td>SLO（Service Level Objective）</td>
+<td>服务等级目标</td>
+<td>施加在 SLI 上的目标值或区间，本文写作 <code>SLI ≤ 目标</code> 或区间形式</td>
+</tr>
+<tr>
+<td>SLA（Service Level Agreement）</td>
+<td>服务等级协议</td>
+<td>带违约后果的对外承诺；SLO 是其内部依据，不等同</td>
+</tr>
+<tr>
+<td>error budget</td>
+<td>错误预算</td>
+<td>1 − SLO 在一个窗口内允许消耗的不可用额度，本文按“预算比例”和“预算时长”两种口径分别说明</td>
+</tr>
+<tr>
+<td>burn rate</td>
+<td>预算消耗速率</td>
+<td>实际错误率与预算错误率之比；消耗速率 1 表示窗口内恰好用尽预算</td>
+</tr>
+<tr>
+<td>nines</td>
+<td>可用性“个 9”</td>
+<td>99.9% 为 3 个 9，每加一个 9 表示不 unavailable 时间降低一个数量级</td>
+</tr>
+<tr>
+<td>MTBF／MTTR</td>
+<td>平均故障间隔／平均恢复时间</td>
+<td>前者决定需要多少冗余，后者决定切换与重建的时间预算</td>
+</tr>
+<tr>
+<td>toil</td>
+<td>重复性人工劳动</td>
+<td>可被自动化、随规模线性增长、不产生持久价值的工作</td>
+</tr>
+<tr>
+<td>on-call</td>
+<td>值班</td>
+<td>承担分页响应责任的轮值安排，本文按“分页是否可行动”讨论其设计</td>
+</tr>
+<tr>
+<td>postmortem</td>
+<td>复盘报告</td>
+<td>对事件影响、缓解动作、成因与后续动作的书面记录，本文按无指责原则使用</td>
+</tr>
+<tr>
+<td>canary</td>
+<td>灰度发布</td>
+<td>先对一小部分流量或作业启用新版本，观察其 SLI 后再放量</td>
+</tr>
+<tr>
+<td>container</td>
+<td>容器</td>
+<td>依赖命名空间与 cgroups 获得受限视图的进程，与宿主机共享内核</td>
+</tr>
+<tr>
+<td>image</td>
+<td>镜像</td>
+<td>只读的应用运行环境打包产物，构建完成后不可变</td>
+</tr>
+<tr>
+<td>namespace（Linux）</td>
+<td>命名空间</td>
+<td>内核的资源视图隔离机制；容器编排里的 namespace 是 API 作用域，两者不同</td>
+</tr>
+<tr>
+<td>cgroup</td>
+<td>控制组</td>
+<td>内核的资源计量与限制机制，v1 按子系统分挂载点，v2 统一层级</td>
+</tr>
+<tr>
+<td>OCI／CRI</td>
+<td>开放容器标准／容器运行时接口</td>
+<td>OCI 定义镜像与运行时规范，CRI 定义 kubelet 与运行时的调用接口</td>
+</tr>
+<tr>
+<td>runc／containerd</td>
+<td>低层运行时／高层运行时</td>
+<td>runc 负责创建受限进程，containerd 负责镜像、生命周期与 CRI 服务</td>
+</tr>
+<tr>
+<td>Pod</td>
+<td>Pod</td>
+<td>共享网络、IPC、UTS 命名空间的一组容器，是调度与资源声明的基本单位</td>
+</tr>
+<tr>
+<td>request／limit</td>
+<td>申请量／上限</td>
+<td>request 参与调度与 QoS 判定，limit 写入 cgroup 上限</td>
+</tr>
+<tr>
+<td>QoS class</td>
+<td>服务质量等级</td>
+<td>Guaranteed、Burstable、BestEffort 三档，决定节点压力下的驱逐顺序</td>
+</tr>
+<tr>
+<td>eviction</td>
+<td>驱逐</td>
+<td>kubelet 在节点资源不足时按优先级终止 Pod 的动作，分软驱逐与硬驱逐</td>
+</tr>
+<tr>
+<td>Scheduler Framework</td>
+<td>调度框架</td>
+<td>kube-scheduler 暴露的插件扩展点，本文只讨论 Filter 与 Score 两段</td>
+</tr>
+<tr>
+<td>gang scheduling</td>
+<td>成组调度</td>
+<td>一组 Pod 同时满足资源才一起启动，避免部分启动造成的互相等待</td>
+</tr>
+<tr>
+<td>device plugin</td>
+<td>设备插件</td>
+<td>通过 gRPC 向 kubelet 上报与分配异构设备的机制，只提供计数语义</td>
+</tr>
+<tr>
+<td>MPS／MIG</td>
+<td>多进程服务／多实例 GPU</td>
+<td>前者在空间上共享 SM，后者把 GPU 切分为独立实例；两者的隔离强度不同</td>
+</tr>
+<tr>
+<td>CRAQ</td>
+<td>分摊查询的链式复制</td>
+<td>写全链路、读任意副本的一致性协议，本文按 3FS 的实现描述其版本语义</td>
+</tr>
+<tr>
+<td>chain／chain table</td>
+<td>复制链／链表</td>
+<td>副本序列与链的集合；链表版本号在成员变化时递增</td>
+</tr>
+<tr>
+<td>quorum</td>
+<td>多数派</td>
+<td>超过半数的集合；共识的提交与选举都以多数派为判据</td>
+</tr>
+<tr>
+<td>term</td>
+<td>任期</td>
+<td>Raft 的单调递增编号，用于区分不同轮次的领导权</td>
+</tr>
+<tr>
+<td>commit</td>
+<td>提交</td>
+<td>日志条目被多数派确认后可安全应用到状态机</td>
+</tr>
+<tr>
+<td>failover</td>
+<td>故障切换</td>
+<td>把服务角色从失效节点转移出去的过程，需要防止旧主继续写入</td>
+</tr>
+<tr>
+<td>fencing</td>
+<td>隔离旧主</td>
+<td>通过租约、代际号或存储侧拒绝写入，使被替换的节点无法继续生效</td>
+</tr>
+<tr>
+<td>checkpoint</td>
+<td>检查点</td>
+<td>训练状态的持久化快照；本文按“写出体积／写带宽／回退损失”三项记账</td>
+</tr>
+<tr>
+<td>goodput</td>
+<td>有效算力产出</td>
+<td>扣除故障、回退与等待后的训练推进量，区别于标称算力</td>
+</tr>
+<tr>
+<td>TTFT／TBT</td>
+<td>首 token 时延／token 间隔</td>
+<td>生成式推理的两个时延 SLI，分别约束预填充与解码阶段</td>
+</tr>
+<tr>
+<td>P/D 分离</td>
+<td>预填充与解码分离</td>
+<td>把两阶段放到不同实例池，各自按不同目标调优</td>
+</tr>
+<tr>
+<td>KVCache</td>
+<td>键值缓存</td>
+<td>解码阶段复用的中间结果；其容量与命中率决定可服务的上下文规模</td>
+</tr>
+<tr>
+<td>RDMA</td>
+<td>远程直接内存访问</td>
+<td>绕过对端 CPU 的内存访问机制；本文只讨论其超时与故障语义</td>
+</tr>
+<tr>
+<td>PFC／ECN</td>
+<td>优先级流控／显式拥塞通知</td>
+<td>无损网络的两类反馈手段，前者按优先级暂停链路，后者标记拥塞</td>
+</tr>
+<tr>
+<td>CPI（cycles per instruction）</td>
+<td>每指令周期数</td>
+<td>干扰的代理指标，数值越高表示同样的工作量花掉更多周期</td>
+</tr>
+<tr>
+<td>QPS（queries per second）</td>
+<td>每秒请求数</td>
+<td>到达率的口径，不等于可服务容量</td>
+</tr>
+<tr>
+<td>P99</td>
+<td>99 分位</td>
+<td>分位数口径，不能跨实例相加或取平均</td>
+</tr>
+<tr>
+<td>FUSE（Filesystem in Userspace）</td>
+<td>用户态文件系统</td>
+<td>通过内核模块把 I/O 转到用户态进程，代价是内存拷贝与并发扩展性受限</td>
+</tr>
+</tbody>
+</table></div></div></details>
+  </header>
+
+  <details class="toc" id="toc">
+    <summary>目录</summary>
+    <nav aria-label="目录">
+<ol>
+<li><a href="#reliability-object">1. 可靠性对象：训练作业与推理服务的不同失效语义</a><ol>
+<li><a href="#11-训练作业可用性等于有效推进的时间占比">1.1 训练作业：可用性等于有效推进的时间占比</a></li>
+<li><a href="#12-故障频率由规模决定">1.2 故障频率由规模决定</a></li>
+<li><a href="#13-检查点不是免费的">1.3 检查点不是免费的</a></li>
+<li><a href="#14-推理服务可用性按请求计尾时延先坏">1.4 推理服务：可用性按请求计，尾时延先坏</a></li>
+<li><a href="#15-故障检测的三种信号">1.5 故障检测的三种信号</a></li>
+<li><a href="#16-三个可测量的量">1.6 三个可测量的量</a></li>
+</ol></li>
+<li><a href="#slo-error-budget">2. SLI、SLO 与错误预算：把风险写成可计算的量</a><ol>
+<li><a href="#21-三个术语的分工">2.1 三个术语的分工</a></li>
+<li><a href="#22-两种可用性口径">2.2 两种可用性口径</a></li>
+<li><a href="#23-错误预算">2.3 错误预算</a></li>
+<li><a href="#24-训练作业的-sli-选择">2.4 训练作业的 SLI 选择</a></li>
+<li><a href="#25-计划内停机的用处">2.5 计划内停机的用处</a></li>
+<li><a href="#26-可靠性的成本曲线">2.6 可靠性的成本曲线</a></li>
+<li><a href="#27-窗口长度与统计噪声">2.7 窗口长度与统计噪声</a></li>
+<li><a href="#28-预算与规模的相互作用">2.8 预算与规模的相互作用</a></li>
+</ol></li>
+<li><a href="#capacity-queueing">3. 容量、排队与冗余：从 QPS 到算力预算</a><ol>
+<li><a href="#31-排队放大">3.1 排队放大</a></li>
+<li><a href="#32-生成式推理的双约束">3.2 生成式推理的双约束</a></li>
+<li><a href="#33-分配率不等于使用率">3.3 分配率不等于使用率</a></li>
+<li><a href="#34-混部的收益与干扰代价">3.4 混部的收益与干扰代价</a></li>
+<li><a href="#35-冗余预算看尾部而不是均值">3.5 冗余预算：看尾部而不是均值</a></li>
+<li><a href="#36-碎片与集群规模">3.6 碎片与集群规模</a></li>
+<li><a href="#37-串联可用性与降级">3.7 串联可用性与降级</a></li>
+<li><a href="#38-容量规划的输入">3.8 容量规划的输入</a></li>
+</ol></li>
+<li><a href="#incident-response">4. 故障处理：值班、事件管理与复盘</a><ol>
+<li><a href="#41-什么值得叫醒人">4.1 什么值得叫醒人</a></li>
+<li><a href="#42-两个反面案例">4.2 两个反面案例</a></li>
+<li><a href="#43-缓解优先">4.3 缓解优先</a></li>
+<li><a href="#44-复盘的触发与边界">4.4 复盘的触发与边界</a></li>
+<li><a href="#45-复盘的质量判据">4.5 复盘的质量判据</a></li>
+<li><a href="#46-训练侧的事件定义">4.6 训练侧的事件定义</a></li>
+<li><a href="#47-事件分级与响应时限">4.7 事件分级与响应时限</a></li>
+<li><a href="#48-值班负载">4.8 值班负载</a></li>
+</ol></li>
+<li><a href="#container-mechanism">5. 容器：隔离与限制的实际机制</a><ol>
+<li><a href="#51-从文件隔离到全量隔离">5.1 从文件隔离到全量隔离</a></li>
+<li><a href="#52-控制组计量与限制">5.2 控制组：计量与限制</a></li>
+<li><a href="#53-容器的隔离强度">5.3 容器的隔离强度</a></li>
+<li><a href="#54-镜像不可变的分发单元">5.4 镜像：不可变的分发单元</a></li>
+<li><a href="#55-运行时的分层">5.5 运行时的分层</a></li>
+<li><a href="#56-pod-与进程组">5.6 Pod 与进程组</a></li>
+<li><a href="#57-启动时间的分解">5.7 启动时间的分解</a></li>
+<li><a href="#58-加速卡的挂载">5.8 加速卡的挂载</a></li>
+</ol></li>
+<li><a href="#kubernetes-control">6. Kubernetes 的控制回路、资源模型与探针</a><ol>
+<li><a href="#61-声明式与控制器">6.1 声明式与控制器</a></li>
+<li><a href="#62-缓存双循环与乐观绑定">6.2 缓存、双循环与乐观绑定</a></li>
+<li><a href="#63-资源模型与服务质量等级">6.3 资源模型与服务质量等级</a></li>
+<li><a href="#64-可分配资源与驱逐">6.4 可分配资源与驱逐</a></li>
+<li><a href="#65-三类探针的时间预算">6.5 三类探针的时间预算</a></li>
+<li><a href="#66-优雅终止与排空">6.6 优雅终止与排空</a></li>
+<li><a href="#67-滚动更新与可用容量">6.7 滚动更新与可用容量</a></li>
+<li><a href="#68-控制面自身的高可用">6.8 控制面自身的高可用</a></li>
+</ol></li>
+<li><a href="#scheduling">7. 调度器：从 Borg 到 kube-scheduler 的双循环</a><ol>
+<li><a href="#71-两段式决策">7.1 两段式决策</a></li>
+<li><a href="#72-优先级配额与准入">7.2 优先级、配额与准入</a></li>
+<li><a href="#73-打分策略的数学形式">7.3 打分策略的数学形式</a></li>
+<li><a href="#74-pod-作为调度原子">7.4 Pod 作为调度原子</a></li>
+<li><a href="#75-成组调度与死锁">7.5 成组调度与死锁</a></li>
+<li><a href="#76-拓扑与放置">7.6 拓扑与放置</a></li>
+<li><a href="#77-抢占的代价">7.7 抢占的代价</a></li>
+<li><a href="#78-调度吞吐与集群规模">7.8 调度吞吐与集群规模</a></li>
+<li><a href="#79-可解释的分配">7.9 可解释的分配</a></li>
+</ol></li>
+<li><a href="#heterogeneous-gpu">8. 异构算力编排：设备抽象、切分与干扰</a><ol>
+<li><a href="#81-计数式抽象">8.1 计数式抽象</a></li>
+<li><a href="#82-三种切分方式">8.2 三种切分方式</a></li>
+<li><a href="#83-一个生产系统的数据">8.3 一个生产系统的数据</a></li>
+<li><a href="#84-干扰从哪里来">8.4 干扰从哪里来</a></li>
+<li><a href="#85-可接受的劣化">8.5 可接受的劣化</a></li>
+<li><a href="#86-混合型号与碎片">8.6 混合型号与碎片</a></li>
+<li><a href="#87-抽象层缺什么">8.7 抽象层缺什么</a></li>
+</ol></li>
+<li><a href="#replication-consensus">9. 副本、主备与共识：故障切换的成立条件</a><ol>
+<li><a href="#91-冗余的两种形态">9.1 冗余的两种形态</a></li>
+<li><a href="#92-两种复制模型">9.2 两种复制模型</a></li>
+<li><a href="#93-raft-的机制">9.3 Raft 的机制</a></li>
+<li><a href="#94-成员变更的风险">9.4 成员变更的风险</a></li>
+<li><a href="#95-隔离旧主">9.5 隔离旧主</a></li>
+<li><a href="#96-可用性的算术">9.6 可用性的算术</a></li>
+<li><a href="#97-切换的判据">9.7 切换的判据</a></li>
+<li><a href="#98-复制延迟与读一致性">9.8 复制延迟与读一致性</a></li>
+<li><a href="#99-训练作业不用副本">9.9 训练作业不用副本</a></li>
+</ol></li>
+<li><a href="#storage-durability">10. 存储：数据可靠性与带宽账本</a><ol>
+<li><a href="#101-为什么保留文件语义">10.1 为什么保留文件语义</a></li>
+<li><a href="#102-元数据与数据分离">10.2 元数据与数据分离</a></li>
+<li><a href="#103-链式复制与两个版本">10.3 链式复制与两个版本</a></li>
+<li><a href="#104-恢复与读流量的再平衡">10.4 恢复与读流量的再平衡</a></li>
+<li><a href="#105-客户端形态的性能边界">10.5 客户端形态的性能边界</a></li>
+<li><a href="#106-容量与修复的账本">10.6 容量与修复的账本</a></li>
+<li><a href="#107-检查点的体积与带宽">10.7 检查点的体积与带宽</a></li>
+<li><a href="#108-小文件与元数据压力">10.8 小文件与元数据压力</a></li>
+<li><a href="#109-推理侧的存储负载">10.9 推理侧的存储负载</a></li>
+</ol></li>
+<li><a href="#network-fault-domain">11. 网络作为共享故障域</a><ol>
+<li><a href="#111-容量与收敛比">11.1 容量与收敛比</a></li>
+<li><a href="#112-无损语义的代价">11.2 无损语义的代价</a></li>
+<li><a href="#113-故障域与影响面">11.3 故障域与影响面</a></li>
+<li><a href="#114-超时语义">11.4 超时语义</a></li>
+<li><a href="#115-带宽时延积与缓冲">11.5 带宽时延积与缓冲</a></li>
+<li><a href="#116-网络变更的验证">11.6 网络变更的验证</a></li>
+<li><a href="#117-运维动作">11.7 运维动作</a></li>
+</ol></li>
+<li><a href="#pooling-colocation">12. 训推算力并池、混部与可抢占实例</a><ol>
+<li><a href="#121-并池把碎片换成共享风险">12.1 并池：把碎片换成共享风险</a></li>
+<li><a href="#122-混部收益与保护机制">12.2 混部：收益与保护机制</a></li>
+<li><a href="#123-可抢占实例把成本换成中断">12.3 可抢占实例：把成本换成中断</a></li>
+<li><a href="#124-宽限期是一道硬约束">12.4 宽限期是一道硬约束</a></li>
+<li><a href="#125-分离式推理的运维后果">12.5 分离式推理的运维后果</a></li>
+<li><a href="#126-并池的组织条件">12.6 并池的组织条件</a></li>
+<li><a href="#127-离线推理与填谷">12.7 离线推理与填谷</a></li>
+<li><a href="#128-成本与可靠性的交换比">12.8 成本与可靠性的交换比</a></li>
+</ol></li>
+<li><a href="#observability">13. 可观测性：信号选择、基数与告警设计</a><ol>
+<li><a href="#131-五类信号">13.1 五类信号</a></li>
+<li><a href="#132-指标的基数">13.2 指标的基数</a></li>
+<li><a href="#133-日志与追踪的成本">13.3 日志与追踪的成本</a></li>
+<li><a href="#134-告警设计">13.4 告警设计</a></li>
+<li><a href="#135-训练作业的健康信号">13.5 训练作业的健康信号</a></li>
+<li><a href="#136-指标分层与聚合口径">13.6 指标分层与聚合口径</a></li>
+<li><a href="#137-从信号到假设">13.7 从信号到假设</a></li>
+</ol></li>
+<li><a href="#change-delivery">14. 变更、交付与工程化沉淀</a><ol>
+<li><a href="#141-四类变更">14.1 四类变更</a></li>
+<li><a href="#142-不可变与回滚">14.2 不可变与回滚</a></li>
+<li><a href="#143-灰度判据">14.3 灰度判据</a></li>
+<li><a href="#144-控制器化">14.4 控制器化</a></li>
+<li><a href="#145-发布验证">14.5 发布验证</a></li>
+<li><a href="#146-沉淀什么">14.6 沉淀什么</a></li>
+<li><a href="#147-演练">14.7 演练</a></li>
+<li><a href="#148-收束">14.8 收束</a></li>
+</ol></li>
+</ol>
+    </nav>
+  </details>
+
+  <article class="body">
+<section id="sec-01-reliability-object">
+<h2 id="reliability-object">1. 可靠性对象：训练作业与推理服务的不同失效语义</h2>
+<p>一个支撑生成式 AI 的平台，可靠性问题分布在三个层次。作业层是训练、微调、数据加工这类有限时长的任务；服务层是在线推理接口；基础设施层是调度器、分布式存储、高速网络、镜像仓库与监控系统本身。三层对“可用”的定义不同，用一套指标横跨三层会得到错误的结论。用请求成功率衡量训练作业，作业整体停滞时成功率仍是 100%，因为根本没有请求；用作业重启次数衡量推理服务，一次正常的滚动发布会被记成故障。</p>
+<p>Borg 论文对两类负载的区分可以作为起点：长期运行服务处理微秒到数百毫秒的延迟敏感请求，批处理任务运行数秒到数天，对短期性能波动不敏感；两类负载的运行状态不同，生命周期管理、监控与资源分配的机制也不同，长跑服务关注可用性，批处理关注吞吐<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。生成式 AI 的训练作业属于后者，但它比传统批处理脆弱得多：一次失败丢掉的不是一条记录，而是自上一个检查点以来的全部推进，而这次推进可能已经花掉几个小时和上千张加速卡。</p>
+<h3 id="11-训练作业可用性等于有效推进的时间占比">1.1 训练作业：可用性等于有效推进的时间占比</h3>
+<p>训练作业没有“请求”这个可数单位，它的产出是参数更新。把作业的实际墙钟时间记为 <math><msub><mi>T</mi><mtext>wall</mtext></msub></math>，其中用于前反向计算的时间记为 <math><msub><mi>T</mi><mtext>eff</mtext></msub></math>，则有效算力产出（goodput）可以写成时间占比：</p>
+<p><math display="block"><mrow><mi>η</mi><mo>=</mo><mfrac><msub><mi>T</mi><mtext>eff</mtext></msub><msub><mi>T</mi><mtext>wall</mtext></msub></mfrac><mo>=</mo><mn>1</mn><mo>−</mo><mfrac><mi>c</mi><mi>I</mi></mfrac><mo>−</mo><mfrac><mrow><mi>I</mi><mo>/</mo><mn>2</mn><mo>+</mo><mi>R</mi></mrow><mi>T</mi></mfrac></mrow></math></p>
+<p>三项分别对应三种损失。<math><mi>c</mi></math> 是一次检查点的写入耗时，<math><mi>I</mi></math> 是检查点间隔，<math><mi>c</mi><mo>/</mo><mi>I</mi></math> 是把检查点开销摊到单位时间的结果。<math><mi>T</mi></math> 是平均故障间隔，<math><mi>R</mi></math> 是重启开销（重新调度、加载参数、重建通信组）。第二项的前半部分是回退距离：故障在一个周期内均匀发生时，平均要退回半个间隔，也就是 <math><mi>I</mi><mo>/</mo><mn>2</mn></math>。把式（1-1）对 <math><mi>I</mi></math> 求导并令其为零，得到一阶最优间隔：</p>
+<p><math display="block"><mrow><msup><mi>I</mi><mo>&#42;</mo></msup><mo>=</mo><msqrt><mrow><mn>2</mn><mi>c</mi><mi>T</mi></mrow></msqrt></mrow></math></p>
+<p>这个结果有一个容易忽略的性质：重启开销 <math><mi>R</mi></math> 不出现在最优解里。它只把整条损耗曲线抬高，不改变最优间隔的位置。因此“重启很慢所以检查点要更密”是错的推断，重启慢应该压缩的是 <math><mi>R</mi></math> 本身（预加载、镜像预热、通信组复用），而不是把检查点间隔调小。</p>
+<p>代入一组教学取值：写一次检查点 60 s，平均故障间隔 4 h（14,400 s），则 <math><msup><mi>I</mi><mo>&#42;</mo></msup><mo>=</mo><msqrt><mrow><mn>2</mn><mo>×</mo><mn>60</mn><mo>×</mo><mn>14400</mn></mrow></msqrt><mo>≈</mo><mn>1315</mn></mrow></math> s，约 22 min。此时检查点开销 <math><mi>c</mi><mo>/</mo><mi>I</mi></math> 约 4.6%，故障损失约 1.0%，合计约 5.6%。这些数都是教学取值，换平台、换模型规模必须重算。</p>
+<h3 id="12-故障频率由规模决定">1.2 故障频率由规模决定</h3>
+<p><math><mi>T</mi></math> 不是运维水平的结果，而是集群规模的函数。若单机在单位时间内的故障概率为 <math><msub><mi>λ</mi><mi>m</mi></msub></math>，集群有 <math><mi>n</mi></math> 台机器且故障近似独立，则集群发生故障的平均间隔为</p>
+<p><math display="block"><mrow><mi>T</mi><mo>=</mo><mfrac><mn>1</mn><mrow><mi>n</mi><msub><mi>λ</mi><mi>m</mi></msub></mrow></mfrac></mrow></math></p>
+<p>按年为单位取三档单机故障率，万卡集群的平均故障间隔如表 1-1。这里的 <math><msub><mi>λ</mi><mi>m</mi></msub></math> 是教学取值，用于说明量级关系；实际故障还包含非独立的成分（同一机柜的电源、同一交换机的链路），独立假设会低估“同时多台故障”的概率。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>单机年故障率</th>
+<th>万卡集群年故障次数</th>
+<th>平均故障间隔</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1%</td>
+<td>100</td>
+<td>87.6 h（约 3.7 天）</td>
+</tr>
+<tr>
+<td>5%</td>
+<td>500</td>
+<td>17.5 h</td>
+</tr>
+<tr>
+<td>20%</td>
+<td>2000</td>
+<td>4.4 h</td>
+</tr>
+</tbody>
+</table></div>
+<p>这张表解释了为什么大规模训练必须把容错做进系统而不是靠人。万卡规模下，故障间隔已经是小时级，任何依赖“出事了我上去看看”的流程都会立刻失效。同一逻辑也适用于控制面：Borg 的 Borgmaster 复制五份，主选举通常在 10 s 左右完成，大 cell 因为要重建内存状态可能到 1 min<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>，控制面的恢复时间同样要按故障频率来设计。</p>
+<h3 id="13-检查点不是免费的">1.3 检查点不是免费的</h3>
+<p>把检查点间隔调小看似安全，代价有三项，且互相耦合。第一项是容量：保留 <math><mi>k</mi></math> 份检查点时，存储占用是单份体积的 <math><mi>k</mi></math> 倍。第二项是带宽：检查点写入与训练通信共享同一张网络，同步检查点会在写入期间形成全局屏障，把本来可以重叠的通信和计算串行化。第三项是暂停时间：如果写入是同步的，这段时间内所有加速卡空转。</p>
+<p>分布式文件系统的写路径设计会直接影响这三项。3FS 对每个分块采用“写全链路、读任意副本”的链式复制（Chain Replication with Apportioned Queries，CRAQ），写请求从链头发起、沿链传播，读请求可以落到链上任意副本<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。读带宽因此可以随副本数线性扩展，而写带宽只与链头和网络有关，这对“检查点多、读少写多”的训练负载是一个明确的取舍点：副本数提高读吞吐，不提高写入吞吐。</p>
+<h3 id="14-推理服务可用性按请求计尾时延先坏">1.4 推理服务：可用性按请求计，尾时延先坏</h3>
+<p>推理服务的失效语义接近传统在线服务，因此可以直接用产出型口径：可用性等于成功请求数与总请求数之比。SRE 书给出的量级例子是，一天服务 250 万个请求、日目标 99.99%，则允许 250 个错误<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。这类服务还有一个特点：部分副本失效时成功率可能仍然达标，先恶化的是尾时延。用户感知到的是“慢”，而 SLO 上的成功率还没有动。生成式推理把这一点放大，因为它的时延由两段构成：首 token 时延（time to first token，TTFT）由预填充阶段决定，token 间隔（time between tokens，TBT）由解码阶段决定。Mooncake 把这两个量写成硬约束，在满足 SLO 的前提下最大化有效吞吐<a class="citation" href="https://www.usenix.org/conference/fast25/presentation/qin" title="Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。" aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。&quot;, &quot;url&quot;: &quot;https://www.usenix.org/conference/fast25/presentation/qin&quot;, &quot;fallback&quot;: false}]">[6]</a>。</p>
+<p>推理侧的恢复时间里，模型加载往往是最被低估的一段。以 70B 参数、bf16 权重为例，权重体积约 140 GB；若单节点可用读带宽为网卡理论上限的一半（200 Gb/s 折算 25 GB/s，取半为 12.5 GB/s），仅加载就是 11 s；若从冷对象存储按 2 GB/s 读取，则是 70 s。这两个数是推导值，代入的是公开的接口速率，不是实测。它们的用途是确定存活探针与就绪探针的时间窗口：窗口小于模型加载时间时，容器会在加载完成前被判定为不健康并被反复重启，形成“镜像没问题、模型也没问题，但服务永远起不来”的现象。</p>
+<h3 id="15-故障检测的三种信号">1.5 故障检测的三种信号</h3>
+<p>上一节的算式里，<math><mi>T</mi></math> 是“发生故障”的平均间隔。工程上更难的是判定“已经发生”。可用的信号有三类，覆盖范围与代价都不同。</p>
+<p>第一类是进程退出与退出码。它最可靠，也最便宜，但只能覆盖应用自身失败：框架报错、显存耗尽、断言失败。对这类失败，检测延迟近似为零，重启即可。</p>
+<p>第二类是心跳与租约。它覆盖节点不可达、内核 panic、网络分区这类“进程还在但服务不再响应”的失败。它的代价是检测延迟：必须等待若干个心跳周期才能宣布失效，而周期设短会误判，设长会拖长恢复时间。第 9 章的租约设计会说明这个延迟为什么不能在协议层消除，只能在上层补偿。</p>
+<p>第三类是应用层校验，例如对检查点做校验和、对数据分片做重算比对。它覆盖的是静默错误：计算完成、进程存活、结果错误。这类错误的检测成本最高，因为它需要额外的读写或重算；而且它无法靠基础设施层发现，只能由应用自己声明“什么是正确结果”。</p>
+<p>三类信号的选择取决于“负载能否容忍静默错误”。推理服务很难在内层校验输出，可行的办法是固定输入与版本的组合、对关键请求做抽样重算；训练侧的校验点是模型参数与数据分片，在加载时校验、失败时回退到上一个检查点。把三类信号当成可以互相替代的手段，会得到一个看似完备、实际漏掉整类故障的监控体系。</p>
+<h3 id="16-三个可测量的量">1.6 三个可测量的量</h3>
+<p>把上面几节收拢，可靠性工作的起点是三个可测量的量：故障频率、单次损失、恢复时间。故障频率由规模决定，几乎不可压缩，只能通过冗余和容错吸收；单次损失由检查点间隔与提交粒度决定，可以用式（1-1）优化；恢复时间由切换、调度、镜像与模型加载共同决定，是自动化投入回报最高的地方。推理服务用同一组量，只是把“单次损失”换成“失败的请求数”，把“恢复时间”换成“副本从不可用到可承载流量”的时间。</p>
+<p>后续各章按这三个量展开：第 2、3 章把目标写成可计算的预算与容量；第 5 至第 8 章讨论容器与编排如何改变恢复时间；第 9 至第 11 章讨论副本、存储与网络如何改变故障频率的可见部分；第 12 至第 14 章讨论混部、可观测性与变更如何把这套判据维持在生产里。</p>
+</section>
+
+<section id="sec-02-slo-error-budget">
+<h2 id="slo-error-budget">2. SLI、SLO 与错误预算：把风险写成可计算的量</h2>
+<p>站点可靠性工程（Site Reliability Engineering，SRE）处理的核心矛盾，是发布速度与稳定性之间的冲突。这个冲突在缺少客观判据时只能靠谈判解决，而谈判的结果取决于参与者的说服力，不取决于系统的真实风险。SRE 的做法是把它转成一组可计算的量：先定义指标，再设定目标，最后把“目标与现实的差”折算成一份可以花掉的预算。</p>
+<h3 id="21-三个术语的分工">2.1 三个术语的分工</h3>
+<p>服务等级指标（service level indicator，SLI）是被量化的观测对象，例如请求成功率、时延分位数、作业有效算力占比。服务等级目标（service level objective，SLO）是施加在 SLI 上的目标值或区间，通常写成“SLI ≤ 目标”或“下界 ≤ SLI ≤ 上界”。服务等级协议（service level agreement，SLA）是带违约后果的对外承诺，SLO 是它的内部依据，两者不等同<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>这个三分法的实际价值在于责任划分：SLI 由监控系统产出，SLO 由产品与技术负责人共同确定，SLA 由商务与法务承担。任何一环缺失都会导致指标被当成承诺，或者承诺没有指标支撑。</p>
+<h3 id="22-两种可用性口径">2.2 两种可用性口径</h3>
+<p>可用性有两种常用算法。时间型口径把可用时间除以总时间：</p>
+<p><math display="block"><mrow><mi>A</mi><mo>=</mo><mfrac><mtext>uptime</mtext><mrow><mtext>uptime</mtext><mo>+</mo><mtext>downtime</mtext></mrow></mfrac></mrow></math></p>
+<p>产出型口径把成功请求数除以总请求数：</p>
+<p><math display="block"><mrow><mi>A</mi><mo>=</mo><mfrac><mtext>successful requests</mtext><mtext>total requests</mtext></mfrac></mrow></math></p>
+<p>SRE 书指出，在跨地域部署的服务上，时间型口径通常失去意义，因为故障隔离使服务在任何时刻总有一部分在提供服务；因此他们用产出型口径，并给出两个量级例子：年度 99.99% 目标对应 52.56 min 停机；一天 250 万个请求、目标 99.99% 时允许 250 个错误<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>这两种口径对生成式 AI 平台的意义不同。推理接口适合产出型，因为请求是天然的计量单位。训练作业没有请求，只能用时间型或产出型的一个变形：以“有效计算时间 / 墙钟时间”作为 SLI，也就是第 1 章的 <math><mi>η</mi></math>；或者以“在承诺期限内完成的作业比例”作为 SLI，把队列等待时间计入。</p>
+<h3 id="23-错误预算">2.3 错误预算</h3>
+<p>错误预算（error budget）是 1 与 SLO 之差在一个窗口内允许消耗的额度。SLO 定为 99.9%，窗口取 30 天，则预算错误率为 0.1%，折算成时间是 43.2 min。SRE 书把预算周期定为季度，规则是：预算未耗尽时允许继续发布；预算耗尽后暂停发布，把资源投入测试与加固；预算接近耗尽时可以放慢发布速度或回滚<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>预算的价值在于它把“要不要发”变成算术。为了让这个算术可以直接用，定义预算消耗速率（burn rate，BR）为实际错误率与预算错误率之比：</p>
+<p><math display="block"><mrow><mi>B</mi><mi>R</mi><mo>=</mo><mfrac><mi>e</mi><mrow><mn>1</mn><mo>−</mo><mi>S</mi><mi>L</mi><mi>O</mi></mrow></mfrac></mrow></math></p>
+<p>若 SLO 为 99.9%，某小时的实际错误率为 0.5%，则 <math><mi>B</mi><mi>R</mi><mo>=</mo><mn>5</mn></math>。含义是：按这个速率持续，30 天的预算会在 6 天内用尽。反过来，若要求“1 小时内消耗不超过月度预算的 2%”，把 2% 换成速率就是 <math><mn>0.02</mn><mo>×</mo><mn>720</mn><mo>=</mo><mn>14.4</mn></math>，所以告警阈值应设在 <math><mi>B</mi><mi>R</mi><mo>≥</mo><mn>14.4</mn></math>，而不是设在“错误率超过 0.1%”这种与窗口无关的固定值上。</p>
+<p>单窗口判据的问题是噪声：短窗口容易误报，长窗口容易迟报。把两者组合成“长窗口确认问题存在、短窗口确认问题仍在发生”，可以在保持灵敏度的同时压低误报。例如长窗口取 1 h、短窗口取 5 min，两者都满足 <math><mi>B</mi><mi>R</mi><mo>≥</mo><mn>14.4</mn></math> 才分页，只有一个满足则记录工单。这套组合判据由式（2-3）直接推得，不依赖某个产品的告警语法。</p>
+<p>预算还有一个经常被忽略的用途：它把所有不可用都计入同一个账户，包括上游故障、机房断电与自身缺陷。这一点有反直觉的后果。上游故障消耗的是本服务的预算，于是本服务会主动降低发布速度，即使问题不在自己代码里。SRE 书认为这是合理的，因为用户感知不到责任划分<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<h3 id="24-训练作业的-sli-选择">2.4 训练作业的 SLI 选择</h3>
+<p>训练作业的 SLI 选择比推理服务更容易出错，因为“作业还在跑”是一个会骗人的信号。可用的候选有四个，各自的陷阱不同。</p>
+<p>第一个是作业完成期限达成率：在承诺时间内完成的作业占比。它贴近业务价值，但对小作业不敏感，且期限一旦定得宽松，指标会长期好看而没有信息量。第二个是有效算力占比 <math><mi>η</mi></math>：它直接对应第 1 章的推导，能反映检查点与故障的损耗，但需要区分“故障导致的损失”和“算子效率低导致的损失”，否则会把性能问题记成可靠性问题。第三个是步时（step time）的分位数：它灵敏，但全局分位数会掩盖慢节点，一个节点的通信等待会被摊薄到整体里。第四个是检查点成功率与检查点写入时长的分位数：它先于作业失败暴露存储侧问题。</p>
+<p>实际可用的做法是把第三个改成“最慢分组的步时”，也就是按数据并行组或流水线阶段分组后取最大值，再用第四个作为前置指标。这类指标的口径一旦确定，频繁更换会削弱趋势判断，因为预算的历史消耗需要连续性。</p>
+<h3 id="25-计划内停机的用处">2.5 计划内停机的用处</h3>
+<p>有一个反直觉的实践需要单独讨论。SRE 书描述了 Google 全局 Chubby 的处置方式：由于全局故障极少，服务方开始假设 Chubby 永不失败并加上强依赖；于是 SRE 确保 Chubby 只满足、不显著超过其 SLO，如果某季度没有真实故障把可用性拉到目标以下，就人为制造一次受控停机，把不合理的依赖尽早暴露出来<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>这个做法对内部平台有直接的可移植性。模型仓库、配置中心、调度器、镜像仓库都属于“极少坏、因此被假设不会坏”的组件。受控停机的成本可以按第 1 章的量算：一次 10 min 的受控中断，影响的是依赖方在这段时间内的启动与扩容，而不是已经在跑的作业。把它排进变更窗口，比等一次真实故障暴露同样的问题便宜得多。</p>
+<h3 id="26-可靠性的成本曲线">2.6 可靠性的成本曲线</h3>
+<p>SLO 定得越高越好是一个常见的默认假设。SRE 书给出的判断是：每提高一个 9，可靠性改进的成本可能比上一档高 100 倍；而用户往往感知不到差别，因为体验被更不可靠的环节（终端、蜂窝网络）主导<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。同一章还给了一个可复算的收益估算：某服务年收入 100 万美元，把目标从 99.9% 提到 99.99%，可用性提升 0.09%，对应收益 100 万 × 0.0009 = 900 美元；如果提升一个 9 的成本低于 900 美元就值得做，高于则不值<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>这个算式粗糙，但它把讨论从“我们要不要更稳”变成了“这一档稳定性值多少钱”。对生成式 AI 平台，收入侧还要乘以请求价值的不均匀性：训练失败损失的是机时，推理失败损失的是用户请求，两者的单价相差几个数量级，不能共用一个预算阈值。</p>
+<h3 id="27-窗口长度与统计噪声">2.7 窗口长度与统计噪声</h3>
+<p>错误预算的周期不能取得太短，原因是统计噪声。以第 3 章的量级为例：日请求 250 万，目标 99.99%，允许错误 250 个。若真实错误率恰好等于预算错误率 0.01%，每日错误数的标准差约为 <math><msqrt><mrow><mi>n</mi><mi>p</mi><mo>(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo>)</mo></mrow></msqrt><mo>≈</mo><msqrt><mn>250</mn></msqrt><mo>≈</mo><mn>15.8</mn></mrow></math>，相对上限约 6%。也就是说，即使系统完全按目标运行，也会有一部分日子“超额”。</p>
+<p>若把预算周期定为一天，这些日子会被当成故障处理，实际只是噪声。把周期拉长到 30 天，噪声的相对幅度降到约 1%；拉长到一个季度，噪声进一步下降。这就是预算周期按月或按季度定义的统计依据，而不是组织习惯。</p>
+<p>同一条推理也适用于燃烧率告警。短窗口的燃烧率估计方差大，长窗口的估计滞后。把两者组合使用的理由在这里得到量化：短窗口用来降低检测延迟，长窗口用来控制误报，两者的阈值可以独立取。</p>
+<h3 id="28-预算与规模的相互作用">2.8 预算与规模的相互作用</h3>
+<p>最后要处理一个规模效应。预算是按比例定义的，而故障次数是按绝对数量增长的。万卡集群的日故障次数可能是百卡集群的百倍，但两者的 SLO 可能相同。这意味着大集群的预算消耗更快，发布冻结更频繁。合理的做法是让 SLO 随服务等级分层：核心推理接口维持高目标并配置更多冗余，训练平台按作业优先级分层，低优先级作业接受更高的中断率以换取更低价格。SRE 书在基础设施部分给出了同样的思路：为低延迟用户与吞吐用户建立两类集群，后者的成本可能只有前者的 10%～50%<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>分层不是降低标准，而是把有限的冗余放到收益最高的地方。第 3 章讨论这个分配如何落到容量与排队上。</p>
+</section>
+
+<section id="sec-03-capacity-queueing">
+<h2 id="capacity-queueing">3. 容量、排队与冗余：从 QPS 到算力预算</h2>
+<p>容量决策的错误往往不体现在平均值上。集群平均利用率 40% 听起来宽裕，但如果请求到达的波动大、单请求的服务时间方差大，尾时延可能已经进入不可接受区间。这一章把排队、冗余与成本放在同一套算式里，说明容量规划需要哪几个输入，以及为什么“平均利用率”不能作为规划依据。</p>
+<h3 id="31-排队放大">3.1 排队放大</h3>
+<p>先看最简单的情形：单个服务台、到达过程近似泊松、服务时间近似指数分布（M/M/1）。设服务强度为 <math><mi>ρ</mi></math>（到达率乘以平均服务时间），平均等待时间为</p>
+<p><math display="block"><mrow><mi>W</mi><mo>=</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mi>S</mi></mrow></math></p>
+<p>其中 <math><mi>S</mi></math> 是平均服务时间。放大因子 <math><mi>ρ</mi><mo>/</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo>)</mo></math> 在利用率接近 1 时发散：ρ 取 0.5 是 1 倍，0.8 是 4 倍，0.9 是 9 倍，0.95 是 19 倍。</p>
+<p>M/M/1 假设太强，实用的是它的近似推广（Kingman 公式）：</p>
+<p><math display="block"><mrow><mi>E</mi><mo>&#91;</mo><mi>W</mi><mo>&#93;</mo><mo>≈</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><msubsup><mi>C</mi><mi>a</mi><mn>2</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>s</mi><mn>2</mn></msubsup></mrow><mn>2</mn></mfrac><mo>·</mo><mi>E</mi><mo>&#91;</mo><mi>S</mi><mo>&#93;</mo></mrow></math></p>
+<p><math><msub><mi>C</mi><mi>a</mi></msub></math> 与 <math><msub><mi>C</mi><mi>s</mi></msub></math> 分别是到达间隔与服务时间的变异系数。这个式子给出两个可操作的结论：决定时延的除了利用率，还有服务时间的离散程度；降低方差与降低利用率是等效的手段，而前者通常更便宜。</p>
+<p>代入一组教学取值说明量级：平均服务时间 50 ms，要求平均等待不超过 50 ms。若服务时间接近指数分布（变异系数 1），则要求 <math><mi>ρ</mi><mo>/</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo>)</mo><mo>≤</mo><mn>1</mn></math>，即 ρ ≤ 0.5。若批处理让服务时间的变异系数升到 2，同样的等待目标要求</p>
+<p><math display="block"><mrow><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><mn>1</mn><mo>+</mo><mn>4</mn></mrow><mn>2</mn></mfrac><mo>≤</mo><mn>1</mn><mo>⇒</mo><mi>ρ</mi><mo>≤</mo><mn>0.4</mn></mrow></math></p>
+<p>也就是说，同样一台机器，服务时间方差翻倍就要把规划利用率从 50% 降到 40%，否则尾时延会越过目标。生成式推理恰好属于方差大的情形：连续批处理把不同长度的请求拼进同一批，批内 token 数决定了这一批的服务时间。</p>
+<h3 id="32-生成式推理的双约束">3.2 生成式推理的双约束</h3>
+<p>推理服务的容量不能只用一个时延目标描述。预填充阶段决定首 token 时延，解码阶段决定 token 间隔，两个阶段对批大小的敏感度不同：预填充偏好大批量以摊薄权重读取，解码偏好小批量以压低单请求间隔。Mooncake 把这两个目标都写成约束，在满足首 token 时延与 token 间隔离线的前提下最大化有效吞吐，并把可复用的键值缓存（KVCache）从显存下沉到由 CPU、内存、固态盘与网卡组成的分布式池中<a class="citation" href="https://www.usenix.org/conference/fast25/presentation/qin" title="Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。" aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。&quot;, &quot;url&quot;: &quot;https://www.usenix.org/conference/fast25/presentation/qin&quot;, &quot;fallback&quot;: false}]">[6]</a>。</p>
+<p>这个设计改变了容量算式的一项。传统做法下，显存容量限制了并发会话数，扩容只能加卡；把缓存下沉后，并发上限部分由存储带宽决定，扩容可以在不动加速卡的前提下完成。代价是多了一次跨节点读取，读带宽成为新的约束项。第 12 章讨论这种分离在运维上的后果。</p>
+<h3 id="33-分配率不等于使用率">3.3 分配率不等于使用率</h3>
+<p>调度系统按申请量（request）分配资源，而实际使用量通常低于申请量。Borg 论文给出了一组有代表性的数字：在典型的 cell 中，生产作业分配到约 70% 的 CPU，实际使用约 60%；分配到约 55% 的内存，实际使用约 85%<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。CPU 的分配高于使用，内存的分配低于使用。</p>
+<p>这两个方向对应两种不同的资源性质。CPU 是可压缩资源，超用时表现为变慢而不是被杀；内存是不可压缩资源，超用时进程会被终止。Borg 因此对 CPU 做回收，把生产作业闲置的份额让给批处理；对内存则必须允许申请量低于真实使用量，否则大量作业无法被接纳。</p>
+<p>Kubernetes 把同一组概念写成申请量与上限：申请量参与调度与服务质量等级判定，上限写入控制组<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这带来一个实践上的分工：容量规划按申请量做，因为调度器只认申请量；风险评估按上限做，因为上限决定了单机超卖后的实际内存压力。把两者混同，要么规划出大量永远用不上的空闲资源，要么在节点上制造不可预测的终止。</p>
+<h3 id="34-混部的收益与干扰代价">3.4 混部的收益与干扰代价</h3>
+<p>混部（把延迟敏感的在线负载与不敏感的离线负载放在同一批机器上）是提高利用率的直接手段。Borg 的数据是：约 98% 的机器同时运行生产与非生产任务；如果按传统做法把两类负载分到不同集群，中位 cell 需要多 20%～30% 的机器<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。</p>
+<p>干扰是这项收益的对价。Borg 用每指令周期数（cycles per instruction，CPI）作为干扰代理，统计了约 1.2 万个生产任务一周的数据，结论有三条：共享 cell 的平均 CPI 为 1.58，专用 cell 为 1.53，即 CPU 性能约差 3%；每多放一个任务，同机其他任务的 CPI 上升 0.3%；机器 CPU 使用率每提高 10%，CPI 上升不到 2%；而这三项相关性只解释了 CPI 方差的 5%，其余由应用自身差异与具体的干扰模式决定<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。</p>
+<p>第三点尤其重要：干扰不能靠“看起来不忙”来判断，因为利用率与 CPI 的相关性很弱。可行的做法是运行时保护，而不是事前预测。第 8 章讨论 GPU 上的同类问题，其结论比 CPU 更尖锐，因为 GPU 的共享粒度更粗、错误的传播面更大。</p>
+<h3 id="35-冗余预算看尾部而不是均值">3.5 冗余预算：看尾部而不是均值</h3>
+<p>容量规划的另一半是冗余：为吸收故障需要预留多少资源。设集群有 <math><mi>n</mi></math> 台机器，单台在某个窗口内出故障的概率为 <math><mi>p</mi></math>，同时故障的台数近似服从二项分布：</p>
+<p><math display="block"><mrow><mi>P</mi><mo>(</mo><mi>X</mi><mo>=</mo><mi>k</mi><mo>)</mo><mo>=</mo><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>p</mi><mi>k</mi></msup><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo>)</mo></mrow><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup></mrow></math></p>
+<p>取 <math><mi>n</mi><mo>=</mo><mn>100</mn></math>，按 <math><mi>p</mi></math> 取三档算出“至少 3 台同时故障”的概率，结果如表 3-1。表中概率按上式逐项计算，<math><mi>p</mi></math> 为教学取值，实际应按监控数据估计。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>单台故障概率 p</th>
+<th>P(X ≥ 1)</th>
+<th>P(X ≥ 3)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.5%</td>
+<td>39.4%</td>
+<td>1.4%</td>
+</tr>
+<tr>
+<td>1%</td>
+<td>63.4%</td>
+<td>7.9%</td>
+</tr>
+<tr>
+<td>2%</td>
+<td>86.7%</td>
+<td>32.3%</td>
+</tr>
+</tbody>
+</table></div>
+<p>冗余台数 <math><mi>k</mi></math> 应当按上一行的尾概率选取，而不是按平均故障数 <math><mi>n</mi><mi>p</mi></math> 选取。100 台机器、单台 1% 的故障概率下平均故障数是 1，但“同时坏 3 台”的概率接近 8%，这个量级足以让“只留一份备机”的方案在每个窗口都失效一次。这条算式也解释了为什么大规模集群需要按机架、按交换机做故障域隔离：独立假设不成立时，尾部会更厚。</p>
+<h3 id="36-碎片与集群规模">3.6 碎片与集群规模</h3>
+<p>集群越大，碎片损失越小。Borg 论文用分组实验说明这一点：把一个 cell 的工作负载随机打散到多个更小的 cell，所需机器显著增加；把资源申请按 2 的幂做桶，中位情形需要多 30%～50% 的机器<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。机制是装箱问题：申请量的分布越连续，大集群越容易把不同形状的申请拼进同一批机器；一旦把申请量取整到少数几档，就人为制造了无法利用的空洞。</p>
+<p>这条结论对 Kubernetes 的直接含义是：资源申请的粒度决定了碎片水平。为少量超大规模作业单独建池、给常规服务保留细粒度申请，比把所有负载塞进一个池再统一取整更省机器。</p>
+<h3 id="37-串联可用性与降级">3.7 串联可用性与降级</h3>
+<p>单个组件的可用性不直接决定服务可用性，它们沿调用链相乘。若一次请求要经过三个可用性各为 99.9% 的组件，端到端可用性为</p>
+<p><math display="block"><mrow><mi>A</mi><mo>=</mo><mn>0.999</mn><mo>×</mo><mn>0.999</mn><mo>×</mo><mn>0.999</mn><mo>≈</mo><mn>0.997</mn></mrow></math></p>
+<p>按 30 天窗口换算，不可用时间从单组件的 43.2 min 抬到约 129.6 min。这条乘法解释了两个常见现象：一是即便每个组件都达到“三个 9”，端到端也达不到；二是每多一层同步依赖，可用性就被乘一次。把调用链上的同步依赖改为异步，或者为关键路径做降级分支，效果是直接减少乘数项。</p>
+<p>降级有两种形态，机制不同。第一种是限流：超过容量就拒绝部分请求，服务对剩下的请求保持质量。第二种是降精度：缩短生成长度、跳过重排序、降低检索召回数，全部请求都返回，但质量下降。两者的取舍在于“谁承担损失”：限流把损失集中到少数用户的完全失败上，降精度把损失平摊到全部用户的体验下降上。</p>
+<p>限流本身也需要容量参数。若要求排队时间不超过 <math><msub><mi>W</mi><mtext>max</mtext></msub></math>，由式（3-1）反解得利用率上限为</p>
+<p><math display="block"><mrow><mi>ρ</mi><mo>≤</mo><mfrac><msub><mi>W</mi><mtext>max</mtext></msub><mrow><mi>S</mi><mo>+</mo><msub><mi>W</mi><mtext>max</mtext></msub></mrow></mfrac></mrow></math></p>
+<p>取平均服务时间 50 ms、等待上限 50 ms，得到 <math><mi>ρ</mi><mo>≤</mo><mn>0.5</mn></math>，与 3.1 节的结论一致。这条式子的用途是把“限流阀值”从拍数变成可推导的参数：等待上限越低，可运行的利用率上限越低。</p>
+<h3 id="38-容量规划的输入">3.8 容量规划的输入</h3>
+<p>把本章收拢，容量规划需要三个输入。第一是增长曲线，用历史申请量与实际使用量的分位数拟合，而不是平均值。第二是峰值的形状，特别是峰值持续时长与到达的突发性，它们通过式（3-2）的变异系数进入时延预算。第三是故障需求，用式（3-4）的尾概率算出需要预留的冗余。</p>
+<p>三者共同决定一个数字：在给定 SLO 下每单位的有效算力成本。第 12 章会看到，这个数字还能通过并池与可抢占实例继续下降，代价是引入了新的失效语义。</p>
+</section>
+
+<section id="sec-04-incident-response">
+<h2 id="incident-response">4. 故障处理：值班、事件管理与复盘</h2>
+<p>第 1 章把恢复时间列为三个可测量的量之一。恢复时间由四段构成：检测、定位、缓解、修复。四段的成本差别很大，检测与缓解可以通过工程手段压缩，定位依赖对系统的理解，修复往往需要变更。这一章讨论如何把四段拆开设计，以及为什么告警质量决定了整条链路的上限。</p>
+<h3 id="41-什么值得叫醒人">4.1 什么值得叫醒人</h3>
+<p>分页（page）的成本是人的注意力。SRE 书给出了一组判据：每条告警规则都应该回答“它是否检测到一个紧急、可行动、且用户可见或即将可见的状态”；“我是否可能明知它无害而忽略它”；“是否有用户并未受影响的情形需要过滤”；“我能否对它采取行动，这个行动是否紧急，能否安全自动化”；“是否已经有别人因为这个原因被叫醒”。由此得到的四条原则是：每次分页都应带着紧迫感响应；每条分页都应可行动；需要智能判断的响应才值得分页，只需机械执行的不该分页；分页应针对新出现的问题<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>这四条原则推出一条设计取舍：症状告警优先于原因告警。原因是症状直接对应 SLO，而原因与症状之间往往是一对多。CPU 饱和可能不影响服务，也可能已经影响；只有当它影响 SLO 时才值得叫醒人。原因类指标更适合放在仪表盘与工单里，作为定位阶段的输入。</p>
+<h3 id="42-两个反面案例">4.2 两个反面案例</h3>
+<p>SRE 书记录了两个告警治理的案例，它们的失效机制不同。</p>
+<p>Bigtable 的 SLO 曾基于一个行为良好的合成客户端的平均性能制定。存储栈下层的抖动使最慢的 5% 请求显著变慢，均值随之被拉高，于是 SLO 频繁逼近，邮件告警与分页告警同时大量触发。团队消耗了大量时间分诊告警，却仍然漏掉影响用户的问题，因为这些问题数量太少。处置办法是三管齐下：投入改进性能；把 SLO 暂时下调为 75 分位时延；停用邮件告警，把这类信息放到仪表盘<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>这个案例给出的两个结论值得记住。第一，用平均值定义 SLO 会把尾部的抖动放大成噪音，分位数比均值更贴近用户感知。第二，邮件告警的边际价值很低，它容易堆积成噪音，合适的归属是仪表盘与日志。</p>
+<p>Gmail 的案例不同。早期 Gmail 运行在一个为批处理改造的调度系统上，监控规则是“任务被反调度就告警”。当时 Gmail 已有成千上万个任务，每个任务只占用户的一小部分，这条规则在结构上不可维护。团队写了一个工具去“轻推”调度器以减小影响，但对是否要把它自动化产生过争论，担心工作区被绕过而根本修复被无限期推迟<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。书中给出的判断标准很直接：应对动作固定、可以算法化的分页是技术债的红色信号；团队不愿意自动化这类分页，通常意味着对清理技术债没有信心。</p>
+<p>对训练平台，前一个案例的映射是“用平均步时定义目标”，后一个案例的映射是“用单任务重启次数告警”。两者的共同问题是把不可行动的信号做成了分页。</p>
+<h3 id="43-缓解优先">4.3 缓解优先</h3>
+<p>事件处理的第一原则是缓解优先于定位。机制依据在恢复时间的分解里：定位需要复现、比对、读代码，时间不可控；缓解手段通常是有限的几种（回滚、切流、扩容、限流、降级），每一种都可以预先演练。因此事件开始后的动作顺序是判断影响面、选择缓解手段、执行，之后才是定位。</p>
+<p>这条原则对变更类故障尤其重要。生成式 AI 平台的变更密度高于传统服务：镜像按天更新、模型权重按周更新、推理参数按实验调整。每一次变更都可能同时改变吞吐与时延，因此缓解手段必须包括“回到上一个已知良好版本”，而这项能力的前提是版本可回退，即镜像不可变、权重版本化、配置与代码同源。第 14 章展开这部分。</p>
+<h3 id="44-复盘的触发与边界">4.4 复盘的触发与边界</h3>
+<p>SRE 书列出的复盘触发条件包括：超过阈值的用户可见停机或降级；任何形式的数据丢失；值班工程师介入（回滚、切流等）；恢复时间超过阈值；监控失效导致人工发现问题。书中强调触发条件必须在事件发生前定义好，同时允许任何相关方主动要求复盘<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>无指责（blameless）是复盘的一条原则：复盘针对事件的贡献因素，不追究个人。前提假设是参与者在当时掌握的信息下做出了合理判断；如果组织文化倾向于追责，人们会隐瞒问题，复盘的数据源就断了。书中的表述是：人无法被“修复”，系统与流程可以被修复，使其在复杂环境中支持人做出正确选择<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>这条原则容易被误读成“复盘不批评”。它约束的是归因对象，不约束结论强度。复盘可以指出某个操作流程缺少校验、某个默认值危险、某个权限过大，这些都是系统缺陷，与操作者是谁无关。</p>
+<h3 id="45-复盘的质量判据">4.5 复盘的质量判据</h3>
+<p>可用的复盘有三个特征。第一，区分贡献因素与单一根因。分布式系统的多数事件是多因素叠加：一个配置变更放大了已有的容量缺陷，一个重试策略把一个慢节点变成雪崩。写成单一根因会漏掉本可以独立修复的环节。第二，后续动作可验证。把“加强培训”“提高意识”写成动作，等于没有动作；可验证的动作有明确的完成判据，例如“在预发环境注入该故障并观察是否在 5 min 内自动切流”。第三，动作有主责人与期限，且进入与变更同等优先级的工作队列。</p>
+<h3 id="46-训练侧的事件定义">4.6 训练侧的事件定义</h3>
+<p>训练作业没有用户请求，因此直接套用上面的触发条件会漏事件。一个作业连续失败三次、每次都回退到同一个检查点，用户侧可能没有任何错误率变化，但算力已经被浪费了数天。可以为训练侧补三条触发条件：进度损失超过阈值（例如累计回退超过 6 h）；同一失效原因在窗口内重复出现（例如同一型号的卡在同一批机器上反复报错）；作业在队列中的等待时间超过承诺值。</p>
+<p>第三条容易被忽略。第 2 章把“期限达成率”列为训练侧的 SLI，它的失效通常由排队造成，而排队的成因在调度与配额，不在训练代码。这类事件的价值在于它指向的是容量规划，而不是某个具体故障。</p>
+<h3 id="47-事件分级与响应时限">4.7 事件分级与响应时限</h3>
+<p>分级的意义在于把有限的人力分配给不同影响面的事件。可操作的依据是第 2 章的预算消耗速率与服务影响面，而不是“看起来严重不严重”。一个可用的分法：预算消耗速率超过 14.4 且影响可见用户请求的，为一级；影响内部作业但不影响对外服务的，为二级；不消耗预算但需要人工介入的，为三级。</p>
+<p>响应时限应当由恢复时间预算反推。若一级事件的 MTTR 目标为 30 min，而检测环节已经占用了 5 min，则从分页到有人开始处理的时限只能是几分钟级。把时限写成“尽快”等于没有时限；写成数字后，才能评估值傅安排与自动化投入是否匹配。</p>
+<p>分级还有一个次要作用：它决定了通知范围。一级事件需要产品与客服同步，因为他们要回答用户询问；二级事件只需要技术侧知情。把通知范围与分级绑定，可以减少“大事没人知、小事全员知”。</p>
+<h3 id="48-值班负载">4.8 值班负载</h3>
+<p>分页数量本身需要被监控。SRE 书的做法是按班次统计事件数，并在季度回顾中与管理者一起回顾，确保决策者了解团队的分页负载与整体健康度；同时指出，短期内可接受可用性或性能的下降，以换取长期的系统改进，是合理的取舍<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
+<p>对平台的量化做法是给每班设一个分页上限，并把超过上限的分页按“可行动/不可行动”“症状/原因”分类。分类结果直接给出改进行动：不可行动的分页改工单并补自动化，原因类的分页改仪表盘并补症状告警。这个循环与第 13 章的告警设计是同一件事的两端。</p>
+</section>
+
+<section id="sec-05-container-mechanism">
+<h2 id="container-mechanism">5. 容器：隔离与限制的实际机制</h2>
+<p>容器的运维后果几乎全部来自两个内核机制：命名空间给出资源视图，控制组给出资源额度。把容器当成轻量虚拟机，会在一系列判断上出错，例如以为容器内的内存数字可信、以为容器内的时间与宿主一致、以为容器间的隔离强度等于虚拟机。这一章按机制的进入顺序讲这三件事，再讲镜像与运行时如何把机制包装成可交付的单元。</p>
+<h3 id="51-从文件隔离到全量隔离">5.1 从文件隔离到全量隔离</h3>
+<p>容器技术的起点是文件系统隔离。1979 年 Unix V7 引入 chroot，把进程的根目录重定向到某个子树，读写被限制在该子树内，这个环境被称为“监狱”（jail）。chroot 只改根目录，不隔离网络、进程号、用户与设备，因此它提供的是可见性限制，不是安全边界<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>后续的补齐方式是命名空间。Linux 逐步引入了八类命名空间，隔离的对象与进入内核的版本如表 5-1。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>命名空间</th>
+<th>隔离对象</th>
+<th>内核版本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mount</td>
+<td>文件系统挂载点</td>
+<td>2.4.19</td>
+</tr>
+<tr>
+<td>IPC</td>
+<td>消息队列、共享内存、信号量</td>
+<td>2.6.19</td>
+</tr>
+<tr>
+<td>UTS</td>
+<td>主机名与域名</td>
+<td>2.6.19</td>
+</tr>
+<tr>
+<td>PID</td>
+<td>进程号，可重复编号</td>
+<td>2.6.24</td>
+</tr>
+<tr>
+<td>Network</td>
+<td>网络设备、协议栈、路由表、套接字</td>
+<td>2.6.29</td>
+</tr>
+<tr>
+<td>User</td>
+<td>用户与用户组</td>
+<td>3.8</td>
+</tr>
+<tr>
+<td>Cgroup</td>
+<td>控制组视图</td>
+<td>4.6</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>系统时间</td>
+<td>5.6</td>
+</tr>
+</tbody>
+</table></div>
+<p>创建这些视图的方式是一个系统调用：<code>clone</code> 携带对应的 <code>CLONE_NEW*</code> 标志，子进程就“看到”一套新的环境<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。容器运行时的核心动作，就是带着这组标志创建第一个进程，再把它挂到一个新的根文件系统上。</p>
+<h3 id="52-控制组计量与限制">5.2 控制组：计量与限制</h3>
+<p>命名空间解决“看到什么”，控制组（control group，cgroup）解决“能用多少”。控制组以文件系统接口暴露在 <code>/sys/fs/cgroup</code> 下，v1 按资源子系统分成多个挂载点（<code>blkio</code>、<code>cpu</code>、<code>memory</code> 等），v2 改为统一层级，提供一致的接口。书中记录的是成书时期的状态：出于兼容性与稳定性，多数容器运行时仍默认使用 v1<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。读者核对时应注意发行版与运行时的版本差异。</p>
+<p>限制的两类后果不同，这决定了故障的表现形式。CPU 是配额与权重：权重决定争用时的分配比例，配额决定上限，超过配额会被限流（throttle）。被限流的容器不会退出，它表现为周期性变慢，尾时延出现规律性的尖峰。内存是硬上限：超过上限会触发内核的终止逻辑，容器内的进程被杀死，容器重启。前者是性能问题，后者是可用性问题。</p>
+<p>有一个与运维直接相关的细节：<code>/proc</code> 记录的是宿主机的资源使用，它没有与控制组的限额关联。因此容器内执行 <code>top</code> 看到的是宿主机的数字，这会让容量判断与运行时参数计算全部偏大。业界的修正办法是用一个专供容器的 <code>/proc</code> 视图（LXCFS）替换<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。缺少这层修正时，最常见的后果是运行时按宿主机内存设置堆上限，容器在达到自己的限额时被终止，而监控上看不出任何内存压力。</p>
+<h3 id="53-容器的隔离强度">5.3 容器的隔离强度</h3>
+<p>容器共享宿主机内核，这一点决定了它的隔离强度低于虚拟机。命名空间与控制组限制的是可见性与资源额度，系统调用面仍然完整暴露给内核。因此“容器逃逸”在机制上是可能的，防御依赖额外的机制，例如系统调用过滤、能力裁剪、用户命名空间映射，或者用独立内核的运行时。书中把容器的定位写得很清楚：它是通过命名空间与控制组实现资源隔离与限制、并拥有独立根目录的特殊进程<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>这个定性对可靠性有两层含义。第一，内核故障是跨容器的共同故障域，一次内核 panic 会影响同一节点上的所有容器，容器的副本不能放在同一节点上作为互相备份。第二，容器的资源视图需要额外的修正机制（如上一节的 <code>/proc</code>），否则容器内的自我观测与宿主上的实际额度不一致。</p>
+<h3 id="54-镜像不可变的分发单元">5.4 镜像：不可变的分发单元</h3>
+<p>容器镜像把应用运行依赖的环境打包成只读的分层文件系统。这一设计的关键后果是镜像一旦构建完成就进入只读状态，成为不可变基础设施的一部分；它与操作系统发行版无关，解决的是应用对库、工具与配置的依赖，不解决应用内核对特殊特性的依赖<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>不可变带来两个运维性质。第一，回滚等于切换到旧镜像，而不是把文件改回去，因此回滚的可靠性取决于镜像仓库的可追溯性。第二，镜像的体积与分层结构直接进入恢复时间：一次节点故障后，重建的容器需要先拉取镜像。取 10 GB 镜像、单节点拉取带宽 200 MB/s，拉取耗时约 50 s；若同一批节点同时重建，带宽被共享，恢复时间按并发数放大。这就是镜像分发需要点对点加速的原因，也是大规模集群把镜像预热作为常规运维动作的原因。</p>
+<h3 id="55-运行时的分层">5.5 运行时的分层</h3>
+<p>标准化把运行时拆成两层。低层运行时只负责创建受限进程（命名空间、控制组、根文件系统切换），最常用的是 runc；高层运行时负责镜像管理、容器生命周期与接口服务，最常用的是 containerd。两者之间是开放容器标准（Open Container Initiative，OCI）的运行时与镜像规范，编排系统与运行时之间是容器运行时接口（Container Runtime Interface，CRI）<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>分层提高了可替换性，也增加了失败面。一次容器启动要经过编排系统的接口调用、高层运行时的镜像准备、低层运行时的进程创建，任一层超时都会表现为“Pod 起不来”。诊断时按层定位：镜像是否可拉取、容器运行时是否响应、控制组是否创建成功、进程是否退出。把这三层的日志与指标放进同一时间轴，是缩短定位时间的有效手段。</p>
+<h3 id="56-pod-与进程组">5.6 Pod 与进程组</h3>
+<p>Kubernetes 把 Pod 作为基本单位，它是一组共享网络、IPC 与 UTS 命名空间的容器。实现方式是先启动一个极小的 Infra Container（约 300 KB），由它申请并持有这些命名空间，其他容器通过 <code>setns</code> 加入。PID 命名空间与文件系统命名空间默认仍隔离：前者避免容器内进程没有 PID 1 导致启动失败，后者避免文件冲突，需要共享时通过卷或显式设置 <code>shareProcessNamespace</code> <a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>PID 1 的语义值得单独说明。Linux 中 PID 1 负责回收孤儿进程并处理信号，容器内的第一个进程如果不实现这些职责，会出现僵尸进程堆积与终止信号不生效。Docker 采用单进程模型，以 PID 1 的状态判断容器健康；需要多进程时，通常用一个最小的 init 进程承担信号转发与回收<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这条机制直接决定优雅终止是否有效：终止信号没有转发到工作进程时，容器会在宽限期后被强制杀死，正在处理的请求被切断。第 12 章会看到，生产集群里相当比例的异常传播正是由容器停止信号引起的。</p>
+<h3 id="57-启动时间的分解">5.7 启动时间的分解</h3>
+<p>容器的启动时间可以分成四段，每段的控制手段不同：调度（等待资源可用）、镜像拉取（下载与解包）、运行时创建（命名空间与控制组）、应用初始化（加载模型、建立连接）。节点故障后的恢复时间近似为四段之和：</p>
+<p><math display="block"><mrow><msub><mi>t</mi><mtext>recover</mtext></msub><mo>≈</mo><msub><mi>t</mi><mtext>sched</mtext></msub><mo>+</mo><msub><mi>t</mi><mtext>pull</mtext></msub><mo>+</mo><msub><mi>t</mi><mtext>create</mtext></msub><mo>+</mo><msub><mi>t</mi><mtext>init</mtext></msub></mrow></math></p>
+<p>代入一组教学取值：镜像 10 GB、单节点拉取带宽 200 MB/s，拉取 50 s；模型 140 GB、读带宽 12.5 GB/s，初始化 11 s；调度与创建各按 2 s 计，合计约 65 s。这个数字与第 1 章的模型加载估算同一个量级，说明恢复时间由大块数据的搬运主导，而不是由编排系统本身主导。</p>
+<p>四段的优化方式不同。拉取时间靠镜像分层与预热（把常用镜像提前分发到节点），初始化时间靠权重预热与本地缓存，调度时间靠碎片整理与预留，创建时间靠运行时简化。把它们混成一个“启动耗时”指标，会导致优化投错地方：把 50 s 的拉取误认为是应用启动慢，进而去改应用代码，收益有限。</p>
+<h3 id="58-加速卡的挂载">5.8 加速卡的挂载</h3>
+<p>加速器在容器里不是标准资源。Kubernetes 通过扩展资源与设备插件暴露它们：设备插件以 gRPC 向 kubelet 上报设备，分配时返回设备路径与驱动目录，容器运行时把这些目录挂进容器<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这意味着容器内的驱动版本来自宿主机，而不是镜像。镜像里的框架版本与宿主驱动之间存在兼容窗口，这个窗口是升级顺序的约束来源：驱动先升级会影响所有容器，框架先升级会在旧驱动上失败。把驱动版本作为节点标签、把兼容矩阵写成调度约束，比在故障后排查镜像与驱动的组合要便宜。</p>
+</section>
+
+<section id="sec-06-kubernetes-control">
+<h2 id="kubernetes-control">6. Kubernetes 的控制回路、资源模型与探针</h2>
+<p>容器编排系统的价值不在“能启动容器”，而在持续把实际状态拉回期望状态。这个动作由控制器循环完成，可靠性工程关心的是这个循环的三个性质：它收敛得多快、它在资源不足时如何取舍、它对“不健康”的判断依据是什么。三者的配置错误，在故障时的表现分别是恢复慢、雪崩与反复重启。</p>
+<h3 id="61-声明式与控制器">6.1 声明式与控制器</h3>
+<p>用户提交的是一份期望状态，控制器持续比较期望与实际，并执行动作缩小差距<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这个模式有三个运维含义。第一，重复执行是安全的：控制器可能多次观察到同一个差异，因此执行动作必须幂等。第二，期望状态本身就是审计依据：变更可以表示为期望状态的改动，回滚就是提交旧版本。第三，控制器之间会互相触发，一次输入变化可能引发连锁收敛，诊断时必须按因果关系而不是按时间顺序梳理。</p>
+<p>自定义资源把这一模式扩展到任意资源。Kubernetes 用自定义资源定义（custom resource definition，CRD）把标准结构与语义扩展到数据库、消息队列、模型服务等对象，平台团队因此可以用同一种声明方式描述领域对象<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。代价是控制器的质量变成平台可靠性的组成部分：一个实现不良的控制器会在异常状态下反复创建与删除资源，产生抖动。</p>
+<h3 id="62-缓存双循环与乐观绑定">6.2 缓存、双循环与乐观绑定</h3>
+<p>调度器不能在每次决策时远程读取数千个节点的实时状态，否则单次调度就要发起大量请求，调度器本身成为瓶颈<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。因此它的工作分成两个循环：一个监听 API 对象的变化并更新本地缓存（Informer 循环），另一个从队列取出待调度的 Pod 执行筛选与打分（Scheduling 循环）。</p>
+<p>绑定阶段采用乐观策略。调度器先在本地缓存中写入决定，再异步更新 API 服务器；如果异步更新失败，监听机制会发现该 Pod 仍未绑定，把它重新放回队列<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这样做的收益是调度吞吐，代价是存在“缓存认为已分配、实际未分配”的短窗口。对可靠性的影响体现在容量判断上：在这个窗口内，集群的可用资源被乐观地记少，实际可能有空闲；窗口越长，碎片越多。因此调度器的缓存同步延迟本身是一个需要监控的指标。</p>
+<h3 id="63-资源模型与服务质量等级">6.3 资源模型与服务质量等级</h3>
+<p>Pod 的资源声明分申请量与上限。申请量参与调度与服务等级判定，上限写入控制组<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。两者的组合决定服务质量（quality of service，QoS）等级，等级决定节点资源紧张时的驱逐顺序：申请量与上限相等的为 Guaranteed，最不容易被驱逐；只设置了部分申请或上限的为 Burstable；两者都没设的为 BestEffort，最先被驱逐<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>这套分级的实质是把“资源紧张时牺牲谁”写成声明，而不是留给运维现场决定。它对生成式 AI 平台的意义很具体：推理服务通常应配置成 Guaranteed，因为它的时延对资源竞争敏感；训练作业可以配成 Burstable，用利用率换成本；数据预处理这类可重跑的任务适合 BestEffort，它们被杀掉只需重跑。</p>
+<h3 id="64-可分配资源与驱逐">6.4 可分配资源与驱逐</h3>
+<p>节点容量不能全部分给 Pod。kubelet 要为编排组件、操作系统与驱逐阈值预留，节点可分配资源的算法是：</p>
+<p><math display="block"><mrow><mtext>Allocatable</mtext><mo>=</mo><mtext>Capacity</mtext><mo>−</mo><mtext>kube-reserved</mtext><mo>−</mo><mtext>system-reserved</mtext><mo>−</mo><mtext>eviction-threshold</mtext></mrow></math></p>
+<p>其中前两项由启动参数指定，最后一项是留给驱逐动作的余量<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这个式子解释了“为什么节点显示还有很多内存，Pod 却调度不上去”：显示的是容量，参与调度的是可分配量。</p>
+<p>驱逐分软硬两种。软驱逐在资源低于阈值并持续一段时间后触发，用于吸收短时波动；硬驱逐在达到阈值时立即触发，用于防止节点失效。驱逐之后资源使用下降，可能再次越过阈值，形成驱逐波动；kubelet 用最小回收量与状态上报间隔来抑制这种循环<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>驱逐对恢复时间的影响容易被低估。一个被驱逐的推理 Pod 需要重新调度、拉取镜像、加载模型、通过就绪检查才能接流量。第 1 章的估算给出，模型加载本身就是十几秒到一分钟量级。因此驱逐策略与容量水位是同一件事：把硬驱逐阈值设得离真实容量太近，会把“节点压力”转化为“服务容量骤降”。</p>
+<h3 id="65-三类探针的时间预算">6.5 三类探针的时间预算</h3>
+<p>Kubernetes 用三类探针判断容器状态：存活探针判断是否需要重启，就绪探针判断是否可以接收流量，启动探针用于覆盖启动阶段的长时间检查。三者的语义不能互换。用存活探针做启动检查，会在启动未完成时触发重启；用就绪探针做存活检查，会让容器在没有流量时仍然占着资源。</p>
+<p>探针配置的核心是时间预算，可以用第 1 章的加载时间直接推。设模型加载需要 <math><mi>L</mi></math> 秒，启动探针的失败阈值乘以探测周期必须大于 <math><mi>L</mi></math>，否则容器会在加载完成前被判失败。取 <math><mi>L</mi><mo>=</mo><mn>70</mn></math> s、探测周期 10 s，则失败阈值至少为 8。存活探针的周期应显著大于就绪检查的耗时，避免检查本身在节点高负载时超时，把“节点慢”误判为“进程死”。</p>
+<p>还有一个与生成式推理相关的细节：流式响应使单个请求的持续时间远长于普通 RPC。就绪探针失败后，负载均衡会摘除流量，但已经建立的连接仍在传输。把就绪检查的超时设得比响应时长还短，会造成“服务看起来正常，长请求却总被中断”。正确做法是让就绪判定与连接排空配合，而不是依赖更激进的探测。</p>
+<h3 id="66-优雅终止与排空">6.6 优雅终止与排空</h3>
+<p>终止流程的顺序是：Pod 被标记为终止，从服务端点中移除，容器收到终止信号，等待宽限期，超时后强制杀死。要让这个过程按预期完成，需要满足两个条件。第一，流量摘除先于进程退出，否则在摘除完成前到达的请求会落到正在退出的进程上。第二，进程在收到信号后停止接收新请求，处理完在途请求再退出，这依赖 PID 1 的信号转发（第 5 章）。</p>
+<p>宽限期的取值需要覆盖在途请求的最长处理时间。对流式推理，最长处理时间可能是数十秒；对训练作业，进程退出前可能需要保存检查点，时间更长。宽限期设得短，会周期性地产生“未完成的请求”与“损坏的检查点”，而这两类问题在指标上往往只表现为少量错误率的抬升。</p>
+<h3 id="67-滚动更新与可用容量">6.7 滚动更新与可用容量</h3>
+<p>滚动更新在替换副本时会临时降低可用容量。设稳定副本数为 <math><mi>N</mi></math>，更新时允许的最大不可用比例为 <math><mi>u</mi></math>，则更新期间的可用副本下限为</p>
+<p><math display="block"><mrow><msub><mi>N</mi><mtext>min</mtext></msub><mo>=</mo><mo>⌈</mo><mi>N</mi><mo>·</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>u</mi><mo>)</mo><mo>⌉</mo></mrow></math></p>
+<p>取 <math><mi>N</mi><mo>=</mo><mn>4</mn></math>、<math><mi>u</mi><mo>=</mo><mn>0.25</mn></math>，下限为 3 个副本。若单副本只能承载 30% 的峰值流量，3 个副本刚好能支撑（<math><mn>3</mn><mo>×</mo><mn>0.3</mn><mo>=</mo><mn>0.9</mn></math>），几乎没有余量；此时更新期间一旦有一个副本启动失败，就会直接越界。这就是“副本数够但一发布就超时”的典型成因。</p>
+<p>把这条算式与容量规划放在一起，得到的结论是：更新期间的容量需求高于稳态，必须按更新时的下限做容量校验，而不只按稳态副本数校验。对推理服务，还可以把更新拆成两段：先扩容新版本、再缩容旧版本，使可用容量在更新期间不降；代价是更新期间额外占用一倍资源。</p>
+<p>驱逐也需要同类的保护。人为维护（节点排空）与自动驱逐都会同时移除副本，如果不设上限，一次大规模维护可能把可用副本降到低于下限。通常用“最小可用副本数”的约束把维护动作限住，使维护变成可预测的步进，而不是一次性批量操作。</p>
+<h3 id="68-控制面自身的高可用">6.8 控制面自身的高可用</h3>
+<p>编排系统的控制面也是服务。etcd 用共识算法保存集群状态，API 服务器承担读写入口，调度器与控制器通过领导选举保证同一时刻只有一个实例生效。Borg 的经验可以作为参照：Borgmaster 复制五份，主选举通常在 10 s 左右完成，大 cell 因为要重建内存状态可能到 1 min<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。这个量级说明控制面的故障切换是秒到分钟级，而不是毫秒级；在这段时间里，新的调度与变更都会暂停，已经在运行的容器不受影响。</p>
+<p>由此得到一条容量结论：控制面故障时，集群的“稳态”是安全的，“变更”是危险的。因此自动化系统在控制面不可用期间应当停止发起变更，而不是重试。重试会把故障期间积压的请求在恢复瞬间全部释放，形成对控制面的二次冲击。这一点与第 9 章的故障切换条件属于同一类问题：切换的目标是恢复服务，不是把所有积压动作补做一遍。</p>
+</section>
+
+<section id="sec-07-scheduling">
+<h2 id="scheduling">7. 调度器：从 Borg 到 kube-scheduler 的双循环</h2>
+<p>调度器决定两件事：哪个任务去哪个节点，以及资源不足时牺牲谁。第一件事决定利用率与通信效率，第二件事决定故障时的行为。Borg 与 Kubernetes 在结构上同源，Borg 的经验可以直接用来解释 Kubernetes 的设计取舍，也可以用来指出它在 AI 训练负载上的缺口。</p>
+<h3 id="71-两段式决策">7.1 两段式决策</h3>
+<p>Borg 的调度分两步：可行性检查找出能运行该任务的机器集合，打分从可行集合中挑一台。打分考虑用户偏好，但主要由内建准则驱动：最小化被抢占任务的数量与优先级、选择已经缓存了任务包的机器、把任务分散到不同的电源与故障域、以及装箱质量（把高低优先级任务混放以提高利用率）<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。</p>
+<p>Kubernetes 的调度框架把同样的两段写成插件。筛选阶段（Filter）执行一组过滤插件，包括资源是否满足、端口是否冲突、污点与容忍是否匹配、节点亲和与 Pod 间亲和是否满足、卷是否可用；打分阶段（Score）执行加权打分插件。打分之后若多个节点同分，随机选一个<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<h3 id="72-优先级配额与准入">7.2 优先级、配额与准入</h3>
+<p>Borg 用两个不同的机制处理“资源不够”。优先级决定运行中的相对重要性，高优先级任务可以抢占低优先级任务；配额决定哪些作业能被接纳，配额检查发生在准入阶段而不是调度阶段，配额不足的作业在提交时就被拒绝<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。</p>
+<p>Borg 还定义了几个不重叠的优先级带（监控、生产、批处理、尽力而为），并禁止生产带内的任务互相抢占。原因很直接：如果生产带内的任务可以互相抢占，一次抢占会引发级联：被抢占的任务挤掉优先级略低的任务，后者再挤掉更低的任务，最终放大成大规模重排<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。这条规则对今天的多租户训练平台仍然适用：同一优先级带内应当用配额隔离，而不是用抢占解决争抢。</p>
+<h3 id="73-打分策略的数学形式">7.3 打分策略的数学形式</h3>
+<p>Kubernetes 默认打分插件里最重要的是资源分配类。最小分配（LeastAllocated）偏好资源使用率低的节点，其分数与节点上已分配资源比例负相关；均衡分配（BalancedAllocation）计算各资源维度使用率的离散程度，方差越小得分越高，用于避免 CPU 被过度分配而内存浪费<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>两个插件一起用，效果是把 Pod 推向“既空闲又均衡”的节点。这里的“使用率”是按申请量算的，不是按实际使用算的。第 3 章已经说明分配率与使用率的差别，这个差别会直接变成调度偏差：一批申请量虚高的 Pod 会把节点“看起来”占满，后续 Pod 被推向其他节点，而实际资源仍在空闲。修正办法是定期用实际使用量校准申请量，也就是第 6 章说的容量规划与调度配置的一致性。</p>
+<h3 id="74-pod-作为调度原子">7.4 Pod 作为调度原子</h3>
+<p>Pod 是调度的原子单元，这一设计消除了一类问题。书中的例子是两个必须同机运行的容器：一个需要 1 GB 内存，一个需要 0.5 GB；两台节点分别有 1.25 GB 与 2 GB 可用。若按容器逐个调度，第一个可能落到只有 1.25 GB 的节点上，剩下的 0.25 GB 装不下第二个容器，调度被阻塞，需要重新调度才能解开。把资源声明放在 Pod 上、以 Pod 为单位调度，这类超亲密协同问题就不存在了：Pod 之间若需要关联，通过网络通信表达<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>代价是粒度变粗。以 Pod 为单位意味着资源按 Pod 整体分配，无法把同一 Pod 内不同容器的资源需求合并优化；对“一个大作业由多个强耦合进程组成”的场景，Pod 的粒度反而成为约束。</p>
+<h3 id="75-成组调度与死锁">7.5 成组调度与死锁</h3>
+<p>大模型训练作业由数量固定的参与进程组成，它们之间通过集合通信同步。把这类作业按 Pod 逐个调度会产生一个结构性问题。设作业需要 <math><mi>N</mi></math> 个 rank，每个 rank 需要资源 <math><mi>r</mi></math>；调度器先放置了一部分 rank，剩余的可用资源不足以容纳其余 rank，则已放置的 rank 进入等待，占着资源不释放。若此时有另一个作业也以同样方式部分放置，两个作业各自持有一部分资源，形成循环等待。在没有抢占的情况下，两者都不会推进。</p>
+<p>形式化地，设集群剩余可用资源为 <math><mi>F</mi></math>，作业 <math><mi>j</mi></math> 已占用 <math><msub><mi>h</mi><mi>j</mi></msub></math>、还差 <math><msub><mi>d</mi><mi>j</mi></msub></math>。死锁的条件是存在一组作业使得</p>
+<p><math display="block"><mrow><munder><mo>∑</mo><mi>j</mi></munder><msub><mi>h</mi><mi>j</mi></msub><mo>+</mo><mi>F</mi><mo>&lt;</mo><munder><mo>min</mo><mi>j</mi></munder><msub><mi>d</mi><mi>j</mi></msub></mrow></math></p>
+<p>即所有已占用资源加上空闲资源都不足以补齐任何一个作业。避免办法有两条：成组调度（一组 Pod 同时满足资源才一起启动），或抢占（牺牲部分作业让其他作业得到完整资源）。书中指出成组调度本身有代价：它可能降低调度效率与资源利用率，并可能因互相等待而死锁<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这条判断成立的前提是调度器没有把成组语义做完整；当调度器对成组作业做原子放置并配合排队顺序时，死锁条件（7-1）不会出现。</p>
+<h3 id="76-拓扑与放置">7.6 拓扑与放置</h3>
+<p>打分策略里没有“通信拓扑”这一项，但生成式 AI 的训练性能对放置敏感：同一作业的 rank 分布在哪些节点、经过几层交换、是否落在同一互连域内，会改变集合通信的时间。Kubernetes 通过节点亲和、Pod 间亲和与拓扑分布约束表达这类要求，调度器只能按标签与规则匹配，不知道作业的通信模式。</p>
+<p>可行的做法是把拓扑信息变成可调度的标签（机架、交换机、互连域），由训练框架在提交时声明所需的拓扑形状。这把“性能”转成“可满足性”，代价是资源池被拓扑切分后碎片增加，与第 3 章的结论一致。</p>
+<h3 id="77-抢占的代价">7.7 抢占的代价</h3>
+<p>抢占把“排队”转成“中断”。在 Borg 中，被抢占的任务可以在收到 SIGTERM 后清理状态，实际约 80% 的情况下能收到通知<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。在训练平台上，抢占的代价按第 1 章的算式计算：一次中断等于回退到上一个检查点，损失 <math><mi>I</mi><mo>/</mo><mn>2</mn></math> 的推进加重启开销。因此抢占策略必须与检查点策略配套：对长作业提高检查点频率，或者限制抢占只发生在高优先级作业排队超过阈值时。</p>
+<h3 id="78-调度吞吐与集群规模">7.8 调度吞吐与集群规模</h3>
+<p>调度器的单次决策成本与候选节点数成正比：筛选阶段要逐个检查节点是否满足约束。节点规模从几十扩到几千时，若每次都远程查询，拖延会随节点数线性增长，调度器本身成为瓶颈<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这就是本地缓存与两段循环存在的理由。</p>
+<p>缓存的代价是视图可能过期。调度器看到的空闲资源可能已被其他调度器或控制器占用，因此绑定阶段只能乐观执行（第 6 章）。集群规模越大，缓存与实际状态的偏差窗口越长，碎片越多。可行的做法是把“调度失败率”与“绑定失败率”分开监控：前者说明资源真不够，后者说明视图不一致。</p>
+<p>多调度器共存时，同一类资源可能被多个实体竞争。为了保证同一时刻只有一个实体生效，多数控制器使用领导选举；而分片调度器则把 Pod 按哈希分配给不同实例，每个实例只处理自己的那一部分。两种做法的共同前提是“责任划分明确”：一个对象不能被两个实体同时修改，否则会出现反复推翻对方决定的状态抖动。</p>
+<h3 id="79-可解释的分配">7.9 可解释的分配</h3>
+<p>调度器的输出不是最优解，而是一个可解释的分配。Borg 为待调度的任务提供“为什么还在等”的注解，并给出修改资源请求的建议<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。这个功能对可靠性有直接价值：排队时长是训练作业的主要时延来源之一，若无法回答“为什么等”，值班工程师只能在配额、碎片与优先级之间猜测。</p>
+<p>Kubernetes 的对应信息是 Pod 事件与调度失败原因，但它通常分散在多个对象里。把调度失败原因聚合成一个可查询的指标（按原因分类的 pending 数量与等待时长分位数），是把调度器变成可运维组件的必要一步。</p>
+</section>
+
+<section id="sec-08-heterogeneous-gpu">
+<h2 id="heterogeneous-gpu">8. 异构算力编排：设备抽象、切分与干扰</h2>
+<p>CPU 的共享有成熟机制：配额限制时间片，权重决定争用时的比例，超用表现为变慢。加速器的共享没有同等成熟的抽象。Kubernetes 对 GPU 的处理停留在“计数”，一张卡是一个不可分割的单位；而生产集群的实际需求往往是把一张卡按空间切给两个负载，或者把一周内闲置的算力让给离线任务。这一章讨论三种切分方式的隔离强度与代价，并用一个已部署系统的数据说明收益与风险分别落在哪里。</p>
+<h3 id="81-计数式抽象">8.1 计数式抽象</h3>
+<p>Kubernetes 用扩展资源表达异构设备：节点通过状态更新上报“有 4 个 <code>nvidia.com/gpu</code>”，Pod 在申请量里写 1，调度器据此匹配<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。设备插件把这件事标准化，以 gRPC 接口向 kubelet 上报设备列表、执行分配，并返回设备路径与驱动目录供容器挂载<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>这套机制能回答“这台机器还有没有卡”，不能回答“这张卡是什么型号、与哪些卡在同一互连域、是否已被切分”。书中对此的评价是：设备插件只实现了入门级功能，能用但不好用；更复杂的描述需要动态资源分配（dynamic resource allocation，DRA）这类新机制，其接口随版本与厂商变化<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。对可靠性工程，这意味着“资源够用”与“性能达标”之间存在一个由调度表达力决定的缺口。</p>
+<h3 id="82-三种切分方式">8.2 三种切分方式</h3>
+<p>时间片复用把卡在不同负载之间切换。它的隔离最弱：上下文切换要保存与恢复显存状态，切换开销大；对延迟敏感的负载，等待切换就是尾时延。</p>
+<p>空间复用让多个进程同时驻留在同一张卡上，按流式多处理器（streaming multiprocessor，SM）份额分配算力。它提高了空间利用率，但不提供性能保证：多个进程共享同一组 SM、同一份显存带宽与同一套缓存。</p>
+<p>实例切分把一张卡划分成若干独立实例，每个实例有独立的显存切片与计算通道。它的隔离最强，代价是切分粒度固定，无法按需细分，且不同代际的卡支持程度不同。</p>
+<p>三者的选择不是纯粹的技术偏好，而是由“能否接受干扰”决定的。在线推理不能接受不可预测的干扰，因此倾向实例切分或独占；离线训练可以接受变慢，因此可以空间共享。</p>
+<h3 id="83-一个生产系统的数据">8.3 一个生产系统的数据</h3>
+<p>MuxFlow 报告了字节跳动在超过 18,000 张异构 GPU 上的部署结果，值得逐条读，因为它同时给出收益与风险的量级。</p>
+<p>问题的起点是利用率。该文统计了推理集群一周的数据：超过 99% 的 GPU 的 GPU 利用率与 SM 活动度低于 60%，约 90% 的 GPU 显存使用率低于 60%<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>。原因是请求频率随时间波动，而即便在高峰，为满足时延要求也会把批大小限制在较小值。</p>
+<p>收益侧的数字是：GPU 利用率从 26% 提升到 76%，SM 活动度从 16% 提升到 33%，显存使用率从 42% 提升到 48%<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>。这三个数字的差异本身说明了瓶颈位置：利用率提升最多，SM 活动度提升有限，说明空间共享把“卡被占用但算力空闲”的时间填上了，而没有把算力本身用满。</p>
+<p>风险侧的设计分两层。作业级用一套用户态运行时约束离线负载的显存分配与核函数发射，使在线负载受到的干扰可控；GPU 级用探针维护一个状态机，按多维指标判断共享是否会损害在线负载，必要时驱逐离线负载<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>。这层设计的必要性来自空间共享的固有缺陷：多个进程共享同一张卡时，一个进程的异常会传播到同卡的其他进程。</p>
+<p>错误传播的统计值得单独记录。该文分析了生产集群中所有传播性错误，发现 99% 由 SIGINT 与 SIGTERM 信号引起，这些信号通常来自 Kubernetes 停止容器的动作；处置办法是拦截信号并主动释放 CUDA 上下文，对剩余的长尾情形则按错误模式识别后重置执行上下文<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>。这条结论把第 5 章的容器终止机制与 GPU 可靠性接在了一起：容器停止的默认行为在共享显卡上会变成跨负载的故障源。</p>
+<h3 id="84-干扰从哪里来">8.4 干扰从哪里来</h3>
+<p>干扰有四条路径，它们的可控性依次下降。显存容量是硬边界，超了就失败，不存在“慢一点”的中间状态。显存带宽是共享资源，多个负载同时读写会互相拖慢，且没有按份额分配的机制。SM 占用可以被限流，代价是被限流的负载变慢。主机侧资源（CPU、内存带宽、PCIe 通道）在容器层面可用控制组限制，但加速器与主机之间的数据搬运仍然竞争同一条链路。</p>
+<p>Borg 在 CPU 上的测量提供了参照：共享 cell 的平均 CPI 比专用 cell 高约 3%，每多一个任务使其他任务 CPI 上升 0.3%，而这些相关性只解释了 5% 的方差<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。GPU 上的情况更差，因为缺少细粒度的隔离机制，可观测的干扰指标也更少。可行的做法是把保护放在运行时：监测在线负载的关键指标，一旦劣化就驱逐离线负载，而不是试图事前算准能塞几个。</p>
+<h3 id="85-可接受的劣化">8.5 可接受的劣化</h3>
+<p>一个容易被忽略的参数是“允许多少劣化”。MuxFlow 报告了一个业务侧的判断：按算法工程师的说法，多数在线负载的时延劣化 20% 仍能满足要求<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>。这个数字是混部策略的边界条件：它决定了在保护机制触发之前，可以接受多大的干扰。</p>
+<p>这个判断必须由业务方给，而不是由平台方推算。原因是时延与业务指标的关系不是线性的，20% 的劣化对某些场景没有影响，对另一些场景会直接影响转化。把它写成 SLO 的一部分（例如“P99 时延劣化不超过 20%，且不超过 SLO 上限”），才能进入第 2 章的错误预算体系。</p>
+<h3 id="86-混合型号与碎片">8.6 混合型号与碎片</h3>
+<p>生产集群很少只有一种卡。型号不同意味着显存容量、互连拓扑与编译产物都不同，而一个训练作业通常要求所有参与节点同型号，否则集合通信会因为带宽差异而整体降速。这条约束把资源池切成多个按型号独立的子池，每个子池各自承担碎片损失。</p>
+<p>碎片的机制与第 3 章的装箱问题相同，但约束更硬：普通服务的 Pod 可以落到任何满足资源的节点，训练作业的 rank 必须满足同型号、同拓扑。因此同一个碎片率在混合型号集群上的实际可用容量更低。可行的做法是按型号统计“能装下最大作业的连续空间”，而不是看总体空闲量。</p>
+<p>还有一个容易被忽略的绑定：编译产物与型号绑定。为某一代卡编译的内核无法在另一代上运行，镜像与卡型的组合因此成为一个隐含的调度约束。把它写成节点标签与镜像标签的匹配规则，比在运行时发现“镜像不支持该卡”要便宜。</p>
+<h3 id="87-抽象层缺什么">8.7 抽象层缺什么</h3>
+<p>把上面的内容收拢，当前的编排抽象在三个地方不足。第一，无法表达“这张卡与那张卡在同一互连域”，于是拓扑约束只能靠标签近似。第二，无法表达“这张卡被切成两个实例”，于是资源计数与实际可用容量不一致。第三，无法表达“这个负载可以与别人共享但优先级更低”，于是共享决策只能由调度器之外的系统完成，例如 MuxFlow 那样的双层保护。</p>
+<p>这三项缺失都不是配置问题，而是抽象的表达力问题。平台团队通常用自定义资源与自定义调度器补齐，代价是维护一套与上游不同的语义。是否值得补，取决于共享带来的收益是否超过维护成本；按第 3 章的算式，这个收益在两成到三成的机器数量级。</p>
+</section>
+
+<section id="sec-09-replication-consensus">
+<h2 id="replication-consensus">9. 副本、主备与共识：故障切换的成立条件</h2>
+<p>高可用最朴素的表述是三件事：有冗余、有计划、有执行程序。冗余保证故障后还有替代品，计划规定不同组件故障时该做什么，程序保证能检测到故障并快速执行计划。书中把这些写成一句话：如果一个组件的故障导致整个系统瘫痪，这个组件就是单点故障，而找到并冗余化单点故障是首要目标[2]。这一章讨论冗余的两条实现路线（主备与共识），以及切换为什么会在看似冗余的部署上失败。</p>
+<h3 id="91-冗余的两种形态">9.1 冗余的两种形态</h3>
+<p>冗余有两种做法：为每个组件保留副本，故障时切换；或者保证系统有额外处理能力，故障时由剩余组件承担负载[2]。两者可以混用，代价不同。副本切换不影响性能，但副本要时刻保持同步；额外处理能力在正常时也在分担负载，但故障后需要重建才能继续用。</p>
+<p>第二种形态的容量算术很容易算错。书中给出的例子是：10 个只读副本，每个承载 50% 的负载，坏一台后其余每个升到 55%，仍然宽裕；如果每个承载 95%，坏一台后需要 105%，不可达，读能力下降且响应变慢[2]。式子是</p>
+<p><math display="block"><mrow><msub><mi>ρ</mi><mtext>after</mtext></msub><mo>=</mo><msub><mi>ρ</mi><mtext>before</mtext></msub><mo>·</mo><mfrac><mi>n</mi><mrow><mi>n</mi><mo>−</mo><mn>1</mn></mrow></mfrac></mrow></math></p>
+<p>10 个副本、<math><msub><mi>ρ</mi><mtext>before</mtext></msub><mo>=</mo><mn>0.95</mn></math> 时结果是 1.056，超过 100%。这条算式说明冗余的容量必须按“坏掉 <math><mi>k</mi></math> 台后仍满足目标”反推，而不是按“每台平均负载低于某个值”检查。</p>
+<h3 id="92-两种复制模型">9.2 两种复制模型</h3>
+<p>复制有两种模型。主备模型又称状态转移：主节点执行操作，把结果写入日志，备节点同步结果。复制状态机模型又称操作转移：日志记录的是操作指令，各节点按同一顺序执行，得到相同状态<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>复制状态机的正确性依赖三个条件：进程相同（代码、逻辑、配置一致）、确定性（不引入随机数与不受控的时间依赖）、输入顺序一致。满足这三条，从相同状态出发、按相同顺序执行相同输入，结果必然相同<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。因此共识算法要解决的核心问题被压缩成一个：让所有节点对“日志某个位置记录什么”达成一致。</p>
+<h3 id="93-raft-的机制">9.3 Raft 的机制</h3>
+<p>Raft 把共识拆成领导选举、日志复制与成员变更三部分。节点有三种角色：领导者处理所有客户端请求并广播心跳，跟随者在心跳超时后转为候选人发起投票，候选人获得多数票后成为领导者。任期（term）是单调递增的编号，附加在每条日志条目上，用于判断日志的新旧与识别过期的领导者<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>选举的触发条件是心跳超时，书中给出的典型随机超时区间是 150 ms 到 300 ms<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。随机化的作用是降低同时竞选导致的选票分裂。</p>
+<p>日志复制的过程决定了“提交”的含义：领导者把条目写入本地日志（未提交），广播给跟随者，收到多数派确认后标记为已提交并返回客户端；跟随者通过后续心跳或复制请求中携带的提交索引获知提交位置<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。多数派判据是这一切的核心：它保证任意两次多数派集合有交集，因此新领导者一定包含已提交的条目。</p>
+<p>日志不连续会被显式修复。跟随者用前一条日志的索引与任期检查连续性，失败时返回冲突位置，领导者从最大匹配位置重新发送<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这个机制让“落后”成为可恢复的状态，而不是致命错误。</p>
+<p>副本数不是越多越好。书中给出的实践是：etcd 推荐 3 个节点，对可用性要求更高且能接受性能开销时可增至 5 个，超过 5 个可能得不偿失<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。原因是每次写入要等待多数派确认，节点越多，需要等待的集合越大，跨节点往返的尾部也越长。</p>
+<h3 id="94-成员变更的风险">9.4 成员变更的风险</h3>
+<p>集群成员发生变化时，配置本身也成了一份需要共识的数据。若把配置变更当作普通日志异步应用，就可能出现两个不相交的多数派：旧配置 <math><msub><mi>C</mi><mtext>old</mtext></msub></math> 的多数派与新配置 <math><msub><mi>C</mi><mtext>new</mtext></msub></math> 的多数派各自选出领导者，形成脑裂。书中用三个节点扩到五个节点的例子说明：若部分节点仍按旧配置投票、部分按新配置投票，两个集合可能没有交集<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>解决办法有两类。联合共识要求变更过程中同时满足两套配置的多数派，正确但实现复杂；单节点变更每次只增删一个成员，此时两套配置的多数派必然相交，实现简单，因此被多数实现采用<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<h3 id="95-隔离旧主">9.5 隔离旧主</h3>
+<p>共识算法通过多数派防止双主，主备架构没有这层保护，需要额外机制。常用三类。租约：主节点持有的领导权有有效期，到期未续则自动失效，被隔离的主节点在租约到期后停止服务。代际号：每次切换递增一个编号，存储侧或客户端拒绝旧编号的写入。存储侧拒写：由下层存储核对写入者的身份，这是最彻底的一种，但要求存储配合。</p>
+<p>3FS 的失败检测把租约思想写得比较完整：集群管理器靠心跳判断失效，若在可配置的间隔 <math><mi>T</mi></math> 内没有收到心跳就宣布服务失败；反过来，服务若在 <math><mi>T</mi><mo>/</mo><mn>2</mn></math> 内无法与集群管理器通信，就停止处理请求并退出<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。取一半的用意是让被隔离的节点先于管理器的判定失效，避免出现“管理器认为它还活着、它自己还在服务”的窗口。这条设计对所有主备系统都适用：切换的正确性依赖被替换者先停下，而不是依赖新主先起来。</p>
+<h3 id="96-可用性的算术">9.6 可用性的算术</h3>
+<p>把副本数与可用性放在一起算，会得到一个常被忽略的结论：读与写的可用性上限不同。设单副本在某个窗口内的可用概率为 <math><mi>a</mi></math>，副本故障相互独立（这是简化假设，实际同机架、同电源的故障相关）。</p>
+<p>若读可以落到任意副本，3 副本的读可用性为</p>
+<p><math display="block"><mrow><msub><mi>A</mi><mtext>read</mtext></msub><mo>=</mo><mn>1</mn><mo>−</mo><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo>)</mo></mrow><mn>3</mn></msup></mrow></math></p>
+<p>若写需要多数派确认，3 副本的写可用性为</p>
+<p><math display="block"><mrow><msub><mi>A</mi><mtext>write</mtext></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>2</mn></mrow><mn>3</mn></munderover><mrow><mo>(</mo><mfrac linethickness="0"><mn>3</mn><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>a</mi><mi>k</mi></msup><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo>)</mo></mrow><mrow><mn>3</mn><mo>−</mo><mi>k</mi></mrow></msup></mrow></math></p>
+<p>取 <math><mi>a</mi><mo>=</mo><mn>0.99</mn></math>，读可用性为 99.9999%，写可用性为 99.9702%。把副本数提到 5，读可用性升到 99.99999999%，写可用性升到 99.9990%。这组数字的两个含义是：三副本对读的提升已经足够，对写的提升有限；增加副本对写可用性的边际收益递减，而成本与写延迟线性上升。</p>
+<p>写延迟的下限也可以直接算。多数派确认意味着一次写要等待最慢的那部分副本，跨机房部署时下限等于多数派内最远的往返时延。同城两机房往返 1 ms，写延迟下限约 1 ms；跨洲往返 100 ms 以上，写延迟下限随之抬到百毫秒级。这条约束决定了“元数据放哪里”这类决策：把强一致元数据跨洲复制，会把每次元数据操作的成本抬到百毫秒，而推理服务的首 token 时延预算通常只有数百毫秒。</p>
+<h3 id="97-切换的判据">9.7 切换的判据</h3>
+<p>切换决策有两个错误方向。判定太慢，服务在故障期间持续不可用，损失按时间累积；判定太快，会把短暂的抖动当成故障，触发不必要的切换，而切换本身有成本（新主重建缓存、客户端重连、被替换节点恢复后需要重新同步）。</p>
+<p>判据通常写成“连续 <math><mi>k</mi></math> 次心跳失败”或“在窗口内失败比例超过阈值”。取值的依据是抖动的分布，而不是经验值。可行的做法是先测量心跳往返时延的分布，把阈值设在尾部之外，再用第 3 章的尾概率方法估计误判率。3FS 用 <math><mi>T</mi></math> 与 <math><mi>T</mi><mo>/</mo><mn>2</mn></math> 的不对称设计把“被隔离者先停”写进协议，这是把误判成本转移给可用性的一种明确取舍。</p>
+<h3 id="98-复制延迟与读一致性">9.8 复制延迟与读一致性</h3>
+<p>主备复制默认是异步的：主节点提交后即返回客户端，备节点稍后应用。备份落后主库的时间就是复制延迟，读取落在备节点上会看到旧数据。延迟的大小取决于写入速率与备份应用能力，在下游负载高峰时会拉长。</p>
+<p>延迟本身不是故障，但它使“读可用性”与“读一致性”成为两个需要分别声明的指标。若业务能接受最终一致，读可以均匀分散到所有备份，读可用性按式（9-2）计算；若业务要求读己之写，则需要会话粘滞（同一会话的读写都落到主节点）或版本号校验（读到的版本低于已写入的版本时重试或转主），两种做法都以可用性或时延为代价。</p>
+<p>对生成式 AI 平台，这条区分体现在元数据上。模型版本、配额、路由配置这类元数据若读到旧值，会导致请求打到已下线的版本。把这类读走主节点，代价是主节点承载全部元数据读；把这类读做版本校验，代价是多一次往返。两种都在“读可用性”上用掉一部分预算，需要与第 2 章的 SLO 一起记账。</p>
+<h3 id="99-训练作业不用副本">9.9 训练作业不用副本</h3>
+<p>最后要说明训练作业为什么不用复制。训练的每一步都依赖前一步的参数，副本之间无法独立推进，只能整体同步，因此复制不能提高训练作业的可用性。训练的做法是用检查点替代复制：故障后回到最近的检查点重算，损失按第 1 章的式（1-1）计算。这也解释了为什么训练平台的可靠性投入集中在检查点频率、写入带宽与重启速度上，而推理平台的投入集中在副本、切换与流量调度上。</p>
+</section>
+
+<section id="sec-10-storage-durability">
+<h2 id="storage-durability">10. 存储：数据可靠性与带宽账本</h2>
+<p>存储层同时承担两个角色：训练数据的来源与训练状态的落点。两者对存储的要求不同。数据读取要求高吞吐与随机访问能力，状态写入要求低延迟与强一致。一个常见的设计错误是用同一套存储同时满足两者，结果在读侧为了吞吐牺牲一致性，或者在写侧为了同步牺牲吞吐。这一章以一个面向 AI 负载的分布式文件系统为例，拆解它如何把这两类要求分开处理，并给出容量与带宽的记账方法。</p>
+<h3 id="101-为什么保留文件语义">10.1 为什么保留文件语义</h3>
+<p>对象存储在分析类负载中占主流，但面向训练时有一个具体的缺口：目录操作。对象存储用键里的斜杠模拟层级，不原生支持原子地移动或递归删除目录。训练任务里常见“先写临时目录、写完再整体移动到最终路径”的模式，以及大量小文件产生后的递归清理；缺少这些原语时，应用必须逐条遍历与删除。符号链接与硬链接同样被用于构造轻量的数据集快照。文件接口的另一个优势是迁移成本低，已有的按文件组织的数据加载器可以直接复用<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>这段论述的价值在于它给出了接口选择的判据：不是“哪种存储更先进”，而是“负载是否需要目录级原子语义与链接语义”。需要，就用文件系统；不需要，对象存储的扩展性更省事。</p>
+<h3 id="102-元数据与数据分离">10.2 元数据与数据分离</h3>
+<p>该系统的组件分为四类：集群管理器、元数据服务、存储服务与客户端，全部接入远程直接内存访问（RDMA）网络。元数据服务本身是无状态的，文件元数据保存在一个支持可串行化快照隔离的事务型键值存储中，客户端可以连接任意一个元数据服务，某个服务超时后自动切换<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>无状态设计带来两个运维性质。第一，元数据服务可以随时重启或升级，不影响正在进行的数据传输，因为数据传输不经过它。第二，扩展元数据吞吐只需增加实例，不需要迁移数据。代价是把强一致的负担转移给了下层的键值存储：写事务的冲突检测与重试由它完成，元数据服务只负责把文件语义翻译成键值操作<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>关键路径的削减还有一个细节：客户端打开文件时向元数据服务取一次布局信息，之后自行计算分块编号与所属复制链，后续读写不再询问元数据服务<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。这一步把元数据服务从“每次 I/O 都要访问”的位置挪开，使它的故障影响面从“全部读写”缩小到“打开文件”。</p>
+<h3 id="103-链式复制与两个版本">10.3 链式复制与两个版本</h3>
+<p>数据面用“写全链路、读任意副本”的链式复制（Chain Replication with Apportioned Queries，CRAQ）。写请求从链头进入，逐跳向后传播，链尾提交后回传确认；读请求可以落到链上任意副本，因此读带宽随副本数线性增长<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。对一个全闪存、读多写少的系统，这个取舍是明确的：把写路径变长，换读路径的并行。</p>
+<p>写路径的六步值得逐步看，因为每一步都对应一种失败模式。第一步校验链版本，版本不匹配就拒绝，避免旧拓扑上的写入。第二步用 RDMA Read 主动拉取写数据，如果客户端或前驱失败，读操作会超时，写被中止。第三步获取分块锁，把同一分块的并发写串行化。第四步读出已提交版本、应用更新，写成一个“待提交版本”，因此一个分块可能同时存两个版本。第五步在链尾原子地把待提交版本转为已提交，并回传确认；非链尾节点把请求转发给后继。第六步确认回传到某节点时，该节点把待提交转为已提交并继续向前传<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>读路径有一个针对强一致的调整：当某个副本同时持有已提交与待提交版本时，它不向链尾查询版本，而是返回一个特殊状态码，让客户端短暂等待后重试；客户端也可以发起“宽松读”直接取待提交版本<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。这个设计把一致性判断的成本放到客户端，避免读路径上多一次跨节点往返。</p>
+<h3 id="104-恢复与读流量的再平衡">10.4 恢复与读流量的再平衡</h3>
+<p>恢复是这类系统最容易出问题的地方，因为恢复期间的读流量会集中到少数节点。若读流量原本均匀分布在所有副本上，一台失效后它的读请求被重定向到同链的其他副本，这些副本的读带宽会立即饱和，成为整系统瓶颈；而替换一块盘并把数据同步回去可能需要数小时<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>该系统的处理方式是在链表构造上做文章：让失效节点与尽可能多的其他节点配对，使得它失效后每个节点只承担其读流量的一小部分。文中给出的例子是让 A 与其余每个 SSD 配对，A 失效时其他每个节点只接收五分之一的流量；这一负载均衡问题被表述为平衡不完全区组设计，用整数规划求解<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>失败检测用租约式心跳，并在服务侧设置了主动退出条件（第 9 章已讨论）。状态机把目标的公共状态分为五档：<code>serving</code>（可读可写）、<code>syncing</code>（恢复中，只写不读）、<code>waiting</code>（恢复未开始，不可读不可写）、<code>lastsrv</code>（服务已停且曾是最后一个可服务目标）、<code>offline</code>（服务已停或介质故障）<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。用状态而不是布尔值表达可用性，是让恢复过程可观测的关键：运维能区分“在恢复”“还没开始恢复”和“恢复完成”，这三种状态的处置动作完全不同。</p>
+<p>恢复的判定规则按链版本与已提交版本比较，规则有四条：只存在于本地目标的分块要转移；只存在于远端目标的分块要删除；本地链版本更高的要转移；链版本相同但本地已提交版本号不等于远端待提交版本号时要转移；其余情况要么一致，要么正在被进行中的写更新<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。这套规则把“哪些数据需要同步”变成一个可判定的比较，而不是全量拷贝。</p>
+<h3 id="105-客户端形态的性能边界">10.5 客户端形态的性能边界</h3>
+<p>同一个系统对不同客户端形态表现出不同的性能上限。FUSE 客户端把 I/O 请求通过内核模块转到用户态进程，两次内存拷贝带来带宽与延迟开销；更严重的是它的请求队列由一把自旋锁保护，并发增加时锁竞争加剧，书中测试给出的上限约每秒 40 万次 4 KiB 读，继续加并发不再提升<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。原生客户端绕开这一层，提供异步零拷贝接口：一块大内存区用于零拷贝读写，一个小环形缓冲用于提交请求，批量提交以减少小请求的远程过程调用开销<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>这组数字对运维的含义是：小随机读的瓶颈可能在客户端而不在存储侧。数据加载器按样本读取、样本尺寸从几 KB 到几 MB、且常常不对齐，正好落在 FUSE 的弱项上。判断“存储慢”之前，应先分清是服务端带宽不足，还是客户端形态不合适。</p>
+<h3 id="106-容量与修复的账本">10.6 容量与修复的账本</h3>
+<p>数据可靠性的成本可以用两个数表达：容量开销与修复时间。三副本的容量开销是 3 倍；纠删码（例如 8 个数据块加 3 个校验块）的开销是 11/8 = 1.375 倍。修复时间由需要搬运的数据量与可用带宽决定：</p>
+<p><math display="block"><mrow><msub><mi>t</mi><mtext>repair</mtext></msub><mo>=</mo><mfrac><mi>D</mi><mi>B</mi></mfrac></mrow></math></p>
+<p><math><mi>D</mi></math> 是单块介质需要恢复的数据量，<math><mi>B</mi></math> 是修复时可用的有效带宽。取一块 14 TiB 的固态盘、修复带宽 4 GiB/s，则 <math><msub><mi>t</mi><mtext>repair</mtext></msub><mo>≈</mo><mn>1</mn></math> 小时。这些是教学取值，实际带宽要与业务读写共享网络，因此真实修复时间更长。</p>
+<p>修复时间的意义在于它与“第二块盘在修复期间再坏”的概率相乘。第 3 章的二项分布可以直接搬过来：集群规模越大、修复越慢，双故障窗口内的暴露面越大。三副本与纠删码的取舍因此不只看容量开销，还要看修复带宽：纠删码的容量开销小，但重建时需要读取的数据块更多，修复时间更长。</p>
+<h3 id="107-检查点的体积与带宽">10.7 检查点的体积与带宽</h3>
+<p>把第 1 章的检查点讨论落到具体体积。设模型有 <math><mi>P</mi></math> 个参数，采用混合精度训练并保存完整优化器状态：bf16 权重 2 字节、fp32 主权重 4 字节、Adam 的一阶与二阶矩各 4 字节，合计每参数 14 字节：</p>
+<p><math display="block"><mrow><msub><mi>V</mi><mtext>ckpt</mtext></msub><mo>=</mo><mn>14</mn><mi>P</mi></mrow></math></p>
+<p><math><mi>P</mi><mo>=</mo><mn>7</mn><mo>×</mo><msup><mn>10</mn><mn>10</mn></msup></math> 时，<math><msub><mi>V</mi><mtext>ckpt</mtext></msub><mo>≈</mo><mn>980</mn></math> GB，约 0.96 TiB。若单个训练客户端可用写带宽为 200 Gb/s 折算 25 GB/s 的理论值，写一次需要约 39 s；实际带宽受网络共享与存储侧并发影响，通常显著低于这个数。</p>
+<p>这两个式子合起来解释了第 1 章的最优间隔为什么在实践中难以取到：<math><mi>c</mi></math> 不是常数，它随并发写入的作业数量上升。当多个大作业同时到达检查点，写入带宽被摊薄，<math><mi>c</mi></math> 变大，最优间隔随之变长，而变长又增加了故障时的回退损失。缓解手段是错峰或增量检查点，两者都需要存储侧支持按分块追踪脏数据。</p>
+<h3 id="108-小文件与元数据压力">10.8 小文件与元数据压力</h3>
+<p>训练数据的形态会直接压到元数据层。一个数据集可能包含上亿个小文件，每个文件都要一次打开操作；如果每次打开都落到元数据服务，元数据层成为瓶颈。该系统的做法是把元数据编码成键值对，目录项以“父目录 inode 加项名”为键，同一目录下的项天然构成一个连续的键区间，列目录就是一次范围查询；inode 以固定前缀加小端序编号为键，使编号分散到不同存储节点<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>文件长度的维护展示了另一类取舍。活跃写入时，inode 中的长度可能与实际不一致；客户端每 5 s 上报一次最大写入位置，先到先得，因此长度只能保证最终一致。在关闭或同步时，元数据服务才向存储侧查询最后一个分块的编号与长度得到精确值；由于文件分块散布在多达 200 条链上，这一步开销不可忽略。为小文件减少开销，inode 里存一个“可能用到的链数”提示，从 16 开始倍增，避免每次都查 200 条链<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。</p>
+<p>这两处设计的共同逻辑是：把强一致限制在必要的点上（关闭、同步），其余路径接受最终一致并用提示信息减少查询。对大作业并发写多个文件、少量关闭的场景，这个取舍明显有利；对频繁关闭小文件的场景，则需要把同步开销计入容量规划。</p>
+<h3 id="109-推理侧的存储负载">10.9 推理侧的存储负载</h3>
+<p>生成式推理把一种新的负载带进了存储层：键值缓存。它的特点是读多、写少、生命周期短、容量需求大。Mooncake 把预填充与解码集群分离，并把 GPU 集群中未被充分利用的 CPU、内存、固态盘与网卡组成分布式缓存池，用 RDMA 互连，把可复用的键值缓存放到池中而不是显存里<a class="citation" href="https://www.usenix.org/conference/fast25/presentation/qin" title="Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。" aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。&quot;, &quot;url&quot;: &quot;https://www.usenix.org/conference/fast25/presentation/qin&quot;, &quot;fallback&quot;: false}]">[6]</a>。报告的收益是在满足时延目标的前提下，有效请求容量相比基线提高 59% 到 498%，在真实部署中 A800 与 H800 集群分别多承载 115% 与 107% 的请求，日处理超过千亿 token<a class="citation" href="https://www.usenix.org/conference/fast25/presentation/qin" title="Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。" aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。&quot;, &quot;url&quot;: &quot;https://www.usenix.org/conference/fast25/presentation/qin&quot;, &quot;fallback&quot;: false}]">[6]</a>。</p>
+<p>对存储运维，这组数字的直接含义是缓存不再是“可丢的附属品”。它一旦被纳入容量规划，就需要独立的可靠性目标：缓存丢失不会导致数据丢失，但会导致重新计算，而重新计算要占用加速卡。把缓存丢失折算成算力成本，是与第 2 章的错误预算对齐的做法。</p>
+</section>
+
+<section id="sec-11-network-fault-domain">
+<h2 id="network-fault-domain">11. 网络作为共享故障域</h2>
+<p>网络在可靠性讨论中常被当作“通道”，只在变慢或断开时才被想起。对分布式训练与分离式推理，网络的三个属性直接进入设计：容量决定通信时间，时延决定同步开销，无损语义决定拥塞时的行为。三者中只有第一个有直观的指标，后两个在故障时的表现往往是“不报错但整体变慢”，或者“个别节点写超时”。</p>
+<h3 id="111-容量与收敛比">11.1 容量与收敛比</h3>
+<p>集群网络的成本主要花在交换容量上。常见做法是下行（接入服务器）带宽大于上行（连接到上层交换），两者的比值称为收敛比。设每台服务器接入 100 Gb/s，收敛比 4:1，则服务器到骨干的有效带宽约为 25 Gb/s。对以机内通信为主的负载，这个比例没有影响；对全对全通信（例如集合通信的环式实现），它直接决定了通信时间的下限。</p>
+<p>用一个可复算的例子：一次环式全归约要对 <math><mi>S</mi></math> 字节的数据搬运约 <math><mn>2</mn><mi>S</mi></math> 字节（近似，忽略首尾效应）。取 <math><mi>S</mi><mo>=</mo><mn>1</mn></math> GB、收敛比 4:1 下的有效带宽 3.125 GB/s，则通信时间下限约 0.64 s。这个时间与计算时间的关系决定了一个作业“是否通信受限”：若单步计算只需 0.2 s，通信就是瓶颈，收敛比的选择直接决定该作业能不能扩展。</p>
+<h3 id="112-无损语义的代价">11.2 无损语义的代价</h3>
+<p>面向 RDMA 的网络通常配置为无损，意味着交换机在拥塞时不丢包，而是通过两类反馈维持队列：优先级流控（priority flow control，PFC）在队列超过阈值时向上一跳发送暂停帧；显式拥塞通知（explicit congestion notification，ECN）在队列接近阈值时给包打标记，由端点降低发送速率。</p>
+<p>暂停机制有两个后果。第一，暂停会沿链路传播：一个下游端口拥塞，会暂停上游的一整条优先级队列，而这条队列里可能有与拥塞无关的流，形成队头阻塞。第二，暂停可能形成循环等待：若拓扑与配置不当，A 暂停 B、B 暂停 C、C 暂停 A，流量完全停滞。这类死锁不产生错误计数，表现为吞吐骤降到零，是网络侧最难诊断的故障之一。</p>
+<p>对 SRE 的直接含义是：无损网络不是“更好的网络”，而是把丢弃换成了等待。丢弃有明确的错误语义（重传、超时、失败），等待没有；因此基于丢包的监控在无损网络上会失效，必须监测队列长度、暂停帧计数与 ECN 标记率。</p>
+<h3 id="113-故障域与影响面">11.3 故障域与影响面</h3>
+<p>网络设备是典型的共享故障域。一台接入交换机下挂若干服务器，每台服务器若干张卡，一台交换机故障影响的是这一整片。设一台交换机下挂 32 台服务器、每台 8 张卡，影响面就是 256 张卡；在万卡集群中占 2.56%。这个比例决定了拓扑感知放置的价值：若一个作业的 rank 全部落在同一交换机下，一次交换机故障就会中断整个作业；若按故障域打散，一次故障只影响作业的一部分 rank，作业仍然中断，但影响面从“整作业”变成“可预期的一部分”，便于按第 1 章的检查点策略估算损失。</p>
+<p>打散有对价。集合通信的延迟与交换层级正相关，跨交换机、跨机架的通信要多一跳；打散越彻底，平均通信时间越长。可行的折中是按“互连域”而不是按“单台交换机”约束放置，把故障域控制在作业可承受的范围内。</p>
+<h3 id="114-超时语义">11.4 超时语义</h3>
+<p>网络侧的失败在应用侧的表现取决于接口的超时语义。以链式复制的写路径为例，写请求进入链头后，节点用 RDMA Read 主动拉取数据；如果客户端或前驱失败，读操作超时，写被中止（第 10 章已述）<a class="citation" href="https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs" title="DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。" aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;DeepSeek-AI. 3FS（Fire-Flyer File System）仓库文档：README.md 与 docs/design_notes.md，固定提交 22fca04564c7cc230fd8b9523b8b92864e1dad47。本文采用其中的组件划分、CRAQ 写读路径、链表与目标状态机、恢复流程、FUSE 与原生客户端限制。软件许可为 MIT，本文不转载其代码与图。&quot;, &quot;url&quot;: &quot;https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47/docs&quot;, &quot;fallback&quot;: false}]">[7]</a>。这里的关键是“读成为写的一部分”：网络的短暂不可达会直接变成写失败，而不是写变慢。上层必须能重试，且重试必须是幂等的，否则重复写会让分块版本混乱。</p>
+<p>这解释了一个常见现象：网络抖动期间，文件系统表现为“写失败率上升”，而链路监控上只看到少量的重传。判断这类问题的顺序是：先看应用侧的错误码分布，再看 RDMA 层的完成队列错误，最后看交换机的暂停与标记计数。反过来按链路指标排查，通常会一无所获。</p>
+<h3 id="115-带宽时延积与缓冲">11.5 带宽时延积与缓冲</h3>
+<p>高速网络的拥塞行为不能只看带宽，还要看“在途数据量”。链路的带宽时延积（bandwidth-delay product）等于往返时延与带宽的乘积：</p>
+<p><math display="block"><mrow><mi>B</mi><mi>D</mi><mi>P</mi><mo>=</mo><mtext>RTT</mtext><mo>×</mo><mi>B</mi></mrow></math></p>
+<p>取往返时延 100 µs、端口带宽 100 Gb/s（即 12.5 GB/s），在途数据量约 1.25 MB。这意味着发送端在收到确认前已经发出 1.25 MB；若交换机的缓冲区显著小于这个量，链路利用率一旦接近饱和，突发就会转为丢包或暂停帧。</p>
+<p>这个数字解释了两个现织。第一，同等带宽下时延越小，所需缓冲越少，所以把通信限制在同一互连域内不仅降低时延，也降低了对缓冲的压力。第二，多个发送端同时向一个目的端发送（多对一模式）时，目的端链路的瞬时需求是多份 BDP 之和，缓冲区很容易被填满，这就是集合通信中的热点模式需要在算法层避免的原因。</p>
+<h3 id="116-网络变更的验证">11.6 网络变更的验证</h3>
+<p>网络变更的风险高于软件变更，因为它同时改变所有流量的行为。典型的变更包括访问控制列表、MTU、ECN 与暂停阈值、路由与聚合配置。它们的共同特点是“局部正确、全局异常”：单条链路的配置无误，但聚合后的流量模式发生变化。</p>
+<p>验证需要分层。第一层验证连通与基础带宽，确认变更后仍可运行。第二层验证典型通信模式：单机内、同机架、跨机架的全对全与多对一，分别测时延与带宽。第三层验证与业务联合：用一个真实作业或真实推理集群跑一段时间，对比关键指标。跳过第三层是常见的坑，因为前两层只能证明“网络能跑”，不能证明“业务能在上面跑得好”。</p>
+<p>变更与回滚应当成对准备，且回滚窗口要覆盖业务的完整周期。网络配置的变更往往不能热回滚（例如 MTU 变更需要两端协商），因此必须在变更前确认回滚路径可用，而不是在故障后临时寻找。</p>
+<h3 id="117-运维动作">11.7 运维动作</h3>
+<p>网络可靠性的工作可以归纳为四件事。第一，把拓扑变成可查询的数据：哪台机器在哪台交换机下、哪个互连域、哪条链路的收敛比是多少。第二，把无损网络的专用指标纳入监控：暂停帧、ECN 标记、队列水位，它们的异常早于业务指标。第三，把故障域写进放置约束，使单点故障的影响面可预测。第四，把网络变更纳入与软件变更相同的流程：ACL、路由、MTU、ECN 阈值的一次调整足以让整个集群的通信模式改变，而这类变更往往缺少回滚演练。</p>
+<p>四件事都不涉及新硬件，差别在于是否把网络当成有状态的系统来管理。第 13 章的可观测性会给出这些指标的组织方式。</p>
+</section>
+
+<section id="sec-12-pooling-colocation">
+<h2 id="pooling-colocation">12. 训推算力并池、混部与可抢占实例</h2>
+<p>前三章分别讨论了排队、冗余与故障域，它们共同决定了一件事：单位有效算力的成本。并池、混部与可抢占实例是三种降低这个成本的手段，代价都是引入新的失效语义。这一章把三种手段放在一起，说明各自节省的是哪一项成本、新增的是哪一类故障，以及运维上必须补齐什么。</p>
+<h3 id="121-并池把碎片换成共享风险">12.1 并池：把碎片换成共享风险</h3>
+<p>训练与推理的资源形态不同。训练作业的规模固定、持续时间长、对通信拓扑敏感；推理服务的规模随流量波动、单请求时间短、对时延敏感。分开建池时，两个池各自有一部分资源长期闲置：训练池在作业间隙闲置，推理池在低谷期闲置。并池把这些闲置合并成一个共享池，利用率上升。</p>
+<p>并池的代价是故障域扩大。分开建池时，一次调度器故障只影响一类负载；并池后，同一份配额被两类负载争用，一次配额误配或一次大规模驱逐会同时影响训练与推理。第 3 章的混部数据给出的量级是两成到三成的机器节省，这个收益是否值得承担共享风险，取决于两类负载的 SLO 差距：差距越大，越需要强隔离而不是共享池。</p>
+<h3 id="122-混部收益与保护机制">12.2 混部：收益与保护机制</h3>
+<p>混部的收益已在第 3 章用 Borg 的数据说明：约 98% 的机器同时运行生产与非生产任务，若分离需要多 20%～30% 的机器<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。GPU 上的同一策略在 MuxFlow 中有更完整的工程描述：作业级用运行时约束离线负载的显存与算力，GPU 级用探针按多维指标判断是否需要驱逐离线负载，两层保护共同把在线负载的干扰控制在可接受范围<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>。</p>
+<p>混部的关键参数是“可接受劣化”，它必须由业务方给出。MuxFlow 报告业务侧的判断是多数在线负载的时延劣化 20% 仍可接受<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>。把这一条写进 SLO，混部才有判据：保护机制的目标不是“零干扰”，而是“干扰不超过这条线”。没有这条线，保护机制只能取最保守的策略，混部的收益也随之消失。</p>
+<p>共享显卡上的故障源还有一个与编排层直接相关的来源。该文统计了生产集群中所有传播性错误，发现 99% 由 SIGINT 与 SIGTERM 引起，而这两个信号通常来自 Kubernetes 停止容器的动作；处置方式是拦截信号并主动释放执行上下文<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>。这意味着共享卡上的可靠性不只取决于调度与限流，还取决于容器的终止流程是否处理完整（第 5 章的 PID 1 与信号转发表述在这里落地）。</p>
+<h3 id="123-可抢占实例把成本换成中断">12.3 可抢占实例：把成本换成中断</h3>
+<p>可抢占实例（云厂商的竞价或闲时资源）的价格可以低至按需实例的 10%，代价是实例可能被随时回收。云平台通常给一个宽限期，例如 30 s，让实例保存状态并退出<a class="citation" href="https://doi.org/10.1145/3620665.3640411" title="Xupeng Miao, Chunan Shi, Jiangfei Duan, Xiaoli Xi, Dahua Lin, Bin Cui, Zhihao Jia. SpotServe: Serving Generative Large Language Models on Preemptible Instances. ASPLOS 2024, pp. 1112–1128. DOI: 10.1145/3620665.3640411. 本文采用其摘要与第 1 节关于抢占宽限期、动态重并行与状态化恢复的表述。" aria-label="引用 [8]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;8&quot;, &quot;text&quot;: &quot;Xupeng Miao, Chunan Shi, Jiangfei Duan, Xiaoli Xi, Dahua Lin, Bin Cui, Zhihao Jia. SpotServe: Serving Generative Large Language Models on Preemptible Instances. ASPLOS 2024, pp. 1112–1128. DOI: 10.1145/3620665.3640411. 本文采用其摘要与第 1 节关于抢占宽限期、动态重并行与状态化恢复的表述。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3620665.3640411&quot;, &quot;fallback&quot;: false}]">[8]</a>。</p>
+<p>对推理服务，这个约束比看上去更难满足，因为大模型推理的并行方式把最小粒度从“一张卡”变成了“一组卡”。一次抢占影响整条推理流水线，而不是一个副本；迁移需要重建通信组、重新加载权重。SpotServe 的做法有三层：按可用实例数量动态调整并行配置；把实例迁移表述为二分图匹配问题，用匈牙利算法（Kuhn-Munkres）求通信代价最小的迁移方案；利用宽限期做状态化恢复，把推理进度的提交粒度做细，使抢占后能以较低代价续算<a class="citation" href="https://doi.org/10.1145/3620665.3640411" title="Xupeng Miao, Chunan Shi, Jiangfei Duan, Xiaoli Xi, Dahua Lin, Bin Cui, Zhihao Jia. SpotServe: Serving Generative Large Language Models on Preemptible Instances. ASPLOS 2024, pp. 1112–1128. DOI: 10.1145/3620665.3640411. 本文采用其摘要与第 1 节关于抢占宽限期、动态重并行与状态化恢复的表述。" aria-label="引用 [8]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;8&quot;, &quot;text&quot;: &quot;Xupeng Miao, Chunan Shi, Jiangfei Duan, Xiaoli Xi, Dahua Lin, Bin Cui, Zhihao Jia. SpotServe: Serving Generative Large Language Models on Preemptible Instances. ASPLOS 2024, pp. 1112–1128. DOI: 10.1145/3620665.3640411. 本文采用其摘要与第 1 节关于抢占宽限期、动态重并行与状态化恢复的表述。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3620665.3640411&quot;, &quot;fallback&quot;: false}]">[8]</a>。其报告的结果是 P99 尾时延比现有系统降低 2.4 到 9.1 倍，相比全部使用按需实例节省 54% 的成本<a class="citation" href="https://doi.org/10.1145/3620665.3640411" title="Xupeng Miao, Chunan Shi, Jiangfei Duan, Xiaoli Xi, Dahua Lin, Bin Cui, Zhihao Jia. SpotServe: Serving Generative Large Language Models on Preemptible Instances. ASPLOS 2024, pp. 1112–1128. DOI: 10.1145/3620665.3640411. 本文采用其摘要与第 1 节关于抢占宽限期、动态重并行与状态化恢复的表述。" aria-label="引用 [8]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;8&quot;, &quot;text&quot;: &quot;Xupeng Miao, Chunan Shi, Jiangfei Duan, Xiaoli Xi, Dahua Lin, Bin Cui, Zhihao Jia. SpotServe: Serving Generative Large Language Models on Preemptible Instances. ASPLOS 2024, pp. 1112–1128. DOI: 10.1145/3620665.3640411. 本文采用其摘要与第 1 节关于抢占宽限期、动态重并行与状态化恢复的表述。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3620665.3640411&quot;, &quot;fallback&quot;: false}]">[8]</a>。</p>
+<h3 id="124-宽限期是一道硬约束">12.4 宽限期是一道硬约束</h3>
+<p>宽限期的长度决定了“能保存多少状态”，这个上限可以直接算：</p>
+<p><math display="block"><mrow><msub><mi>V</mi><mtext>save</mtext></msub><mo>≤</mo><msub><mi>B</mi><mtext>save</mtext></msub><mo>·</mo><msub><mi>t</mi><mtext>grace</mtext></msub></mrow></math></p>
+<p>取宽限期 30 s、可用保存带宽 12.5 GB/s（200 Gb/s 的一半），上限约 375 GB。对照第 10 章的检查点体积：70B 参数的完整优化器状态约 980 GB，超过上限。这意味着在可抢占实例上不能依赖“全量保存”，只能做增量状态或只保存推理侧的中间结果，例如未完成的请求与键值缓存的分片。</p>
+<p>这个算式还解释了 SpotServe 为什么强调“细粒度提交”：把状态切成小块持续提交，等价于把一次大保存拆成多次小保存，使任何时刻被中断都只损失最后一小段。这与第 1 章的最优检查点间隔是同一套逻辑，只是约束从“带宽摊薄”变成了“宽限期截断”。</p>
+<h3 id="125-分离式推理的运维后果">12.5 分离式推理的运维后果</h3>
+<p>把预填充与解码分离，是提高生成式推理效率的一条主要路线。Mooncake 的架构在这个基础上再加一层：把键值缓存从显存下沉到由 CPU、内存、固态盘与网卡组成的分布式池，用 RDMA 互连，池内做热点复制与冷数据换出，由一个全局调度器按缓存命中与实例负载选路<a class="citation" href="https://www.usenix.org/conference/fast25/presentation/qin" title="Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。" aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。&quot;, &quot;url&quot;: &quot;https://www.usenix.org/conference/fast25/presentation/qin&quot;, &quot;fallback&quot;: false}]">[6]</a>。报告的收益是有效请求容量提高 59% 到 498%，实际部署中多承载 115%（A800）与 107%（H800）的请求，日处理超过千亿 token<a class="citation" href="https://www.usenix.org/conference/fast25/presentation/qin" title="Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。" aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ruoyu Qin, Zheming Li, Weiran He, Jialei Cui, Feng Ren, Mingxing Zhang, Yongwei Wu, Weimin Zheng, Xinran Xu. Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot. FAST 2025, pp. 155–170. 本文采用其摘要与第 1 节关于 P/D 分离、KVCache 池与 SLO 约束的表述及报告数据。&quot;, &quot;url&quot;: &quot;https://www.usenix.org/conference/fast25/presentation/qin&quot;, &quot;fallback&quot;: false}]">[6]</a>。</p>
+<p>对运维，这带来三处变化。第一，故障域从“单实例”变成“实例加缓存池”：缓存池的部分失效不会让请求失败，但会让命中率下降、预填充负载上升，表现为时延整体抬升。第二，容量规划多了一个变量：显存容量不再是并发上限的唯一决定因素，缓存池容量与读取带宽同样进入算式。第三，缓存的生命周期需要显式管理：热点复制、冷数据换出、失效判定，这些动作本身会产生存储与网络负载，必须与训练作业的检查点写入错峰，否则两者争抢同一张网络。</p>
+<h3 id="126-并池的组织条件">12.6 并池的组织条件</h3>
+<p>技术手段之上还有组织条件。并池要求三件事统一，缺一件就会退化成分池。</p>
+<p>第一是配额统一。训练与推理使用同一套配额体系，才能在同一张账上比较成本；两套配额会导致资源在两个池之间来回搬移，而搬移本身有成本。Borg 的做法是把配额检查放在准入阶段而不是调度阶段，配额不足的作业在提交时被拒绝<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。这个位置的选择很重要：放在调度阶段会让作业长时间排队，把容量问题伪装成调度问题。</p>
+<p>第二是优先级统一。第 7 章说明 Borg 禁止生产带内的任务互相抢占，以避免级联<a class="citation" href="https://research.google/pubs/pub43438/" title="Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。" aria-label="引用 [4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Abhishek Verma, Luis Pedrosa, Madhukar Korupolu, David Oppenheimer, Eric Tune, John Wilkes. Large-scale cluster management at Google with Borg. EuroSys 2015. DOI: 10.1145/2741948.2741964. 本文采用 §2.1（两类负载）、§2.3–2.5（任务、Alloc、优先级与配额）、§3.1（Borgmaster 复制与主选举）、§5.2–5.4（混部收益、干扰测量与细粒度资源）的报告数据。&quot;, &quot;url&quot;: &quot;https://research.google/pubs/pub43438/&quot;, &quot;fallback&quot;: false}]">[4]</a>。并池后这条规则的必要性更强：推理服务被训练作业抢占，损失直接体现在用户请求上；训练作业被推理服务抢占，损失体现在回退与重算上，两者都在同一个预算里计费。</p>
+<p>第三是可观测性统一。两类负载的指标口径不同：推理看请求成功率与时延分位数，训练看有效算力占比与步时分位数。若两套监控各自独立，混部造成的干扰无法归因，保护机制只能靠经验调参。把它们放进同一套标签体系（同一节点、同一作业、同一优先级），才能回答“这次时延抬升是邻居造成的，还是自身变化造成的”。</p>
+<h3 id="127-离线推理与填谷">12.7 离线推理与填谷</h3>
+<p>一类常被忽略的混部对象是离线推理：批量打分、数据清洗、离线评估。它们没有严格的时延要求，可以排队等待，但不能接受结果错误。把它们放到在线集群的空闲资源上，是提高利用率而不引入时延风险的直接手段。</p>
+<p>可填谷的容量上限可以直接估。若在线负载的峰值利用率为 <math><msub><mi>ρ</mi><mtext>peak</mtext></msub></math>，则可长期让给离线的比例近似为</p>
+<p><math display="block"><mrow><msub><mi>ρ</mi><mtext>fill</mtext></msub><mo>=</mo><mn>1</mn><mo>−</mo><msub><mi>ρ</mi><mtext>peak</mtext></msub><mo>−</mo><msub><mi>ρ</mi><mtext>reserve</mtext></msub></mrow></math></p>
+<p>其中 <math><msub><mi>ρ</mi><mtext>reserve</mtext></msub></math> 是为峰值波动预留的余量。MuxFlow 的统计给出在线 GPU 利用率长期低于 60% 的比例超过 99%<a class="citation" href="https://doi.org/10.1007/s11432-024-4227-2" title="Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。" aria-label="引用 [5]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;5&quot;, &quot;text&quot;: &quot;Xuanzhe Liu, Yihao Zhao, Shufan Liu, Xiang Li, Yibo Zhu, Xin Liu, Xin Jin. MuxFlow: efficient GPU sharing in production-level clusters with more than 10000 GPUs. Science China Information Sciences, 2024, 67(12): 222101. DOI: 10.1007/s11432-024-4227-2. 本文采用其摘要与第 1–2 节的部署数据与错误传播分析；部署规模与收益均为该文报告值。&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s11432-024-4227-2&quot;, &quot;fallback&quot;: false}]">[5]</a>，即使按 60% 作为峰值，可填比例也在四成上下。</p>
+<p>需要区分两类资源。算力可以填谷，显存不能：显存是不可压缩资源，离线任务一旦占了显存，在线任务扩不进来。因此填谷方案必须给在线负载预留显存，而不是只预留算力。这也是把离线推理放到低优先级、但显存仍按 Guaranteed 配置的原因。</p>
+<h3 id="128-成本与可靠性的交换比">12.8 成本与可靠性的交换比</h3>
+<p>把本章的手段排成一张交换表，每种手段都在用一类风险换一类成本。并池用共享故障域换碎片损失；混部用可控干扰换闲置算力；可抢占实例用中断换单价；分离式推理用缓存池的额外故障面换显存容量。四者的共同前提是调度、配额与可观测性已经统一，否则收益无法计量，风险也无法归因。</p>
+<p>这也给出了一个判断顺序：先做可观测性与配额统一，再做混部，最后才考虑可抢占实例。顺序颠倒的典型后果很具体：混部上线后干扰无法归因，于是把保护机制调到最保守；可抢占实例上线后中断无法预测，于是退回按需实例。两者都不是技术失败，而是顺序错误。</p>
+</section>
+
+<section id="sec-13-observability">
+<h2 id="observability">13. 可观测性：信号选择、基数与告警设计</h2>
+<p>可观测性与监控的区别可以借用一句被广泛引用的话：监控告诉我们系统哪些部分是正常的，可观测性告诉我们系统为什么不正常<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这个区分对应四种认知状态：已知的已知（系统上线前就预见并监控的指标）、已知的未知（有预案但未发生的情形）、未知的已知（被默认成立、从未验证的假设）、未知的未知（毫无征兆的问题）。传统监控覆盖前两类，可观测性要处理后两类，靠的是从系统的外部输出反推内部状态。</p>
+<h3 id="131-五类信号">13.1 五类信号</h3>
+<p>云原生基金会把遥测数据归为五类：指标、日志、链路追踪、性能剖析与核心转储<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。前三类承担日常诊断，后两类用于深入分析。</p>
+<p>指标是随时间变化的数值序列，回答“有没有问题”。日志是离散事件的文本记录，回答“发生了什么”。链路追踪记录一次请求跨多个服务的调用路径与各段耗时，回答“慢在哪一段”。三者的分工可以这样记：指标触发告警，追踪定位到组件，日志解释原因<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<h3 id="132-指标的基数">13.2 指标的基数</h3>
+<p>指标系统的成本几乎全部由序列数决定。一条时间序列由指标名与一组标签唯一确定，序列数等于各标签取值个数的乘积。书中给出的估算例子是：10 个节点、30 个服务、每个服务 20 个指标、每 5 s 采集一次，一天的数据量是</p>
+<p><math display="block"><mrow><mn>10</mn><mo>×</mo><mn>30</mn><mo>×</mo><mn>20</mn><mo>×</mo><mfrac><mn>86400</mn><mn>5</mn></mfrac><mo>=</mo><mn>1.0368</mn><mo>×</mo><msup><mn>10</mn><mn>8</mn></msup></mrow></math></p>
+<p>即约一亿条记录<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这个规模对一个十节点的小集群已经是 TB 级存储。</p>
+<p>危险的标签是取值多的标签。把请求路径、用户标识、请求 ID 放进标签，序列数会随流量增长，而不是随集群规模增长。假设在上面的例子里给每条指标再加 <code>status</code>（5 个取值）与 <code>handler</code>（20 个取值）两个标签，序列数变成原来的 100 倍，日记录数到达百亿量级。这类设计在上线时看不出问题，因为流量小；在流量上来之后，指标系统先于业务崩溃。</p>
+<p>可操作的规则有两条。第一，高基数维度放在日志或追踪里，指标只保留可以聚合的维度（服务、区域、状态类别）。第二，直方图的桶要有上界，且分位数在查询时计算；客户端预计算的分位数不能用于跨实例聚合，因为分位数不可加。</p>
+<h3 id="133-日志与追踪的成本">13.3 日志与追踪的成本</h3>
+<p>日志的成本由写入吞吐与保留期决定。全文索引（反向索引）让关键词检索很快，代价是索引本身的存储与写入放大；列式存储适合聚合分析，代价是不支持任意关键词的自由检索；轻量方案只索引少量标签，把检索留给时间范围过滤<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。选择依据是查询模式：如果主要按服务与时间范围看上下文，轻量方案就够；如果要在海量日志里按任意字段检索，才需要全文索引。</p>
+<p>追踪的成本由采样率决定。全量采集在高 QPS 下不可行，采样又会丢失尾部。折中做法是头部采样（按请求特征决定是否记录）加尾部采样（先缓冲、按结果决定保留），后者能保留所有出错的请求，代价是需要缓冲与更复杂的收集链路。</p>
+<p>追踪的另一个前提是上下文传播：trace 标识与 span 标识必须跨进程、跨线程、跨异步回调传递。生成式推理的链路里有一段是流式输出，它的耗时由多个 token 的发送组成，如果把整段当成一个 span，就看不到首 token 时延与 token 间隔的分解。正确做法是把首 token 与流式发送拆成两个 span。第 2 章把这两个量列为推理侧的 SLI，追踪的结构必须能支撑它们。</p>
+<h3 id="134-告警设计">13.4 告警设计</h3>
+<p>告警的判据在第 2、4 章已经给出：分页只针对紧急、可行动、用户可见的问题，优先对症状告警，燃烧率阈值由错误预算推出。这里补充告警系统的组织方式。告警管理器通常提供四种处理：分组，把相似标签的告警合并成一条；抑制，当上游告警存在时屏蔽下游告警；静默，在维护窗口内屏蔽；路由，按标签把告警送到不同的通道<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。</p>
+<p>四种处理里，抑制最容易被忽略，也最容易造成误判。机制是：当节点不可达时，其上所有服务的可用性告警都会触发；若不抑制，一次节点故障会产生成百上千条告警，值班工程师的第一反应是处理告警而不是处理节点。抑制规则把“故障传播关系”写成规则，因此它需要与拓扑一起维护。</p>
+<h3 id="135-训练作业的健康信号">13.5 训练作业的健康信号</h3>
+<p>训练作业的诊断信号与在线服务不同。可用的有四类。第一是步时（step time）的分组最大值：按数据并行组或流水线阶段分组，取每组内的最大值，再对这些最大值取分位数。全局分位数会把一个慢节点的等待摊薄，分组最大值能把它暴露出来。第二是通信等待占比：把一步内的通信时间与计算时间分开，等待占比上升说明某个 rank 落后或网络拥塞。第三是损失曲线的平台与异常：它不直接反映可靠性，但能反映数据与超参问题。第四是检查点写入时长的分位数：它是存储侧问题的最早信号。</p>
+<p>把四类信号放在同一条时间轴上，可以区分三种情形：所有 rank 的步时同时上升（全局问题，通常是存储或网络）；部分 rank 的步时上升（慢节点或局部网络）；步时不变但有效算力占比下降（故障与重启导致的损失，回到第 1 章的式 1-1）。</p>
+<h3 id="136-指标分层与聚合口径">13.6 指标分层与聚合口径</h3>
+<p>同一件事在不同层次上指标不同，混淆层次会导致错误结论。可用的分法有四层：节点层看资源存量与硬件错误（可分配量、暂停帧、缓存错误）；运行时层看容器与进程（重启次数、限流时长、内存终止）；作业层看工作量（步时、有效算力占比、检查点时长）；业务层看结果（请求成功率、首 token 时延、完单率）。</p>
+<p>层级确定后，聚合口径就成为第二个变量。GPU 利用率按卡平均会隐藏长尾：集群平均 60% 可以同时对应“所有卡都在 60%”与“一半卡全满、一半卡空闲”。按作业分组取最大值可以暴露后者。两种口径都没有错，但它们回答的问题不同：前者回答“花了多少”，后者回答“能不能再塞”。</p>
+<p>把口径写进指标名而不是写在文档里，是减少误解的直接办法。例如同一指标的两个版本分别命名，并在看板上并列展示，比在评审时争论“这个数怎么算的”便宜。</p>
+<h3 id="137-从信号到假设">13.7 从信号到假设</h3>
+<p>诊断的效率取决于是否把信号组织成可验证的假设，而不是把所有仪表盘都看一遍。一个可用的顺序是：先用 SLO 相关指标确认影响面，再用追踪或分组指标定位到组件，再用日志或剖析确认机制，最后用一次受控动作验证假设（重启、切流、限流）。</p>
+<p>这个顺序的理由是成本递增：前两步只需查询，第三步需要读日志或采样剖析，第四步会改变系统状态。把改变系统状态的动作留到假设已经明确之后，可以避免“边猜边改”把现场破坏掉。</p>
+</section>
+
+<section id="sec-14-change-delivery">
+<h2 id="change-delivery">14. 变更、交付与工程化沉淀</h2>
+<p>绝大多数故障来自变更。这个结论不需要统计支撑就能从机制上理解：稳态系统在没有变更时只会因硬件与外部依赖失效，而变更会在同一时刻改变多个组件的行为。因此变更管理的目标不是减少变更次数，而是让每次变更的影响可限定、可观察、可回退。这一章讨论在 Kubernetes 与模型服务平台上的具体做法。</p>
+<h3 id="141-四类变更">14.1 四类变更</h3>
+<p>生成式 AI 平台的变更可以分成四类，它们的回退成本差别很大。</p>
+<p>镜像变更改变代码与依赖。回退等于切回旧镜像，成本取决于镜像是否保留在仓库中。配置变更改变参数，例如批大小、超时、探针阈值、副本数。它的回退最快，但影响面最难评估，因为同一份配置在不同负载下效果不同。模型权重变更新增了一个维度：代码与配置不变，行为却变了。回退需要旧权重可用，且要能区分“新权重效果差”与“新权重下服务退化”。集群侧变更改的是调度策略、配额、网络参数、驱动版本，它同时影响所有租户，回退窗口最长。</p>
+<p>四类变更应当走不同的通道。镜像与权重走版本化发布，配置走带校验的热更新，集群侧变更走维护窗口与分批灰度。把它们混在一条流水线里，会导致最小回退粒度过大。</p>
+<h3 id="142-不可变与回滚">14.2 不可变与回滚</h3>
+<p>容器镜像在构建完成后是只读的，是“不可变基础设施”的一部分<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。这条性质带来一个直接的运维约定：不修改运行中的容器，改动通过替换完成。它的价值在回滚时体现：回滚是重新部署一个已知的镜像，而不是把若干文件改回去。</p>
+<p>不可变的边界要划清。镜像不可变，但镜像里的默认配置仍可能被环境变量覆盖，模型权重通常外挂，凭据通过挂载注入。这些外部依赖不受镜像版本控制，回滚镜像时它们可能已经变了。可行的做法是把“影响行为的输入”全部纳入版本记录：镜像摘要、权重版本、配置版本、关键环境变量。缺一项，回滚就存在不确定性。</p>
+<h3 id="143-灰度判据">14.3 灰度判据</h3>
+<p>灰度的两个参数是窗口长度与放量速度。SRE 书把这两个参数列为产品与 SRE 之间的固有张力之一：窗口太长会拖慢发布，太短则无法暴露低频问题<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。解决方式是用错误预算给出客观判据：灰度期间消耗的预算不超过某个比例则继续放量，超过则回退。</p>
+<p>把这件事写成算式可以直接执行。设本次灰度允许消耗月度预算的 5%，则放量到 <math><mi>p</mi></math> 比例时，允许的错误率为</p>
+<p><math display="block"><mrow><msub><mi>e</mi><mtext>allow</mtext></msub><mo>=</mo><mfrac><mrow><mn>0.05</mn><mo>·</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>S</mi><mi>L</mi><mi>O</mi><mo>)</mo><mo>·</mo><mi>P</mi></mrow><mi>W</mi></mfrac><mo>·</mo><mfrac><mn>1</mn><mi>p</mi></mfrac></mrow></math></p>
+<p>其中 <math><mi>P</mi></math> 是预算周期，<math><mi>W</mi></math> 是灰度窗口。取 <math><mi>S</mi><mi>L</mi><mi>O</mi><mo>=</mo><mn>99.9</mn><mo>%</mo></math>、<math><mi>P</mi><mo>=</mo><mn>30</mn></math> 天、<math><mi>W</mi><mo>=</mo><mn>1</mn></math> 小时、<math><mi>p</mi><mo>=</mo><mn>0.01</mn></math>，则允许错误率约为 3.6%。这意味着在 1% 流量、1 小时窗口下，即使新版本把错误率抬到 3%，也不会超出允许的预算消耗。这个数字通常会让人意外地宽松，说明灰度窗口太短时，预算判据的灵敏度不足；解决方式是拉长窗口或增加流量比例，而不是收紧阈值。</p>
+<h3 id="144-控制器化">14.4 控制器化</h3>
+<p>把运维知识写进控制器，是 Kubernetes 生态的标准做法：自定义资源描述期望状态，控制器负责收敛<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。收益是操作可重复，代价是把“人的判断”替换成“代码的判断”，而代码在异常状态下容易抖动：反复创建与删除资源、反复重启容器、反复扩缩副本。</p>
+<p>避免抖动的机制有三条。第一，所有动作幂等，重复执行不产生额外效果。第二，给收敛加退避，例如失败后逐次延长重试间隔，并设上限。第三，把“无法收敛”作为一等状态暴露出来：一个持续无法达到期望状态的资源，应当产生事件与指标，而不是无声地重试。第三条最容易被忽略，而它决定了控制器故障时运维能否发现问题。</p>
+<h3 id="145-发布验证">14.5 发布验证</h3>
+<p>发布之后的验证需要区分两种正确性。功能正确性由测试覆盖，运行正确性只能由生产验证：容器是否真的通过就绪检查、流量是否真的打到新版本、时延与错误率是否在预算内、关键业务指标是否变化。第三项与第四项的区别重要：预算内的时延抬升可能被业务指标放大，也可能完全无感，两者只能由业务侧判断。</p>
+<p>一个实用的做法是为每次发布准备三条验收线：技术线（SLO 与预算消耗）、容量线（新版本的资源消耗是否在预期内）、业务线（关键指标是否稳定）。三条线全部通过才放量到全量，任一不通过则回退。把三条线写在发布单里，比放在某个人的记忆里可靠。</p>
+<h3 id="146-沉淀什么">14.6 沉淀什么</h3>
+<p>最后是文档。平台团队的文档通常缺的不是数量，而是分类。按用途分三类，各自的维护方式不同。</p>
+<p>操作类文档回答“出问题怎么做”，内容是可执行的动作序列与判据，例如“就绪检查持续失败时的排查顺序”。这类文档会随系统演进而过期，需要与变更绑定：改动相关组件时同步修改，否则下次故障时会按错误步骤操作。</p>
+<p>决策类文档回答“为什么这样设计”，内容是被否决的方案与理由。这类文档的价值在半年后体现：当有人提出“为什么不直接换一个存储”时，答案应当是具体约束与代价，“当时讨论过”并不构成答案。第 10 章的接口选择、第 12 章的并池顺序，都属于这类。</p>
+<p>证据类文档回答“依据是什么”，内容是来源、版本、页码与测量条件。第 1 章的推导、第 9 章的可用性算式，只有在参数与假设可追溯时才有复核价值。</p>
+<p>三类文档混在一起时，读者无法判断哪句话是规定、哪句话是推测。分开维护的成本不高，收益是新人可以在半天内分清“必须这样做”和“上次试过这样”。</p>
+<h3 id="147-演练">14.7 演练</h3>
+<p>文档与流程在没有被验证之前只是假设。演练的作用是把假设变成可观测的结果。它与第 2 章讨论的受控停机不同：受控停机的目的是暴露依赖方的隐式假设，演练的目的是验证自己的响应能力，包括检测是否及时、手册是否可用、权限是否到位、通知是否触达。</p>
+<p>可用的演练有四个设计要素。第一，限定影响面：在演练前明确最多影响多少比例的用户或作业，一旦超过就中止。第二，中止条件：预先写下“什么情况下立即停止”，而不是由现场判断。第三，观测清单：列出演练期间必须采集的指标与日志，否则事后无法评估。第四，结论落回文档：未验证通过的步骤回写到操作类文档，无法执行的步骤回写到决策类文档。</p>
+<p>演练的频度不需要很高，但它必须真实。在一个预发环境里模拟“节点失联”并不能验证生产环境的检测链路，因为监控、告警路由与通知渠道都是生产特有的。在低峰时段对一小部分真实流量做同样的动作，得到的结论才有参考价值。</p>
+<h3 id="148-收束">14.8 收束</h3>
+<p>把全书的主线收拢：可靠性工程处理的是三个可测量的量：故障频率、单次损失、恢复时间。第 1 章把它们写成算式，第 2、3 章把它们转成预算与容量，第 5 至第 8 章讨论容器与编排如何压缩恢复时间，第 9 至第 11 章讨论副本、存储与网络如何改变故障的传播路径，第 12 至第 14 章讨论成本、观测与变更如何让这套判据在生产中持续成立。</p>
+<p>三者的关系不是并列。恢复时间决定了冗余需要多少，冗余决定了成本，成本又反过来约束 SLO 的选择。任何一环被单独优化，都会在另一环产生代价：把 SLO 提得很高会推高成本，把冗余压得很低会让单次故障的损失放大，把恢复时间做得很短但缺乏观测则无法验证它是否真的变短。可运维的系统是这三条曲线的一个交点，而不是某一条曲线的极值。</p>
+</section>
+  </article>
+
+</main>
+
+<script src="../assets/scripts/reader.js"></script>
+</body>
+</html>
