@@ -6,7 +6,7 @@
 
 - 仓库只有 `docs/`、`.agents/skills/`、`src/`、许可与变更记录。它没有 Python 脚本、测试、依赖锁定或工作流。
 - 工具与测试在 `%TEMP%\PaperTranslationWork\pipeline\`。该目录用目录联接把本仓库的 `src/` 与数据根的 `dist/`、`repos/` 挂进去，工具看到的路径与以往一致。
-- 调用形式是先设 `$PIPE = "$env:TEMP\PaperTranslationWork\pipeline"`，再执行 `python "$PIPE\tools\dev.py" run -- ...`；项目重建脚本通过 `PT_PIPELINE`、同级 `pipeline/` 或 `tools/build.py` 向上查找定位流水线根。
+- 调用形式是先设 `$PIPE = "$env:TEMP\PaperTranslationWork\pipeline"`，再执行 `python "$PIPE\tools\dev.py" run -- ...`；项目重建脚本通过 `PT_PIPELINE`、同级 `pipeline/` 或 `tools/build.py` 向上查找定位流水线根。推送与发布需要 Git 远端，发布脚本用 `PT_REPO` 指定仓库根；不设时从流水线目录向上查找 `.git`。
 - 发布使用 GitHub Pages 的分支部署：Source 选 `pages-content`、目录 `/ (root)`。仓库里没有 `.github/workflows`，也没有 CI 校验；导出、字体子集化、`--check` 与 `pages_verify` 全部在本地执行后再推送。
 - 下文描述的工具名、参数与接口仍然有效；它们的位置、命令前缀与部署方式以本节为准。
 
