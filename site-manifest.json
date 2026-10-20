@@ -1,22 +1,6 @@
 {
   "pages": [
     {
-      "path": "gnn-review/index.html",
-      "title": "GNN：图表示、消息传递与金融欺诈检测"
-    },
-    {
-      "path": "llvm-optimization-tutorial/index.html",
-      "title": "LLVM 编译优化：原理、源码与实践分析"
-    },
-    {
-      "path": "redis-source-interview/index.html",
-      "title": "Redis 源码面试指南：从数据结构到性能与一致性"
-    },
-    {
-      "path": "cpp-backend-review/index.html",
-      "title": "C++ 后端开发：语言、并发与服务架构"
-    },
-    {
       "path": "cpp-backend-questions/index.html",
       "title": "C++ 后端问答"
     },
@@ -82,9 +66,7 @@
     "assets/styles/reader.css": "ed651e4c97f356d75d03061755b1466a74de8b416e3e01442499673024757c89",
     "assets/styles/survey.css": "5b03636e3b9d5fbbd70611d17cdf0b2f3396c76e25184bf74db046d16a2344ec",
     "cpp-backend-questions/index.html": "13813f4738fafc158aa8031b3bf4376569b9580b170240c4e1e05b2a1105e201",
-    "cpp-backend-review/index.html": "7b8bd4a805b5e60c7b20f44988a7760c9d2453076ed78cd8d0708a3590549747",
     "dl-compiler-review/index.html": "39cfadeb3615922c67545df8544ccb6cc6bfbaa3e38bc4d9c059ce2ea146f5be",
-    "gnn-review/index.html": "6544f01a0d9adc55693e799743be90ced3cfe8d0cece5c67a8b295248dc89e67",
     "high-performance-communication/assets/figures/01-arithmetic-intensity.svg": "52418c85dad9101b3aa0d0cd3bf132132bb3d9f5451d0fa704ef62c7c7dddf98",
     "high-performance-communication/assets/figures/02-term-map.svg": "2786447caee31862d90ceaad0158a082b4a6087a9045708ae154d5e9c886e270",
     "high-performance-communication/assets/figures/03-movement-layers.svg": "68b488b968e64971e49a89e43f52ac2a56f3e2e1d0f547a84df4d54424e642b1",
@@ -119,10 +101,8 @@
     "high-performance-communication/assets/figures/32-dcqcn-loop.svg": "9db93921c822b1b825b4c29dc863acccdd631e5048f827b8834904727c80d3ee",
     "high-performance-communication/assets/figures/33-dcqcn-recovery.svg": "b094ed26bb7e0bde7d542d291179485dcc2b109c82e88c324151bfc6ec7f33f2",
     "high-performance-communication/index.html": "d2096552a1b1e4ed60f729b74fb6dd32679ac5ef85fd5c655c3492614802842c",
-    "index.html": "03ae893875c411a9f55564efada9bcbc7993f47cdb95f67f75fc87984fe0ffa5",
-    "llvm-optimization-tutorial/index.html": "f19761346d986beffc669703c1c04556a6adce4a679d02d8e36825bba8fb0b78",
+    "index.html": "04f676f1d5aa6043e044b0e5953b4035ea5b6945db23d4f0cd2097e43b43f519",
     "ml-sre-ha-review/index.html": "4def5043bd7a70d0529b86f4808525f9d3a2e7eb331259c1be4cc927db5a1ce9",
-    "redis-source-interview/index.html": "74e048d913e2f43ac17cdaa63985bd689075c4d3621321902172b55cd63be235",
     "transformer-review/index.html": "e54a95910039126f36c2acf05c753196f5c7d0d43cc5290c28937d7be67a358b"
   }
 }
