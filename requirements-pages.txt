@@ -1,4 +1,0 @@
-# Optional local Pages font preparation, not required for offline paper builds.
--r requirements.txt
-fonttools[woff]==4.61.1
-brotli==1.2.0

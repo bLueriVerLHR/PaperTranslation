@@ -1,3 +1,0 @@
-# Optional document renderer; binary stays in the external venv, never in main or readers.
-# pypandoc is MIT; bundled Pandoc is GPL-2.0-or-later, invoked as a separate executable.
-pypandoc_binary==1.17

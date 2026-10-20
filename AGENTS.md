@@ -2,215 +2,76 @@
 
 Operating manual for coding agents in this repository.
 
-## Project and publication boundary
+## What this repository is
 
-A reproducible pipeline translates research papers (PDF or web) into responsive,
-offline-readable HTML. The `main` branch publishes only the pipeline. An explicitly
-approved reader-only export is published separately on `pages-content` and GitHub Pages;
-translations and figure crops retain the original authors' rights, not the MIT license.
-All canonical project material lives under ignored `dist/`; never force-add it to main.
-`work/`, source PDFs, extracted reference data and `/survey/` sources remain local-only.
-Use `tools/pages.py` to stage approved rendered pages/assets in system TEMP and validate
-before pushing the content branch. Never publish that branch's files under the MIT license.
-Paper translations are local-only: do not publish full-paper readers or their crops,
-even with `public_export: true`. Public content consists of approved self-authored reviews
-and source-code books. Do not default to translating online surveys. Withdrawal, history
-rewriting and publishing local revisions require their own explicit authorization.
+A writing-standards repository: prose conventions, research and source-code analysis methods,
+reader presentation rules, three authoring skills and the reader's templates/styles/scripts.
+It contains **no Python, no build scripts, no data and no manuscripts**. Anything executable
+lives outside the checkout, under `%TEMP%\PaperTranslationWork\`:
 
-## Canonical layout
+| Path | Content |
+|---|---|
+| `pipeline\tools`, `pipeline\tests` | Python tools, tests, `pyproject.toml`, dependency pins |
+| `pipeline\src` | junction to this repository's `src/` |
+| `pipeline\dist`, `pipeline\repos` | junctions to the data root's `dist/` and `repos/` |
+| `dist\<slug>\work` | canonical per-project content, glossary, figures and metadata |
+| `repos\<name>` | fixed-commit source checkouts used by source-code analyses |
+| `sources\` | external originals (papers, books) |
 
-The maintained directory map and routine commands are in `README.md`; schemas are in
-`docs/architecture.md`. Select the task through `docs/workflow.md`, not by reading every
-schema, inventory or archived HTML file. Do not recreate historical paths from CHANGELOG.
-Reusable manuscript entry points live in `.agents/skills/`; selection, explicit Pi commands
-and method sources are in `docs/authoring-skills.md`. Skills route work to the owning standards;
-they do not replace mandatory reading, grant execution rights or supply article templates.
+TEMP is disposable and there is no second copy. Never treat `dist/`, `repos/` or `sources/` as
+reproducible from this repository, and never delete them as cleanup. Project rebuild scripts
+locate the pipeline through `PT_PIPELINE`, a sibling `pipeline/` directory, or by walking up for
+`tools/build.py`.
 
-`work` is the directory name, not an underscore-prefixed variant. Keep one canonical copy of
-translation source and metadata there, not a second parallel project-source tree. Reading needs the project HTML/figures plus the sibling library-root `dist/assets/` runtime;
-`work/` is retained for maintenance and rebuilding. Never reintroduce per-project copies of
-reader/library/survey CSS or JS. `tools/assets.py` updates the runtime once without rebuilding
-prose; Pages composes it from main into the approved snapshot at deployment.
-Never delete the whole `dist/` tree as a cleanup step: it now contains source-of-truth material.
+## Publication boundary
 
-## Environment and commands
-
-Python 3.12+ is required; dependency pins were verified with Python 3.14. Use the portable
-`tools/dev.py` setup/runner so the venv and all development caches stay in system TEMP;
-commands are maintained in `README.md`. Run Python tools through
-`python tools/dev.py run -- ...`, without shell activation or workspace environments.
-The Windows compatibility helper `. .\tools\dev-env.ps1` still exposes `$Python` and
-`$ProjectTemp`; commands using that external `$Python` remain supported.
-
-`$P` denotes a registered project slug, discovered from `dist/*/work/paper.json`.
-If several projects exist, `--paper` is required.
-
-Routine commands belong to `README.md`; code contribution gates belong to
-`CONTRIBUTING.md`. Publication uses `tools/pages.py`, `tools/pages_fonts.py` and the portable
-`tools/publish_pages.py` (`publish-pages.ps1` is a compatibility adapter); remote/live verification uses `tools/pages_verify.py`.
-
-## Source and intermediate-data policy
-
-- Do not copy source PDFs into the workspace or into a project's `work/` folder. Read the
-  user's existing external original in place with `--pdf`. A manifest may record an external
-  path, or use `"source": {"pdf": null}` when no path is retained. Building the reader requires
-  no original PDF. Re-extraction requires the original to be supplied again.
-- Keep only useful reference intermediates in `work/reference/`: extracted sections, page
-  text, page rasters and extraction inventory. Keep translated sections, glossary, metadata
-  and figure crops in their designated `work/` paths.
-- Rebuilds update the reader and published assets in place and preserve `work/`. Do not
-  hand-edit figure crops; regenerate from the external original using the extraction tool.
-- Per-project source and reference data stay out of git. `git ls-files dist` must be empty.
-  Legacy denylist entries in `.gitignore` are safeguards, not instructions to create folders.
-
-## Temporary-state policy
-
-- Every disposable task plan/preset, development dataset, log, screenshot, scan report,
-  experiment, trial build and backup uses an **absolute path under system TEMP**.
-  Use `$ProjectTemp/tasks`, `$ProjectTemp/reports` and `$ProjectTemp/scratch` respectively.
-  Python scratch files use `tempfile`, never repository-relative scratch paths.
-- The environment helper routes Python/pytest/ruff caches outside the workspace and keeps
-  the virtual environment there too. Do not create workspace environments or cache folders.
-- The background harness's `.pi/tasks` path is a lightweight junction to system TEMP;
-  actual task records and logs live outside the workspace. If another tool cannot redirect
-  logs, relocate them only after its writer has finished.
-- TEMP is disposable: recreate the environment and reinstall requirements if it is cleared.
-  Never make it the only copy of canonical translation material or useful reference data.
-  PDF copies removed during migration are only a temporary recovery archive, not a permanent
-  source location or an input path to record in project metadata.
-
-## Documentation responsibilities
-
-- README describes capabilities, setup and project layout. `docs/` specifies architecture,
-  interfaces, procedures and writing conventions, not current task progress or approval history.
-- AGENTS contains durable execution constraints. Actual version changes belong in CHANGELOG;
-  temporary plans, pauses, approvals and execution logs belong in task state and TEMP reports.
-  Do not turn user dialogue or one-off operations into permanent documentation rules.
-
-## Manuscript output boundary
-
-Choose the work's kind before drafting. A translation preserves the original genre, voice
-and argument: a research essay is not rewritten as an academic review. Requirements to
-explain mechanisms or add derivations guide self-authored exposition, not additions to a
-translation.
-
-| Material | Canonical location | Reader placement |
-|---|---|---|
-| Original/translated argument, the source author's definitions and discussion | `work/content/` | Body, in source order for translations |
-| Source/rights, brief translator choices about wording or genre | `work/reader-meta.md`; reader-facing term pairs in `work/glossary.md` | Title's **出处与说明**, not a body/TOC chapter |
-| Writing instructions, chapter-title translation maps, batch/review records | Linked non-rendered maintenance files or task records | Not in the reading page, including its source notes |
-
-**Visible to the reader does not mean part of the body.** Do not put authoring instructions
-or a chapter-title map into the auto-rendered glossary. The source author's own terminology
-chapter or discussion of its title is still source content: do not relocate it by keyword.
-The detailed ownership rules and examples are in `docs/chinese-writing.md`; rendering is in
-`docs/reader.md`. Check these boundaries before treating a successful build as completion.
+The site is published from the `pages-content` branch by GitHub Pages branch deployment; this
+repository holds no workflow and runs no CI. Local export, validation and push are documented in
+`docs/pipeline.md`. `pages-content` carries rendered HTML, fonts and licence notices only: no
+`work/` trees, source documents, extraction data, local paths or pipeline scripts. Translations
+and their figure crops remain local-only; public snapshots are explicitly approved original
+reviews and source-code books, and they are never published under the MIT licence. Withdrawal
+needs a replacement snapshot plus live verification; history rewriting or artifact deletion needs
+separate owner authorization.
 
 ## Mandatory reading before manuscript work
 
-Before every manuscript task (new writing, expansion, rewriting, translation or polishing),
-read the applicable documents **in full** and follow them throughout drafting and review.
-Do not rely only on summaries, remembered rules or keyword scans:
+Read the owning document in full before drafting or revising, and follow it throughout review:
 
-- All manuscript work: `docs/chinese-writing.md` for genre, mechanism depth, mathematical
-  reasoning, evidence boundaries, terminology, prose and paragraph-level review.
-- Original reviews: also `docs/review-method.md` for source identity, primary-source checks,
-  claim-to-evidence mapping and fair comparisons.
-- Framework/project/source-code analysis, including such passages within reviews: also
-  `docs/source-analysis.md` for structure, state/data flow, documented challenges, design
-  trade-offs, readable fixed-version excerpts and modular manuscript maintenance.
-- Explicit question-bank/revision chapters: also read `docs/questions.md`; Q&A is opt-in
-  for the requested scope, not a reason to convert ordinary book chapters into interview
-  scripts. Preserve evidence-based answers, offline fallbacks and complete printed content.
-- Before changing an existing project manuscript, read its canonical `work/README.md`,
-  glossary, relevant source map/research records and the complete affected sections.
+- All manuscript work: `docs/writing.md` for genre, mechanism depth, numbers, terminology,
+  typography and paragraph-level review.
+- Original reviews and source-code analyses: also `docs/method.md` for source identity,
+  claim-to-evidence mapping, fair comparison and implementation analysis.
+- Presentation, Markdown syntax, glossaries, question pages: `docs/reader.md`.
+- Publishing, directory layout, interfaces, task workflow: `docs/pipeline.md`.
 
-In self-authored explanations, show how mechanisms work, how they differ from prior
-approaches, why their benefits can arise and what assumptions and costs constrain them.
-Include necessary derivations with explicit premises; distinguish mathematical properties,
-explanatory inference and reported experiments. In translations, preserve the source's
-reasoning and qualifications without inventing these additions.
-Writing requirements and task dialogue are not reader prose.
-Keep document-build checks separate from mathematical or empirical validation, and do
-not execute upstream projects or experiments without separate explicit authorization.
-Detailed requirements belong to the linked specifications, not duplicate project templates.
-Prepare once per manuscript task and reuse unchanged preparation across its batches; do not
-restart full preparation for each question. Use bounded readable HTML views and selected
-metadata fields. Read raw markup only for a specific extraction/math/rendering issue. Search
-only an identified evidence gap; time-box unresolved points and keep them pending rather
-than expanding the task or declaring them checked. Never auto-promote coverage by title match.
+Before changing an existing manuscript, read its canonical `work/README.md`, glossary, source map
+and the complete affected sections from the data root.
 
-## Content and rendering conventions
+## Content rules that survive any refactor
 
-- Google-style Python: PEP 8 and PEP 257. Run `ruff format` and `ruff check` before committing.
-- Additive changes keep existing reader deliverables buildable. Do not commit generated output
-  to main; only approved, validated reader-only exports belong on `pages-content`.
-- Translate one section at a time in source order. Do not translate ahead of the source.
-- Follow the mandatory manuscript reading requirements above. Translations retain the
-  source's genre and voice; original reviews use academic prose; source-code analyses use
-  analysis-centred technical-book prose with relevant practical cases. Task prompts,
-  meeting/interview framing, answer scripts,
-  authoring progress and delivery/rebuild chatter do not belong in reader prose. Keep useful
-  technical conditions, evidence, attribution and verification limits; do not substitute keyword
-  deletion or boilerplate templates for paragraph-level review.
-- Implementation analysis follows `docs/source-analysis.md`, including fixed-version
-  excerpts, documented challenges, evidence limits and safe Markdown composition.
-  Never compile/run upstream projects, tests, benchmarks or ablations for research without
-  separate explicit authorization. Read-only source checks and reader tests are distinct.
-- Deliver math as native MathML, without unresolved TeX or runtime math renderers. In an
-  explicitly selected Pandoc project, use its documented Markdown/math source syntax and
-  build-time conversion; preserve existing MathML rather than bulk-rewriting old manuscripts.
-  Prefer supported Markdown semantics over hand-written layout HTML; syntax and renderer
-  selection belong to `docs/markdown.md`, presentation to the shared theme/template.
-- Keep figures, CSS and scripts as real files referenced by relative paths. Do not introduce
-  `data:` image URIs into the default reader. `tools/pack.py` is an opt-in export only.
-- Offline builds use installed fonts and do not embed or download them. The authorized
-  Pages export is the exception: `tools/pages_fonts.py` downloads hash-pinned OFL fonts to
-  system TEMP and publishes renamed WOFF2 subsets plus licenses on `pages-content` only.
-  Do not vendor font binaries into main or redistribute Microsoft Times New Roman.
-- References and the author list are intentionally not translated. Retain original
-  bibliography data locally even when the reader replaces its visible list with citation
-  links/cards. Never invent reference identities or choose ambiguous matches.
-- Reader typography and modal behavior belong to the shared styles/script. Keep source,
-  licensing and reading-limit notes beneath the title, not as publishing-style body sections;
-  see `docs/reader.md` for HTML-first layout guidance, presentation profiles and progressive
-  fallback behavior.
-- Before translating a rights-restricted published paper, first look for its corresponding
-  arXiv preprint. Confirm authors, identity, fixed version and a license permitting adaptations;
-  being on arXiv is not itself permission. Use that version as the full translation source.
-  Cite the published paper for revisions, without reproducing its complete content by default.
-- Do not maintain `.pagesignore` as a substitute for source/rights review. Public exports
-  remain explicitly approved reader-only snapshots. Personal learning and translation-only
-  publication do not grant additional rights. History rewrites/artifact deletion still require
-  explicit owner authorization; no rewrite can recall third-party clones or caches.
-- Register a project by writing `dist/<slug>/work/paper.json`, never per-project tool constants.
-  Slugs match `^[a-z0-9]+(?:-[a-z0-9]+)*$`, not Chinese titles.
-- Original source-code analyses are not PDF/web translations. They may retain `work/meta.json`
-  with the inspected local repository and exact commit, section Markdown, and a local
-  `work/rebuild.py` that uses the shared builder. Do not invent a PDF/web manifest merely to
-  register an analysis. Do not copy external repositories wholesale by default. Owner-requested
-  relocation may move an existing checkout into ignored `repos/<repository>/`, preserving
-  its independent Git history, uncommitted files and license. Never stage or publish that tree;
-  update canonical path metadata without changing the inspected commit. Keep experiments in TEMP.
-- Keep authored local-only material intact when changing the pipeline. Migration authorization
-  permits relocation and path metadata updates, not rewriting translations or figure images.
+- Translate one section at a time in source order; never translate ahead of the source.
+- Translations keep the source's genre, voice, argument and qualifications. Original reviews use
+  academic prose and organize evidence by topic, not paper by paper.
+- Explain mechanisms, their prior constraints, why benefits can arise, and what they cost.
+  Separate mathematical properties, explanatory inference and reported experiments.
+- Deliver math as native MathML with no runtime renderer; keep real relative files for figures,
+  styles and scripts; no `data:` image URIs and no font redistribution in this repository.
+- References and author lists are not translated; bibliography data stays local even when the
+  reader replaces the visible list with citation links.
+- Reader pages stand alone: no cross-project page references; restate a needed conclusion with
+  its conditions and cite primary sources.
+- Keep authoring instructions, chapter-title maps, batch records and review logs out of rendered
+  prose; they belong in maintenance files or task state under TEMP.
+- Do not run upstream projects, tests, benchmarks or experiments for research without separate
+  explicit authorization. Read-only source inspection and reader builds are distinct.
 
-## Survey conventions
+## Change discipline
 
-- Self-authored reviews organize evidence and explanations by topic. Retain accurate source
-  attribution, distinguish reported findings from original analysis, and do not copy paper text.
-  New scopes and publication require explicit owner direction; unreviewed drafts remain local.
-- `tools/survey.py` is a legacy, direction-agnostic builder separate from the paper builder.
-  Its inputs use `survey/papers/<slug>/{meta.json,abstract.md}` and hub `{{paper:<slug>}}`
-  markers, never tool constants. The schema describes compatibility, not an instruction to
-  create or restore a dataset. Do not modify or publish existing `survey/` source material
-  as part of pipeline cleanup.
-- Hub cards and detail pages come from the same metadata. Fail on markers without folders
-  and folders without markers. Repeated references deduplicate reading order; only HTML IDs
-  gain suffixes (`paper-<slug>`, then `paper-<slug>--2`).
-- Citation counts are nullable: unverified means `null`, not zero. Verified counts carry
-  `cites_asof` and `cites_source`; `cites_matched_title` records the API-matched title.
-  Local provenance scripts must not invent counts or overwrite verified fields.
-- Keep the survey ignore rule anchored (`/survey/`), so tracked `src/survey/` is not swallowed.
-  `git ls-files survey` stays empty. Keep translations and extracted material out of all
-  future commits; never relax ignore rules or use `git add -f` to publish them.
+- `src/` is the only source of reader presentation. Change styles or behaviour there, never in a
+  built page or in a project folder.
+- Additive changes keep existing readers buildable. Generated HTML is never committed here.
+- Temporary plans, reports, logs and experiments use absolute paths under the managed project
+  TEMP; keep no cache directory in this checkout.
+- `docs/` describes durable behaviour only: no task progress, approvals or execution history.
+  Version changes belong in `CHANGELOG.md`.

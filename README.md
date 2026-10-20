@@ -1,152 +1,52 @@
-# Paper Translation Project
+# Paper Translation Library
 
-A Markdown-first pipeline for offline-readable Chinese HTML. Python handles extraction and
-build orchestration; the optional Pandoc renderer supplies document-native Markdown, figures,
-footnotes and build-time MathML. Existing Python-Markdown projects remain buildable.
-Shared reader assets, citations and optional question banks use the same delivery pipeline.
-Translations are authored in source order; original reviews and source-code books use the
-same reader without inventing a PDF manifest.
+文档、写作规范与阅读页渲染资源的仓库。成稿的正文、源 PDF、参考材料与执行工具都在仓库之外，
+因此一次克隆只能得到规范与呈现层，不能重建页面。
 
-## Publication and source boundaries
-
-- `main` contains tools, tests and documentation only.
-- Approved **original reviews and source-code books** can publish reader-only snapshots on
-  `pages-content` and GitHub Pages. Paper translations and their figure crops remain local-only.
-- `dist/`, `/survey/` and owner-approved `repos/` checkouts are ignored. Never force-add them.
-- `work/` is canonical rebuilding material, not a cache. **Never clean the project by deleting
-  `dist/`**, and do not copy external source PDFs into the workspace.
-- The pipeline MIT license does not license papers, crops or upstream code quotations.
-  Attribution and permission are separate from export eligibility; see [NOTICE.md](NOTICE.md).
-
-## Setup
-
-Python 3.12+ is required; dependency pins were verified on Python 3.14.
+## 仓库里有什么
 
 ```text
-python tools/dev.py setup
-python tools/dev.py env
+docs/                写作规范、方法、阅读页规则、流水线接口（见 docs/README.md）
+.agents/skills/      写作、翻译、综述三个可复用入口
+src/                 阅读页模板、样式与脚本（页面呈现的唯一来源）
+NOTICE.md/LICENSE    流水线 MIT 许可与第三方权利边界
 ```
 
-Use your Python 3.12+ command (`python` or `python3`). The portable runner creates an external
-standard-library `venv`, installs pinned requirements with pip, and routes Python/pytest/ruff/pip
-caches to system TEMP. `env` prints its interpreter, `project_temp` and environment as JSON.
-No shell activation, PowerShell or Node package installation is required. Add `--pages` to
-`setup` for publication dependencies, or `--browser` for optional Playwright (not a browser download).
-For new Markdown-first projects use `python tools/dev.py setup --pandoc`, then select
-`"renderer": "pandoc"` in `work/reader.json`; see [supported author syntax](docs/markdown.md).
-The pinned binary stays in the external venv; builds do not download it or add a math runtime.
+`src/` 是页面呈现的权威来源：版式、术语表与出处说明的样式、原生 MathML 的排版、问答页的交互
+与无脚本回退都在这里。修改样式只改 `src/`，重新发布时由本地流水线把运行时组合进快照。
 
-Use `python tools/dev.py run -- ...` to invoke that interpreter with the correct environment.
-TEMP contains `tasks/` for plans, `reports/` for evidence and `scratch/` for experiments. Recreate
-the environment if TEMP is cleared; never keep the only copy of useful source material there.
-Existing Windows commands remain compatible: `. .\tools\dev-env.ps1` exposes `$Python` and
-`$ProjectTemp`; it delegates environment preparation to Python.
+## 仓库外有什么
 
-## Quick commands
+| 位置 | 内容 |
+|---|---|
+| `%TEMP%\PaperTranslationWork\pipeline\` | Python 工具、测试、`pyproject.toml` 与依赖锁定 |
+| `%TEMP%\PaperTranslationWork\dist\` | 各项目的正文、图、术语表与已构建的阅读页 |
+| `%TEMP%\PaperTranslationWork\repos\` | 源码解读所用的固定提交检出 |
+| `%TEMP%\PaperTranslationWork\sources\` | 外部原件（论文与书籍 PDF） |
 
-Register PDF/web projects with `dist/<slug>/work/paper.json`; use lowercase English slugs.
-`--paper` is required when several projects are registered. Extraction reads the external
-original in place; rebuilding needs only the retained work materials.
+流水线目录用目录联接把仓库的 `src/` 与数据根的 `dist/`、`repos/` 挂进来，所以工具看到的是同一份
+数据，仓库不需要知道它们的位置。TEMP 会被系统清理，这些内容没有第二份副本。
 
-```text
-python tools/dev.py run -- tools/extract.py --paper my-paper --pdf "PATH_TO_EXTERNAL_ORIGINAL.pdf"
-python tools/dev.py run -- tools/build.py --paper my-paper
-python tools/dev.py run -- tools/coverage.py --paper my-paper
-python tools/dev.py run -- tools/manuscript_check.py --paper my-paper
-python tools/dev.py run -- tools/assets.py
-python tools/dev.py run -- tools/pack.py --paper my-paper --out dist/my-paper.html
-```
-
-Replace the PDF placeholder with its existing external absolute path. Asset refresh changes
-shared runtime, not article prose; the pack command is an optional single-file export.
-The manuscript check triages prose against the writing standards (Han/Latin spacing,
-amount units, punctuation, quotes, term case) and adds advisories for number grouping, range
-connectors, in-paragraph term mixing and acronyms missing from `work/glossary.md`. It masks
-code, math, markup and URLs, so its hits still need paragraph-level reading; `--strict` gates
-only unambiguous violations.
-
-A source-code book instead uses its canonical `work/meta.json`, sections and local
-`work/rebuild.py`, which calls the shared builder. The legacy survey builder is separate:
-`python tools/dev.py run -- tools/survey.py`. Its schema is compatibility documentation, not a request to
-create or restore a dataset.
-
-Open the generated `index.html` directly. A portable folder copy includes the selected
-reader/figures and the sibling `dist/assets/` runtime. Default readers use installed fonts,
-real relative files and no runtime math/highlighting service. The optional packer can inline
-assets; Pages uses separately licensed, hash-pinned font subsets.
-
-## Layout
-
-```text
-dist/<slug>/index.html             generated reader
-dist/<slug>/assets/figures/        reader-specific figures
-dist/assets/{styles,scripts}/     one shared runtime
-dist/<slug>/work/
-  paper.json or meta.json         canonical identity and inspected version
-  content/                       canonical sections and included subdocuments
-  glossary.md                    binding terminology
-  reader.json, reader-meta.md     citation/presentation metadata and rights notes
-  assets/figures/                 retained rebuild figures
-  reference/                     useful local source material and research records
-.agents/skills/                  portable manuscript task-entry skills
-src/                             shared templates, styles and scripts
-tools/                           pipeline and maintenance entry points
-tests/                           synthetic fixtures and regression tests
-repos/                           ignored, independently versioned source checkouts
-survey/                          ignored legacy survey inputs
-```
-
-Rebuilds preserve `work/`; do not hand-edit generated HTML or figure crops. External source
-checkouts retain their own Git history, modifications and upstream licenses. Experiments and
-build directories belong in TEMP, not in those checkouts.
-
-## Local data root
-
-`dist/` and `repos/` are local-only by rule, and they may also live outside the checkout. This
-machine keeps both under `%TEMP%\PaperTranslationWork\`, next to `sources/` for external
-originals, and mounts them in the repository as directory junctions so that the documented
-`dist/<slug>/...` and `repos/<name>/...` paths keep working:
+常用命令（PowerShell，先设一次 `$PIPE`）：
 
 ```powershell
-$R = Join-Path $env:TEMP 'PaperTranslationWork'
-New-Item -ItemType Junction -Path .\dist  -Target (Join-Path $R 'dist')
-New-Item -ItemType Junction -Path .\repos -Target (Join-Path $R 'repos')
+$PIPE = "$env:TEMP\PaperTranslationWork\pipeline"
+python "$PIPE\tools\dev.py" setup --pages
+python "$PIPE\tools\dev.py" run -- "$PIPE\dist\<slug>\work\rebuild.py"
+python "$PIPE\tools\dev.py" run -- "$PIPE\tools\manuscript_check.py" --paper <slug>
 ```
 
-Two consequences matter for maintenance. A project's `work/rebuild.py` must locate the pipeline
-root from its **unresolved** path and resolve only its working tree; `Path.resolve()` on the
-whole path leaves the checkout and the shared builder then rejects its own content directory.
-TEMP is disposable, and the environment helper recreates the venv without restoring this data
-root, so an independent copy of `work/` and of any checkout is still the only durable backup.
-The data root holds canonical reader material only: scratch scripts, extracted page text,
-reports and Pages staging output stay under the managed project TEMP instead, and the checkout
-itself keeps no cache directory.
+## 发布
 
-## Choose the task, then the document
+站点由 `pages-content` 分支直接发布（GitHub Pages 的分支部署，Source 设为该分支的根目录），
+不再经过 Actions：仓库里没有部署脚本，也没有工作流。发布流程是本地导出、本地校验、推送内容
+分支，具体步骤与校验项见 [docs/pipeline.md](docs/pipeline.md)。
 
-Start with [the task workflow](docs/workflow.md), not the entire documentation directory.
-[docs/README.md](docs/README.md) routes to the specific authoring, schema, reader or publication
-specification. Writing standards still apply in full to the relevant manuscript task.
-For reusable writing, translation and review entry points, see [project writing Skills](docs/authoring-skills.md).
-They work with the local reader pipeline, not a new cloud-document or fixed article-template workflow.
+`pages-content` 只含渲染结果与字体许可声明，不含 `work/`、源 PDF、抽取数据或本仓库的脚本。
+翻译与其裁图保留原作者权利，不适用本仓库的 MIT 许可。
 
-- Content review: reuse local sources, inspect complete answers and check only the disputed
-  claims. A download, source count or passing structural test is not semantic coverage.
-- Manuscript prose: run `tools/manuscript_check.py` before and after editing, then read the
-  flagged paragraphs; a clean scan is a formatting result, not a writing-quality result.
-- HTML research: use the bounded readable view described in the workflow before raw markup.
-- Code changes: see [CONTRIBUTING.md](CONTRIBUTING.md); agent safety rules are in [AGENTS.md](AGENTS.md).
-- Publishing: follow [docs/pages.md](docs/pages.md). Stage approved readers in TEMP, validate,
-  and push normally; do not rewrite history or publish local revisions without authorization.
+## 边界
 
-## Pipeline checks
-
-```text
-python tools/dev.py run -- -m pytest
-python tools/dev.py run -- -m ruff check .
-python tools/dev.py run -- -m ruff format --check .
-```
-
-Synthetic tests work without local papers. Optional browser tests use an installed isolated
-Chrome/Chromium, not a signed-in profile. Build/coverage/browser checks validate their stated
-engineering scope, not the correctness of every technical answer or upstream performance.
+- 仓库不接收 Python 脚本、系统专用配置或数据文件；它们属于流水线目录。
+- 翻译类项目的阅读页仅在本地保留；公开快照只包含明确批准的自撰综述与源码解读。
+- 事实与写作要求以 docs 为准；当前目录结构以 [docs/pipeline.md](docs/pipeline.md) 为准。

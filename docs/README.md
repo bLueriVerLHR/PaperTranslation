@@ -1,36 +1,14 @@
-# Documentation map
+# 文档索引
 
-Select the task first. These documents are interfaces and procedures, not a record of the
-current task, approval history or published inventory.
+本仓库只保留写作规范、方法、渲染资源与技能。执行工具、测试与阈值数据在仓库之外，见
+[pipeline.md](pipeline.md)。
 
-## Task entry points
+| 文档 | 覆盖范围 |
+|---|---|
+| [writing.md](writing.md) | 体裁判断、机制解释深度、证据与数字、术语排版、逐段审校 |
+| [method.md](method.md) | 原创综述的证据组织、来源核对、源码解读的机制与取舍分析 |
+| [reader.md](reader.md) | 阅读页版式、可见术语、支持的 Markdown 语义、问答页交互与无脚本回退 |
+| [pipeline.md](pipeline.md) | 流水线接口、数据模型、发布流程、任务工作流与检查边界 |
 
-| Task | Start here | Read only when needed |
-|---|---|---|
-| Setup and routine commands | [Root README](../README.md) | [Contributing](../CONTRIBUTING.md) for code changes |
-| Content/index lookup, timed review and validation | [Workflow](workflow.md) | Project `work/README.md`, glossary and relevant research records |
-| Reuse an authoring Skill | [Project writing Skills](authoring-skills.md) | Choose by original writing, source-aligned translation or evidence-based review; standards still apply in full |
-| Choose Markdown syntax or document renderer | [Markdown authoring](markdown.md) | [Reader](reader.md) for presentation, [Architecture](architecture.md) for the existing builder |
-| Write, translate or polish Chinese prose | [Writing standards](chinese-writing.md), in full | [Review methods](review-method.md) for original reviews |
-| Analyze code or compose subdocuments | [Source analysis](source-analysis.md), in full | [Architecture](architecture.md#self-authored-projects) for builder interfaces |
-| Author a question bank | [Questions](questions.md), in full | [Reader](reader.md) for shared presentation behavior |
-| Inspect a manifest or extraction interface | [Architecture](architecture.md) at the relevant section | Schema examples are specifications, not runtime task context |
-| Change reader presentation | [Reader](reader.md) | [Questions](questions.md) for question-card behavior |
-| Stage, push or verify a public reader | [Pages](pages.md) | [NOTICE](../NOTICE.md) and retained upstream notices for rights |
-
-## One owner per kind of information
-
-- `AGENTS.md`: durable execution constraints; `CONTRIBUTING.md`: code contribution gates.
-- `architecture.md`: data models, invariants and interface examples, not routine task instructions.
-- Writing/review/source-analysis specifications: content quality and evidence requirements.
-- `workflow.md`: bounded reading, batch review and when to run checks.
-- Project `work/`: canonical content, identity, terminology and reusable research evidence.
-- `CHANGELOG.md`: actual version changes; system TEMP: plans, approvals, runs and disposable reports.
-- `LICENSE`/`NOTICE.md`: licensing boundaries. Neither a source download nor export eligibility
-  is permission to publish it. The public file inventory is generated as `site-manifest.json`.
-
-Before editing documentation, inspect the complete affected paragraphs. Remove verified
-redundancy or obsolete instructions, not technical conditions, source material or rights notes.
-Link to the owning specification rather than maintaining competing copies. Read the applicable
-manuscript standards in full once at the start of the manuscript task; do not replace that
-reading with this routing table or a keyword scan.
+按任务选择入口：改稿件读 writing.md 与 method.md；改呈现读 reader.md；改发布或迁移目录读
+pipeline.md。目录与数据模型的事实以 pipeline.md 为准，写作要求以 writing.md 为准，两者不重复。

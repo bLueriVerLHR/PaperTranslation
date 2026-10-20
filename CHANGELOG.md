@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Repository reduced to docs, skills and rendering assets
+
+- Move `tools/`, `tests/`, `pyproject.toml` and the dependency pins to
+  `%TEMP%\PaperTranslationWork\pipeline\`; the pipeline joins this repository's `src/` and the
+  data root's `dist/` and `repos/` by directory junctions, so builds still read the same tree.
+  Project rebuild scripts resolve the pipeline through `PT_PIPELINE`, a sibling `pipeline/`
+  directory or an upward search for `tools/build.py`.
+- Consolidate eleven `docs/` files into four: writing, method, reader, pipeline. Existing
+  normative text is preserved; only headings, intros and relative links change. Add a
+  current-form section to `docs/pipeline.md` that overrides stale file locations below it.
+- Publish from the `pages-content` branch instead of GitHub Actions: remove
+  `.github/workflows/pages.yml`, drop the content branch's workflow bootstrap, and state the
+  branch-deployment setting in `README.md`. Export, font subsetting, `--check` and live
+  verification now run only locally.
+- Remove `CONTRIBUTING.md` (no code remains here) and the tests that asserted repository
+  layout, workflow permissions or skill links; the pipeline suite passes without them.
+
 ### Local data root outside the checkout
 
 - Keep `dist/` and `repos/` in `%TEMP%\PaperTranslationWork\` and mount them as directory
