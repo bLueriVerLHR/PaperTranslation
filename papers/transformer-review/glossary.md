@@ -15,7 +15,20 @@
 | multi-head attention (MHA) | 多头注意力（MHA） | 多组投影并行计算，之后拼接和投影；标准形式中各头有独立 K／V |
 | multi-query attention (MQA) | 多查询注意力（MQA） | 多个查询头共享同一套 K／V，不是只保留一个查询头 |
 | grouped-query attention (GQA) | 分组查询注意力（GQA） | 组内查询头共享 K／V；分组不指切分输入序列 |
-| Multi-head Latent Attention (MLA) | 多头潜在注意力（MLA） | 联合低维参数化内容 K／V，缓存潜在向量及解耦的位置键 |
+| multi-head Latent Attention (MLA) | 多头潜在注意力（MLA） | 联合低维参数化内容 K／V，缓存潜在向量及解耦的位置键 |
+| linear attention / kernelized linear attention | 线性注意力／核化线性注意力 | 把相似性写成有限维特征內积，交换求和顺序，用累计状态代替逐位置键值 |
+| state | 状态 | 递推机制用矩阵或向量汇总的历史，不等同于 KV 缓存，也不保证逐位置可寻址 |
+| decay | 衰减 | 旧状态按位置距离或输入系数缩小的机制；标量、通道向量与逐头取值需分别说明 |
+| delta rule / write strength | delta 规则／写强度 | 用目标值减当前读值修正状态的写入规则；写强度 β 越大修正越彻底 |
+| gated delta network (GDN) | 门控 delta 网络（GDN） | 在 delta 规则上乘输入相关的逐头衰减 α；不是门控注意力的别名 |
+| Kimi Delta Attention (KDA) | Kimi Delta 注意力（KDA） | 把 GDN 的逐头标量门控换成逐通道对角门控；名称保留 |
+| diagonal-plus-low-rank (DPLR) | 对角加低秩（DPLR） | 转移矩阵形如 D − abᵀ 的状态演化族；可分块但数值与吞吐代价各异 |
+| WY representation | WY 表示 | 把一叠 Householder 乘积压成两个小矩阵的紧凑形式，使分块训练可用矩阵乘 |
+| state space model (SSM) / selection | 状态空间模型（SSM）／选择性 | 连续时间系统离散化后的递推；选择性指 Δ、B、C 随输入变化 |
+| RWKV | RWKV | 从线性注意力出发、衰减写成通道向量的递推结构；名称保留 |
+| Native Sparse Attention (NSA) | 原生稀疏注意力（NSA） | 压缩、选择、窗口三条分支并联，在预训练阶段就打开稀疏 |
+| needle-in-a-haystack (NIAH) / S-NIAH | 单针检索（S-NIAH） | 把键值对埋进长上下文并要求原样取回的合成评测；S-NIAH 指单针变体 |
+| L2 normalization | L2 归一化 | 把查询与键的范数缩到单位长度的归一化，用于稳定递推类机制的训练 |
 | DeepSeek Sparse Attention (DSA) | DeepSeek 稀疏注意力（DSA） | 用轻量索引器选择历史 token，主分支在入选集合上计算 |
 | MiniMax Sparse Attention (MSA) | MiniMax 稀疏注意力（MSA） | 每个 GQA 组独立选历史块；与多头自注意力、多序列比对同名不同义 |
 | lightning indexer / index branch | 轻量索引器／索引分支 | 为主注意力选择候选的代理，不等于主注意力权重 |

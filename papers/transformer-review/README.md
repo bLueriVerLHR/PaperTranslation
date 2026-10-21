@@ -1,6 +1,6 @@
 # Transformer 综述：源稿与构建
 
-本项目是独立的原创学习综述，不是单篇论文的翻译或本地代码仓库分析。身份存于 `meta.json`，不使用 PDF/web 的 `paper.json`。六个主题的阅读顺序由 `meta.json` 与 `content/` 文件名共同规定；增删章节时同步更新。术语以 `glossary.md` 为唯一源稿，`reader.json` 的 `show_glossary: true` 将其直接纳入正文与目录，不另外复制对应表。
+本项目是独立的原创学习综述，不是单篇论文的翻译或本地代码仓库分析。身份存于 `meta.json`，不使用 PDF/web 的 `paper.json`。七个主题的阅读顺序由 `meta.json` 与 `content/` 文件名共同规定；增删章节时同步更新。术语以 `glossary.md` 为唯一源稿，`reader.json` 的 `show_glossary: true` 将其直接纳入正文与目录，不另外复制对应表。
 
 范围是通用架构与序列建模。按任务与模态区分研究设置，不将所有工作硬套入语言模型的训练与部署流程。综述正文围绕机制、推导与证据组织，不逐篇堆叠摘要。文献记录只加入核实过的身份、版本和链接；未验证的信息不伪装成研究结论。
 
@@ -43,17 +43,19 @@ DeepInfer 子稿按固定提交静态阅读。它的 `vendor/` 子模块（Flash
 
 ## 基础机制与其他主题的修改入口
 
-`content/01-architecture.md` 只组合章内子稿：`architecture/{representation,attention,blocks,moe,expert-parallel,model-families,interaction-paths,mla,dsa,msa,linear-attention,complexity,survey-taxonomy}.md`。位置与置换、注意力与梯度、残差与归一化、条件生成、稀疏传播、核化与秩约束、成本拆分分别维护，修改机制解释不必重写整章。
+`content/01-architecture.md` 只组合章内子稿：`architecture/{representation,attention,blocks,moe,expert-parallel,model-families,interaction-paths,complexity,survey-taxonomy}.md`。位置与置换、注意力与梯度、残差与归一化、条件生成、稀疏传播、连接拓扑与成本拆分分别维护，修改机制解释不必重写整章。
 
-MoE 路由／均衡在 `architecture/moe.md`，EP 的分派、返回合并和通信口径在 `expert-parallel.md`；`mla.md` 解释 MHA／MQA／GQA、潜在缓存与吸收，`dsa.md` 和 `msa.md` 分别维护 DeepSeek token 选择与 MiniMax 分组块选择。固定来源 [31]–[36]、数学前提和核对边界见 `reference/moe-attention-mechanisms.md`；注意力预算与服务状态容量的衔接在 `inference/execution-cache.md`。这些稿件不依赖运行上游模型或内核。
+`content/02-attention.md` 是独立的注意力机制章，组合 `attention/{overview,head-sharing,mla,linear-attention,retention,delta-rule,gdn,kda,ssm-rwkv,sliding-window,nsa,dsa,msa,ledger}.md`。三组按继承关系排列：KV 共享与压缩（MHA→MQA→GQA→MLA）、状态递推（核化线性注意力→RetNet→DeltaNet→GDN→KDA，Mamba／RWKV 对照）、读取集合（SWA→NSA→DSA→MSA），最后一节按容量、读取量与算术量合账。新增来源 [37]–[50] 的固定版本、章节定位与推导前提见 `reference/attention-mechanisms.md`。
 
-`content/02-pretraining.md` 组合 `pretraining/{objectives,masked-language,reconstruction,contrastive,data-organization,survey-data,optimization,evaluation}.md`；原始定义与原创推导的范围见 `reference/pretraining-mechanisms.md`。
+MoE 路由／均衡在 `architecture/moe.md`，EP 的分派、返回合并和通信口径在 `expert-parallel.md`。固定来源 [31]–[36] 中属于 MoE／EP 的部分与模型族说明见 `reference/moe-attention-mechanisms.md`；注意力预算与服务状态容量的衔接在 `inference/execution-cache.md`。这些稿件不依赖运行上游模型或内核。
 
-`content/03-posttraining.md` 组合 `posttraining/{task-adaptation,peft,continual-learning,instruction-sft,reward-policy,direct-preference,agent-environment,distillation,calibration,assessment}.md`；机制、原始论文版本与推导条件见 `reference/posttraining-mechanisms.md`。
+`content/03-pretraining.md` 组合 `pretraining/{objectives,masked-language,reconstruction,contrastive,data-organization,survey-data,optimization,evaluation}.md`；原始定义与原创推导的范围见 `reference/pretraining-mechanisms.md`。
 
-`content/04-inference.md` 组合 `inference/{execution-cache,optimization-levels,quantization,sampling,service-environment}.md`，分别维护执行／缓存、优化分层、量化误差补偿、采样校正与端到端资源路径。
+`content/04-posttraining.md` 组合 `posttraining/{task-adaptation,peft,continual-learning,instruction-sft,reward-policy,direct-preference,agent-environment,distillation,calibration,assessment}.md`；机制、原始论文版本与推导条件见 `reference/posttraining-mechanisms.md`。
 
-`content/06-downstream.md` 组合 `downstream/{language,rag-design,vision,multimodal-audio,time-series,protein-assessment}.md`，分别维护语言与业务预测、RAG、检测、多模态与语音、时间预测以及蛋白质探测。新增原始来源 [25]–[30] 与推导条件见 `reference/inference-applications-mechanisms.md`；不复制完整论文或原图。Zotero 筛选身份和专题证据分别保留在 `reference/zotero-surveys.json` 与 `reference/zotero-survey-reading.md`；原 PDF 继续留在外部 Zotero 存储中，不复制入 `work/`。
+`content/05-inference.md` 组合 `inference/{execution-cache,optimization-levels,quantization,sampling,service-environment}.md`，分别维护执行／缓存、优化分层、量化误差补偿、采样校正与端到端资源路径。
+
+`content/07-downstream.md` 组合 `downstream/{language,rag-design,vision,multimodal-audio,time-series,protein-assessment}.md`，分别维护语言与业务预测、RAG、检测、多模态与语音、时间预测以及蛋白质探测。新增原始来源 [25]–[30] 与推导条件见 `reference/inference-applications-mechanisms.md`；不复制完整论文或原图。Zotero 筛选身份和专题证据分别保留在 `reference/zotero-surveys.json` 与 `reference/zotero-survey-reading.md`；原 PDF 继续留在外部 Zotero 存储中，不复制入 `work/`。
 
 ## 文献与保留的来源资料
 

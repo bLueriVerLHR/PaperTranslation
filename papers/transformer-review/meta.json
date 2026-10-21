@@ -22,30 +22,34 @@
     "training_stages": "apply only where relevant to the task; not a mandatory lifecycle"
   },
   "created_on": "2026-10-05",
-  "updated_on": "2026-10-20",
+  "updated_on": "2026-10-21",
   "sections": [
     {
       "file": "01-architecture.md",
       "title": "基础原理与架构演进"
     },
     {
-      "file": "02-pretraining.md",
+      "file": "02-attention.md",
+      "title": "注意力机制：共享、压缩、递推与选择"
+    },
+    {
+      "file": "03-pretraining.md",
       "title": "预训练阶段"
     },
     {
-      "file": "03-posttraining.md",
+      "file": "04-posttraining.md",
       "title": "后训练阶段"
     },
     {
-      "file": "04-inference.md",
+      "file": "05-inference.md",
       "title": "推理阶段"
     },
     {
-      "file": "05-frameworks.md",
+      "file": "06-frameworks.md",
       "title": "训练／推理框架"
     },
     {
-      "file": "06-downstream.md",
+      "file": "07-downstream.md",
       "title": "下游任务"
     }
   ]

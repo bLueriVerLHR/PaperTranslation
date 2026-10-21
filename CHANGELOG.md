@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Attention mechanism chapter
+
+- Add chapter 2, `papers/transformer-review/content/02-attention.md`, ordering MHA → MQA → GQA →
+  MLA, linear attention → RetNet → DeltaNet → GDN → KDA (with Mamba and RWKV as a parallel
+  lineage), and SWA → NSA → DSA → MSA by inheritance rather than by date. Move
+  `architecture/{mla,dsa,msa,linear-attention}.md` into `content/attention/`; chapters 02–06 shift to
+  03–07, so saved `sec-02-*` … `sec-06-*` links now land on the renumbered sections.
+- Add sources [37]–[50]: MQA, linear attention, the delta rule, RetNet, parallel DeltaNet, GDN,
+  KDA, NSA, Mistral 7B sliding window, Mamba, Mamba2, RWKV‑4, RWKV‑7, plus the Qwen3‑Next and
+  Kimi Linear configurations used for adoption evidence. Fixed versions, the range actually read
+  and the boundary between reported results and this review's own derivations stay in
+  `reference/attention-mechanisms.md` under the local data root.
+
 ### Reader sources live in the repository
 
 - Move each reader's canonical sources into `papers/<slug>/`: `meta.json`, `content/*.md`,

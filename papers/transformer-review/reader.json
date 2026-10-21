@@ -147,6 +147,62 @@
     "36": {
       "text": "Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023).",
       "url": "https://arxiv.org/abs/2305.13245v3"
+    },
+    "37": {
+      "text": "Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019).",
+      "url": "https://arxiv.org/abs/1911.02150v1"
+    },
+    "38": {
+      "text": "Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, François Fleuret. Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention. ICML 2020; inspected arXiv:2006.16236v3 (2020).",
+      "url": "https://arxiv.org/abs/2006.16236v3"
+    },
+    "39": {
+      "text": "Imanol Schlag, Kazuki Irie, Jürgen Schmidhuber. Linear Transformers Are Secretly Fast Weight Programmers. ICML 2021; inspected arXiv:2102.11174v3 (2021).",
+      "url": "https://arxiv.org/abs/2102.11174v3"
+    },
+    "40": {
+      "text": "Yutao Sun, Li Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, Furu Wei. Retentive Network: A Successor to Transformer for Large Language Models. arXiv:2307.08621v4 (2023).",
+      "url": "https://arxiv.org/abs/2307.08621v4"
+    },
+    "41": {
+      "text": "Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision).",
+      "url": "https://arxiv.org/abs/2406.06484v6"
+    },
+    "42": {
+      "text": "Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).",
+      "url": "https://arxiv.org/abs/2412.06464v3"
+    },
+    "43": {
+      "text": "Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).",
+      "url": "https://arxiv.org/abs/2502.11089v2"
+    },
+    "44": {
+      "text": "Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023).",
+      "url": "https://arxiv.org/abs/2310.06825v1"
+    },
+    "45": {
+      "text": "Albert Gu, Tri Dao. Mamba: Linear-Time Sequence Modeling with Selective State Spaces. arXiv:2312.00752v2 (2024 revision).",
+      "url": "https://arxiv.org/abs/2312.00752v2"
+    },
+    "46": {
+      "text": "Tri Dao, Albert Gu. Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality. arXiv:2405.21060v1 (2024).",
+      "url": "https://arxiv.org/abs/2405.21060v1"
+    },
+    "47": {
+      "text": "Bo Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Arcadinho, Stella Biderman, et al. RWKV: Reinventing RNNs for the Transformer Era. arXiv:2305.13048v2 (2023).",
+      "url": "https://arxiv.org/abs/2305.13048v2"
+    },
+    "48": {
+      "text": "Bo Peng, Ruichong Zhang, Daniel Goldstein, Eric Alcaide, Xingjian Du, et al. RWKV-7 \"Goose\" with Expressive Dynamic State Evolution. arXiv:2503.14456v2 (2025).",
+      "url": "https://arxiv.org/abs/2503.14456v2"
+    },
+    "49": {
+      "text": "Qwen Team. Qwen3-Next-80B-A3B-Instruct model card and configuration. Hugging Face, 2025-09.",
+      "url": "https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct"
+    },
+    "50": {
+      "text": "Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).",
+      "url": "https://arxiv.org/abs/2510.26692v2"
     }
   }
 }

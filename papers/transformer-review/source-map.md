@@ -127,11 +127,11 @@ Jev 对有限类型输出的约束与判断正确性、概率校准是不同问�
 
 原始笔记完整保留，但不参与自动正文拼接或单独发布；原有 LaTeX、历史路径、功能比较和面试表述不因迁移而获认可。路径对应与局部核对见 `reference/framework-notes/LOCATION.md`。源码和来源笔记各自保持唯一位置，不复制代码树到 `work/`；源码许可证仍归上游。实验、扫描、报告与缓存放系统 TEMP。
 
-## MoE、EP 与注意力状态／连接
+## 注意力机制章与新增来源
 
 `reference/moe-attention-mechanisms.md` 保存 [31]–[36] 的固定修订、相关章节／公式与原创推导前提。Switch 提供路由门值、容量与专家并行基础；DeepSeek-V2 提供细粒度／共享专家及 MLA，DeepSeek-V3 提供 sigmoid、选择偏置和节点内外通信的论文定义；DeepSeek-V3.2 提供 DSA 及 MLA 两种执行视图；MiniMax 原始论文提供 MSA 的分组块选择、双分支训练、二次索引项与 LSE 合并；GQA 原文提供 KV 共享及继续预训练的边界。
 
-规范稿为 `architecture/{moe,expert-parallel,mla,dsa,msa}.md`，由架构章按依赖顺序展开。`inference/execution-cache.md` 区分显式 KV、MLA 潜在容量和稀疏访问预算。通信字节、容量算例和单层稀疏输出界为原创解释，不是设备实测或全网络质量证明；论文执行设计不冒充固定源码审计。MSA 在此指 MiniMax Sparse Attention，不更改蛋白质主题中的 multiple sequence alignment。
+规范稿位于 `content/attention/`，由 `content/02-attention.md` 按继承关系组合：`overview`（三条轴与谱系表）、`head-sharing`（MHA→MQA→GQA）、`mla`、`linear-attention`（核化线性注意力）、`retention`（RetNet）、`delta-rule`（DeltaNet）、`gdn`、`ssm-rwkv`（Mamba／Mamba2／RWKV 对照）、`sliding-window`（SWA）、`nsa`、`dsa`、`msa`、`ledger`（三条轴上的账目）。`reference/attention-mechanisms.md` 保存 [37]–[49] 的固定修订、章节定位与实际阅读范围，并单独列出哪些说法是原文报告、哪些是本篇推导；本篇未采集被引数，也不按引用量排序。MoE 与 EP 的规范稿仍为 `architecture/{moe,expert-parallel}.md`。`inference/execution-cache.md` 区分显式 KV、MLA 潜在容量和稀疏访问预算。通信字节、容量算例和单层稀疏输出界为原创解释，不是设备实测或全网络质量证明；论文执行设计不冒充固定源码审计。MSA 在此指 MiniMax Sparse Attention，不更改蛋白质主题中的 multiple sequence alignment。
 
 ## 原始 Transformer 与术语／推理推导
 
