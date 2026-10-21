@@ -22,21 +22,21 @@
     }
   ],
   "files": {
-    "assets/fonts/fonts.css": "0eb72790f82e6dae4438e4f6b94cc01427f007f824db3e6d0f9b99f805afde4a",
-    "assets/fonts/han-bold-00.woff2": "8b0f103229278415f15715aafe12e49e59078c32d59334fcaff0ddfb01f38899",
-    "assets/fonts/han-bold-01.woff2": "ddbc1a04c6cf25fd20d5787f57f276704db7b26558b82e20a4933b31d79d5399",
-    "assets/fonts/han-bold-02.woff2": "e61f1860826328f4fd7e860df59076483f394a57a1dc438363b06a7662a0fb6a",
+    "assets/fonts/fonts.css": "59455e3ed1f596b3834c5512216ea4a7e045b2581e25d63aa6e5bb88001929a3",
+    "assets/fonts/han-bold-00.woff2": "22bdad0565d0425c51c169d432150c1b12dadb7531a1423edc7b1434813ef0b2",
+    "assets/fonts/han-bold-01.woff2": "98eca536ec8b219c43ecd574faed451e3d3e150256f1a61d5900b5bc0aed5079",
+    "assets/fonts/han-bold-02.woff2": "1a217749d1f034d2b6121eb68f6e3aa67fc6dcfbb5b1aa128ea501a520b70d91",
     "assets/fonts/han-bold-03.woff2": "86ef6ee50ec246be1b8d85febd405717630ef0d1b6d1d4af22b03f92b0a72538",
     "assets/fonts/han-OFL.txt": "9ff5bb567e1b92c801fc1069e5fbf992ff8efccacb9db94e5959a5b3ba9bb903",
-    "assets/fonts/han-regular-00.woff2": "d7d05afc6ac84564559a9b3a76cebfac394a159ac009db60b16f21b51896758e",
-    "assets/fonts/han-regular-01.woff2": "048193a239bae221833012f856b34b11272c6271d50a0cf3ea2ecc4326cacbb3",
-    "assets/fonts/han-regular-02.woff2": "2b4a10d58c95097b06374163f85d8b1f6500e0d743bf3f72bbd8b8290bb4e3aa",
+    "assets/fonts/han-regular-00.woff2": "55692c9d21bfc821bc03620abe0f414ba2454975199f357225d73dd663178a93",
+    "assets/fonts/han-regular-01.woff2": "c788bafd328be061fc8e144ebc6f30ea9360021615e5bde5c80d93bd151e2d37",
+    "assets/fonts/han-regular-02.woff2": "f4675b77c34ce8f999f4479d2bee66c64d6f1d946b7447b266d1b0d107f72bd9",
     "assets/fonts/han-regular-03.woff2": "d7ed2f844ccafb5a41b78aabc446f5805092cf3dc8ce6b4c8638b6d93f9a8d30",
-    "assets/fonts/maple-bold.woff2": "6a3b44996b66a1bcd3b933f4534bc10fd9c569f10b930155a510b5d96a9152d7",
-    "assets/fonts/maple-bolditalic.woff2": "66e603c09c234f049333ba3babb1b881abc28ed6965ac9049e792dde40330386",
-    "assets/fonts/maple-italic.woff2": "5c199bec2b5ae80357f115ad74f6001dc9db1184eec02263a1a48003e91b10ad",
+    "assets/fonts/maple-bold.woff2": "47fd4645715883a741b32da423e5e86c1cd4d50702d81e70e7d2f2d1d3a86f66",
+    "assets/fonts/maple-bolditalic.woff2": "78bc124ff7a2ad608a4c8f3a32b9066d22a3bfff446ac97286d823287260bc44",
+    "assets/fonts/maple-italic.woff2": "15da69332f3ab5ddc2677c86d9786c3599837cac6e7ed6230883c6a7fb2218fd",
     "assets/fonts/maple-OFL.txt": "eb2d28d2e565a0757e3d64e34ebb452e75a0cad87c0ab3faf4e08ba7596de902",
-    "assets/fonts/maple-regular.woff2": "db09f3889fbd924b60c093cb204f201821397150a7c6e74c7a4901491e81fe0b",
+    "assets/fonts/maple-regular.woff2": "62e1f20cbecb779bda3bc587f5fa4a8b82c7e9f99c243b7a18f9a873d5ce385a",
     "assets/fonts/math.woff2": "2d0b1d3908a25305dc6304d2090a40f316cc2ad05f03e9df9f40add9b36ce5c8",
     "assets/fonts/NOTICE.txt": "3665223e2f427c632de083a2c429de9b88d5d0e0caf467e5e1c38fffb744df19",
     "assets/fonts/ondevice-fonts.css": "814e1391434c0e6a975c208f56155b65f9d8503d0ab8c02fb0cdc72025d9aef4",
@@ -103,6 +103,6 @@
     "high-performance-communication/index.html": "d2096552a1b1e4ed60f729b74fb6dd32679ac5ef85fd5c655c3492614802842c",
     "index.html": "04f676f1d5aa6043e044b0e5953b4035ea5b6945db23d4f0cd2097e43b43f519",
     "ml-sre-ha-review/index.html": "4def5043bd7a70d0529b86f4808525f9d3a2e7eb331259c1be4cc927db5a1ce9",
-    "transformer-review/index.html": "f84be5573d49fd2fa3968383e771285f0d711cdbab2efd3ca6cf8febcd92a6b9"
+    "transformer-review/index.html": "207a3b0127d8bda2d7f8d348866baf0090e79c8a97ccaf99fc8710f7457b6633"
   }
 }
