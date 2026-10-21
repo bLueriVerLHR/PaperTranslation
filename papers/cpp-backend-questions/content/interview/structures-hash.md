@@ -21,7 +21,7 @@
 
 逐个插入 n 个元素的通用上界是对数代价的累积；自底向上建堆则不同：大多数节点靠近叶子，只需很短的向下修复。把高度为 h 的节点数以 n／2 的 h 次方作宽松上界，总代价由下式控制，因级数收敛而为线性阶：
 
-<math display="block"><mrow><mi>T</mi><mo>(</mo><mi>n</mi><mo>)</mo><mo>≤</mo><mi>C</mi><mi>n</mi><munderover><mo>∑</mo><mrow><mi>h</mi><mo>=</mo><mn>0</mn></mrow><mi>∞</mi></munderover><mfrac><mi>h</mi><msup><mn>2</mn><mi>h</mi></msup></mfrac><mo>=</mo><mn>2</mn><mi>C</mi><mi>n</mi></mrow></math>
+<math display="block"><mrow><mi>T</mi><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo><mo>≤</mo><mi>C</mi><mi>n</mi><munderover><mo>∑</mo><mrow><mi>h</mi><mo>=</mo><mn>0</mn></mrow><mi>∞</mi></munderover><mfrac><mi>h</mi><msup><mn>2</mn><mi>h</mi></msup></mfrac><mo>=</mo><mn>2</mn><mi>C</mi><mi>n</mi></mrow></math>
 
 这里 n 是元素数，C 吸收单层比较与交换的常数；整数层数及边界项不影响渐近结论。这个推导针对通常二叉堆的自底向上算法，不是所有堆结构或实现的性能保证。线程池的优先级队列也不会因为底层用堆，就自动抢占正在执行的任务。[9]
 
@@ -36,7 +36,7 @@
 
 在 m 位、n 个插入元素、近似独立均匀哈希的模型中，一个位置仍为零的概率是 <math><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mfrac><mn>1</mn><mi>m</mi></mfrac><mo>)</mo></mrow><mrow><mi>k</mi><mi>n</mi></mrow></msup></math>，大 m 时近似为指数项。再作查询位置近似独立的假设，误判概率为：
 
-<math display="block"><mrow><mi>p</mi><mo>≈</mo><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><msup><mi>e</mi><mrow><mo>−</mo><mi>k</mi><mi>n</mi><mo>/</mo><mi>m</mi></mrow></msup><mo>)</mo></mrow><mi>k</mi></msup></mrow></math>
+<math display="block"><mrow><mi>p</mi><mo>≈</mo><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><msup><mi>e</mi><mrow><mo>−</mo><mi>k</mi><mi>n</mi><mo>/</mo><mi>m</mi></mrow></msup><mo stretchy="false">)</mo></mrow><mi>k</mi></msup></mrow></math>
 
 每加一个哈希减少全部查询位偶然命中的机会，却也增加位数组占用，因此 k 不是越大越好。将 k 当作连续变量优化上述近似式，得到 <math><mi>k</mi><mo>≈</mo><mfrac><mi>m</mi><mi>n</mi></mfrac><mi>ln</mi><mn>2</mn></math>，实际还需选择整数并考虑哈希成本。这是模型推导，不能用实际相关哈希或不断增长的集合无条件套用。
 

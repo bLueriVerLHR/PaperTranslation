@@ -2,7 +2,7 @@
 
 Bruck 的核心是重排／聚合，使一个阶段搬运多个目的地或来源的数据，再通过后续阶段转发。用于 AllGather 时，已知块集合按对数阶段扩展，能处理非二次幂规模；用于 AlltoAll 时，聚合不同目的地的小块，减少小消息的启动次数，却增加本地整理和部分数据的中继。这解释了它为何常用于短消息，而非“对数轮算法在所有消息长度都更好”。本篇沿用综述的算法分类，不将 MPI Bruck 的每项实现细节直接归给 HCCL NB。[1]（表 2）
 
-Isend–Irecv AlltoAll 为各对端预投递非阻塞收发，再等待匹配完成。它暴露了并行机会，也暴露队列、临时资源和同端口多流竞争。Pairwise Exchange 把交换排成轮次，第 <math><mi>s</mi></math> 轮 rank <math><mi>i</mi></math> 向 <math><mrow><mo>(</mo><mi>i</mi><mo>+</mo><mi>s</mi><mo>)</mo><mo>mod</mo><mi>p</mi></mrow></math> 发送，从 <math><mrow><mo>(</mo><mi>i</mi><mo>−</mo><mi>s</mi><mo>)</mo><mo>mod</mo><mi>p</mi></mrow></math> 接收。每轮一个发送对象和一个接收对象，经过 <math><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow></math> 轮覆盖非本地交换。该模运算教学调度本身不要求二次幂规模；综述表中个别 Pairwise 的规模条件属于其引用的具体方案。[1]（表 2）[16]（Pairwise）
+Isend–Irecv AlltoAll 为各对端预投递非阻塞收发，再等待匹配完成。它暴露了并行机会，也暴露队列、临时资源和同端口多流竞争。Pairwise Exchange 把交换排成轮次，第 <math><mi>s</mi></math> 轮 rank <math><mi>i</mi></math> 向 <math><mrow><mo stretchy="false">(</mo><mi>i</mi><mo>+</mo><mi>s</mi><mo stretchy="false">)</mo><mo>mod</mo><mi>p</mi></mrow></math> 发送，从 <math><mrow><mo stretchy="false">(</mo><mi>i</mi><mo>−</mo><mi>s</mi><mo stretchy="false">)</mo><mo>mod</mo><mi>p</mi></mrow></math> 接收。每轮一个发送对象和一个接收对象，经过 <math><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow></math> 轮覆盖非本地交换。该模运算教学调度本身不要求二次幂规模；综述表中个别 Pairwise 的规模条件属于其引用的具体方案。[1]（表 2）[16]（Pairwise）
 
 Van de Geijn Broadcast 先 Scatter，再 AllGather：root 不必在树的每一层发送完整长向量，各 rank 先得到一片，再合作复制。Rabenseifner 的归约方案同样通过分片减少长向量的反复传输：AllReduce 常由 ReduceScatter 与 AllGather 组成；有根 Reduce 则把已归约片段 Gather 到 root。Vector Halving／Distance Doubling 描述的是向量范围与伙伴距离的演化方向，而非一个新算子。
 

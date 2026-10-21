@@ -8,15 +8,15 @@
 
 <math display="block"><mrow><mi>W</mi><mo>=</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mi>S</mi></mrow></math>
 
-其中 <math><mi>S</mi></math> 是平均服务时间。放大因子 <math><mi>ρ</mi><mo>/</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo>)</mo></math> 在利用率接近 1 时发散：ρ 取 0.5 是 1 倍，0.8 是 4 倍，0.9 是 9 倍，0.95 是 19 倍。
+其中 <math><mi>S</mi></math> 是平均服务时间。放大因子 <math><mi>ρ</mi><mo>/</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo stretchy="false">)</mo></math> 在利用率接近 1 时发散：ρ 取 0.5 是 1 倍，0.8 是 4 倍，0.9 是 9 倍，0.95 是 19 倍。
 
 M/M/1 假设太强，实用的是它的近似推广（Kingman 公式）：
 
-<math display="block"><mrow><mi>E</mi><mo>[</mo><mi>W</mi><mo>]</mo><mo>≈</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><msubsup><mi>C</mi><mi>a</mi><mn>2</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>s</mi><mn>2</mn></msubsup></mrow><mn>2</mn></mfrac><mo>·</mo><mi>E</mi><mo>[</mo><mi>S</mi><mo>]</mo></mrow></math>
+<math display="block"><mrow><mi>E</mi><mo stretchy="false">[</mo><mi>W</mi><mo stretchy="false">]</mo><mo>≈</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><msubsup><mi>C</mi><mi>a</mi><mn>2</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>s</mi><mn>2</mn></msubsup></mrow><mn>2</mn></mfrac><mo>·</mo><mi>E</mi><mo stretchy="false">[</mo><mi>S</mi><mo stretchy="false">]</mo></mrow></math>
 
 <math><msub><mi>C</mi><mi>a</mi></msub></math> 与 <math><msub><mi>C</mi><mi>s</mi></msub></math> 分别是到达间隔与服务时间的变异系数。这个式子给出两个可操作的结论：决定时延的除了利用率，还有服务时间的离散程度；降低方差与降低利用率是等效的手段，而前者通常更便宜。
 
-代入一组教学取值说明量级：平均服务时间 50 ms，要求平均等待不超过 50 ms。若服务时间接近指数分布（变异系数 1），则要求 <math><mi>ρ</mi><mo>/</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo>)</mo><mo>≤</mo><mn>1</mn></math>，即 ρ ≤ 0.5。若批处理让服务时间的变异系数升到 2，同样的等待目标要求
+代入一组教学取值说明量级：平均服务时间 50 ms，要求平均等待不超过 50 ms。若服务时间接近指数分布（变异系数 1），则要求 <math><mi>ρ</mi><mo>/</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo stretchy="false">)</mo><mo>≤</mo><mn>1</mn></math>，即 ρ ≤ 0.5。若批处理让服务时间的变异系数升到 2，同样的等待目标要求
 
 <math display="block"><mrow><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><mn>1</mn><mo>+</mo><mn>4</mn></mrow><mn>2</mn></mfrac><mo>≤</mo><mn>1</mn><mo>⇒</mo><mi>ρ</mi><mo>≤</mo><mn>0.4</mn></mrow></math>
 
@@ -48,7 +48,7 @@ Kubernetes 把同一组概念写成申请量与上限：申请量参与调度与
 
 容量规划的另一半是冗余：为吸收故障需要预留多少资源。设集群有 <math><mi>n</mi></math> 台机器，单台在某个窗口内出故障的概率为 <math><mi>p</mi></math>，同时故障的台数近似服从二项分布：
 
-<math display="block"><mrow><mi>P</mi><mo>(</mo><mi>X</mi><mo>=</mo><mi>k</mi><mo>)</mo><mo>=</mo><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>p</mi><mi>k</mi></msup><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo>)</mo></mrow><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup></mrow></math>
+<math display="block"><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>X</mi><mo>=</mo><mi>k</mi><mo stretchy="false">)</mo><mo>=</mo><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>p</mi><mi>k</mi></msup><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo stretchy="false">)</mo></mrow><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup></mrow></math>
 
 取 <math><mi>n</mi><mo>=</mo><mn>100</mn></math>，按 <math><mi>p</mi></math> 取三档算出“至少 3 台同时故障”的概率，结果如表 3-1。表中概率按上式逐项计算，<math><mi>p</mi></math> 为教学取值，实际应按监控数据估计。
 

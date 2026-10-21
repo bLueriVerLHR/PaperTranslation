@@ -176,7 +176,7 @@ C++17 的 `polymorphic_allocator` 使用 `memory_resource` 选择具体存储资
 
 通用 `std::remove/remove_if` 搬移保留元素并返回新的逻辑结尾，不改变容器的 `size`，也没有把尾部对象逐个销毁。新结尾之后的对象处于有效但未指定的状态，不能视为按原值保留的被删除元素集合。随后对容器执行相应 `erase`，才真正销毁并减少这些元素。`list` 的成员 `remove/remove_if` 则会直接擦除节点，与通用算法不同；C++20 的相应 `erase/erase_if` 重载也须按具体容器判断。[210, 216]
 
-`sort` 不保证等价元素的原相对次序，`stable_sort` 保证稳定性。对于这里讨论的普通重载，以 N 表示元素数，`sort` 的比较次数为 <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>O</mi><mo>(</mo><mi>N</mi><mi>log</mi><mi>N</mi><mo>)</mo></math>；`stable_sort` 在有足够额外存储时具有同阶比较量，否则比较次数上界可到 <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>O</mi><mo>(</mo><mi>N</mi><msup><mi>log</mi><mn>2</mn></msup><mi>N</mi><mo>)</mo></math>。这些是比较次数的界，不是相同数量的运行时间单位。[216]
+`sort` 不保证等价元素的原相对次序，`stable_sort` 保证稳定性。对于这里讨论的普通重载，以 N 表示元素数，`sort` 的比较次数为 <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>O</mi><mo stretchy="false">(</mo><mi>N</mi><mi>log</mi><mi>N</mi><mo stretchy="false">)</mo></math>；`stable_sort` 在有足够额外存储时具有同阶比较量，否则比较次数上界可到 <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>O</mi><mo stretchy="false">(</mo><mi>N</mi><msup><mi>log</mi><mn>2</mn></msup><mi>N</mi><mo stretchy="false">)</mo></math>。这些是比较次数的界，不是相同数量的运行时间单位。[216]
 
 比较器须满足严格弱序，包括 `comp(x, x)` 为假以及比较和所诱导等价关系的传递性。`a <= b` 不满足前一条件，排序期间改变外部比较依据也可能破坏关系的一致性。通用排序要求随机访问迭代器，`list` 有自己的成员排序；选择应结合稳定性、元素操作和内存预算，而不是只比较算法名称。[216]
 

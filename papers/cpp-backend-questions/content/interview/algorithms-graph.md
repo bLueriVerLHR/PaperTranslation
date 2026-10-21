@@ -8,7 +8,7 @@
 
 DFS 沿一个分支深入再回退，BFS 用队列逐层扩展。BFS 的队列按距离层次推进，第一次发现某顶点时，所有更短层已经处理，因此在无权或等权图中得到最少边数路径；任意权重下，边数最少不等于总权最小。[125] 已访问标记在发现并入队时设置，可避免同一顶点被多个前驱重复加入。
 
-邻接表中每个顶点和边只作相应常数次处理时，完整遍历为 <math><mi>O</mi><mo>(</mo><mi>V</mi><mo>+</mo><mi>E</mi><mo>)</mo></math>；矩阵实现逐行扫描通常是平方阶。非连通图需要从尚未访问的顶点继续遍历。树没有交叉边时前中后序可直接按子树组织，图则需额外访问状态；递归 DFS 的深度也可能线性增长。
+邻接表中每个顶点和边只作相应常数次处理时，完整遍历为 <math><mi>O</mi><mo stretchy="false">(</mo><mi>V</mi><mo>+</mo><mi>E</mi><mo stretchy="false">)</mo></math>；矩阵实现逐行扫描通常是平方阶。非连通图需要从尚未访问的顶点继续遍历。树没有交叉边时前中后序可直接按子树组织，图则需额外访问状态；递归 DFS 的深度也可能线性增长。
 
 </div>
 </article>
@@ -19,7 +19,7 @@ DFS 沿一个分支深入再回退，BFS 用队列逐层扩展。BFS 的队列�
 
 Kahn 算法维护当前入度为零的顶点，取出一个顶点后移除它的出边，更新后继入度。若最终输出所有顶点，就得到满足每条依赖边顺序的拓扑序；若仍有顶点但已没有入度为零的候选，则存在环。[39]
 
-理由是有限有向无环图必有一个入度为零的顶点，否则沿前驱不断回溯必重复顶点而形成环。另一方面，一个环中各顶点始终保留来自环内的前驱，不能被这种剥离全部移除。邻接表与普通队列下，各顶点和边各处理相应常数次，时间复杂度为 <math><mi>O</mi><mo>(</mo><mi>V</mi><mo>+</mo><mi>E</mi><mo>)</mo></math>；V、E 分别是顶点数和边数。[39]
+理由是有限有向无环图必有一个入度为零的顶点，否则沿前驱不断回溯必重复顶点而形成环。另一方面，一个环中各顶点始终保留来自环内的前驱，不能被这种剥离全部移除。邻接表与普通队列下，各顶点和边各处理相应常数次，时间复杂度为 <math><mi>O</mi><mo stretchy="false">(</mo><mi>V</mi><mo>+</mo><mi>E</mi><mo stretchy="false">)</mo></math>；V、E 分别是顶点数和边数。[39]
 
 服务等待图还需要准确表示资源实例、可用执行槽及哪些等待真的不可推进。依赖图中的环是否等于实际死锁，取决于所采用的资源模型、取消和调度条件；遗漏异步回调或多实例资源后，单纯运行拓扑排序不会成为通用死锁检测器。
 
@@ -34,13 +34,13 @@ Dijkstra 适用于非负边权的单源最短路；Bellman–Ford 允许负权�
 
 松弛检验经由 u 到 v 是否更短：
 
-<math display="block"><mrow><mi>d</mi><mo>(</mo><mi>v</mi><mo>)</mo><mo>←</mo><mi>min</mi><mo>(</mo><mi>d</mi><mo>(</mo><mi>v</mi><mo>)</mo><mo>,</mo><mi>d</mi><mo>(</mo><mi>u</mi><mo>)</mo><mo>+</mo><mi>w</mi><mo>(</mo><mi>u</mi><mo>,</mo><mi>v</mi><mo>)</mo><mo>)</mo></mrow></math>
+<math display="block"><mrow><mi>d</mi><mo stretchy="false">(</mo><mi>v</mi><mo stretchy="false">)</mo><mo>←</mo><mi>min</mi><mo stretchy="false">(</mo><mi>d</mi><mo stretchy="false">(</mo><mi>v</mi><mo stretchy="false">)</mo><mo>,</mo><mi>d</mi><mo stretchy="false">(</mo><mi>u</mi><mo stretchy="false">)</mo><mo>+</mo><mi>w</mi><mo stretchy="false">(</mo><mi>u</mi><mo>,</mo><mi>v</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo></mrow></math>
 
 这里 d 是当前距离上界，w 是边权。Dijkstra 每次确定尚未确定顶点中距离最小者；非负权保证从更远的未确定顶点绕回来不能缩短它。原创反例为三条有向边：s 到 a 权重 2，s 到 b 权重 5，b 到 a 权重 −4。一次定点、不再回访的算法先确定 a 为 2，却遗漏经 b 的长度 1。允许重新入队的其他变体不应沿用这项复杂度与定点证明。[133]
 
-索引二叉堆支持 decrease-key 时，一般上界为 <math><mi>O</mi><mo>(</mo><mo>(</mo><mi>V</mi><mo>+</mo><mi>E</mi><mo>)</mo><mi>log</mi><mi>V</mi><mo>)</mo></math>。不支持该操作的普通优先队列可以插入新候选、弹出时跳过过期项，但额外候选占用和堆规模也进入成本，不能不加说明复制索引堆的空间界。
+索引二叉堆支持 decrease-key 时，一般上界为 <math><mi>O</mi><mo stretchy="false">(</mo><mo stretchy="false">(</mo><mi>V</mi><mo>+</mo><mi>E</mi><mo stretchy="false">)</mo><mi>log</mi><mi>V</mi><mo stretchy="false">)</mo></math>。不支持该操作的普通优先队列可以插入新候选、弹出时跳过过期项，但额外候选占用和堆规模也进入成本，不能不加说明复制索引堆的空间界。
 
-Bellman–Ford 反复扫描全部边，最多 V−1 轮传播无重复顶点的有限最短路径，第 V 轮仍可改进意味着存在源点可达的负环，通用时间界为 <math><mi>O</mi><mo>(</mo><mi>V</mi><mi>E</mi><mo>)</mo></math>。Floyd 按“可使用的中间顶点”扩展，三重循环为立方时间、平方空间；受可达负环影响的顶点对不能解释为有限最短距离。实现还要排除无穷哨兵参与加法和距离累加溢出。[125,133]
+Bellman–Ford 反复扫描全部边，最多 V−1 轮传播无重复顶点的有限最短路径，第 V 轮仍可改进意味着存在源点可达的负环，通用时间界为 <math><mi>O</mi><mo stretchy="false">(</mo><mi>V</mi><mi>E</mi><mo stretchy="false">)</mo></math>。Floyd 按“可使用的中间顶点”扩展，三重循环为立方时间、平方空间；受可达负环影响的顶点对不能解释为有限最短距离。实现还要排除无穷哨兵参与加法和距离累加溢出。[125,133]
 
 </div>
 </article>

@@ -50,7 +50,7 @@ Kubernetes 用三类探针判断容器状态：存活探针判断是否需要重
 
 滚动更新在替换副本时会临时降低可用容量。设稳定副本数为 <math><mi>N</mi></math>，更新时允许的最大不可用比例为 <math><mi>u</mi></math>，则更新期间的可用副本下限为
 
-<math display="block"><mrow><msub><mi>N</mi><mtext>min</mtext></msub><mo>=</mo><mo>⌈</mo><mi>N</mi><mo>·</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>u</mi><mo>)</mo><mo>⌉</mo></mrow></math>
+<math display="block"><mrow><msub><mi>N</mi><mtext>min</mtext></msub><mo>=</mo><mo>⌈</mo><mi>N</mi><mo>·</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>u</mi><mo stretchy="false">)</mo><mo>⌉</mo></mrow></math>
 
 取 <math><mi>N</mi><mo>=</mo><mn>4</mn></math>、<math><mi>u</mi><mo>=</mo><mn>0.25</mn></math>，下限为 3 个副本。若单副本只能承载 30% 的峰值流量，3 个副本刚好能支撑（<math><mn>3</mn><mo>×</mo><mn>0.3</mn><mo>=</mo><mn>0.9</mn></math>），几乎没有余量；此时更新期间一旦有一个副本启动失败，就会直接越界。这就是“副本数够但一发布就超时”的典型成因。
 

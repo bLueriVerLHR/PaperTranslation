@@ -16,7 +16,7 @@
 
 <math display="block"><mi mathvariant="normal">Retention</mi><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo><mo>=</mo><mo stretchy="false">(</mo><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>⊙</mo><mi>D</mi><mo stretchy="false">)</mo><mi>V</mi><mo>,</mo><mspace width="1em"/><msub><mi>D</mi><mrow><mi>n</mi><mi>m</mi></mrow></msub><mo>=</mo><msup><mi>γ</mi><mrow><mi>n</mi><mo>−</mo><mi>m</mi></mrow></msup><mspace width="0.3em"/><mo stretchy="false">(</mo><mi>n</mi><mo>≥</mo><mi>m</mi><mo stretchy="false">)</mo></math>
 
-D 同时承担因果掩码与相对位置衰减。写成这样之后，训练可以按 <math><mi>O</mi><mo stretchy="false">(</mo><msup><mi>N</mi><mn>2</mn></msup><mi>d</mi><mo stretchy="false">)</mo></math> 的并行形式做，推理则用递推形式每步只读写一个 dᵥ×dₖ 的状态，复杂度与历史长度无关。
+D 同时承担因果掩码与相对位置衰减。写成这样之后，训练可以按 <math><mi>O</mi><mo stretchy="false">(</mo><msup><mi>N</mi><mn>2</mn></msup><mi>d</mi><mo stretchy="false">)</mo></math> 的并行形式做，推理则用递推形式每步只读写一个 <math><msub><mi>d</mi><mi>v</mi></msub></math>×<math><msub><mi>d</mi><mi>k</mi></msub></math> 的状态，复杂度与历史长度无关。
 
 分块形式把两者接起来：块内按并行形式算出 <math><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>⊙</mo><mi>D</mi></math> 那一项，块间的历史贡献只用 <math><mo stretchy="false">(</mo><mi>Q</mi><mo>·</mo><msub><mi>S</mi><mi>past</mi></msub><mo stretchy="false">)</mo></math> 与一个跨块衰减因子相乘，两部分相加得到块输出。[40]（§2.1、图 4）这与核化线性注意力的分块折中是同一套结构，区别只在块间传递的状态带衰减。
 

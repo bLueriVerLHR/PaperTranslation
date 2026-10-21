@@ -28,7 +28,7 @@ MoE 的路由器给每个 token 选 k 个专家。如果让它只优化语言建
 
 #### 第四处：流水线，微批到设备
 
-训练侧的均衡是另一类：微批在流水线各段之间排布，气泡就是设备空转。DualPipe 把前向与反向切成两半，从两个方向同时喂入，使计算与通信完全重叠；README 给出的对照是气泡从 <math><mo>(</mo><mi>PP</mi><mo>−</mo><mn>1</mn><mo>)</mo><mo>(</mo><mi>F</mi><mo>+</mo><mi>B</mi><mo>)</mo></math> 降到 <math><mo>(</mo><mi>PP</mi><mo>/</mo><mn>2</mn><mo>−</mo><mn>1</mn><mo>)</mo><mo>(</mo><mi>F</mi><mo>&amp;</mo><mi>B</mi><mo>+</mo><mi>B</mi><mo>−</mo><mn>3</mn><mi>W</mi><mo>)</mo></math>，代价是每设备参数翻倍、激活量增加一个流水段。[57] DualPipeV 进一步把流水段折成 V 形，把设备数降到一半。
+训练侧的均衡是另一类：微批在流水线各段之间排布，气泡就是设备空转。DualPipe 把前向与反向切成两半，从两个方向同时喂入，使计算与通信完全重叠；README 给出的对照是气泡从 <math><mo stretchy="false">(</mo><mi>PP</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mo stretchy="false">(</mo><mi>F</mi><mo>+</mo><mi>B</mi><mo stretchy="false">)</mo></math> 降到 <math><mo stretchy="false">(</mo><mi>PP</mi><mo>/</mo><mn>2</mn><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mo stretchy="false">(</mo><mi>F</mi><mo>&amp;</mo><mi>B</mi><mo>+</mo><mi>B</mi><mo>−</mo><mn>3</mn><mi>W</mi><mo stretchy="false">)</mo></math>，代价是每设备参数翻倍、激活量增加一个流水段。[57] DualPipeV 进一步把流水段折成 V 形，把设备数降到一半。
 
 这里的“均衡”指时间轴上的占满率，与专家放置的空间均衡正交。两者都会影响端到端吞吐，但改一个不会解决另一个的问题。
 

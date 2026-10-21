@@ -8,7 +8,7 @@
 
 <math display="block"><msub><mi>E</mi><mi>MHA</mi></msub><mo>=</mo><msub><mi>H</mi><mi>q</mi></msub><mo stretchy="false">(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo stretchy="false">)</mo></math>
 
-取 Hq=128、d_k=d_v=128，每层每个 token 是 32,768 个元素，按 2 字节存储合 64 KiB；乘上上下文长度与层数，这个数就换到 GiB 量级。
+取 <math><msub><mi>H</mi><mi>q</mi></msub></math>=128、<math><msub><mi>d</mi><mi>k</mi></msub></math>=<math><msub><mi>d</mi><mi>v</mi></msub></math>=128，每层每个 token 是 32,768 个元素，按 2 字节存储合 64 KiB；乘上上下文长度与层数，这个数就换到 GiB 量级。
 
 每步读取量指解码时一次前向要搬进计算单元的元素数。显式缓存的机制每步都要读全部历史，读取量约为 <math><mi>E</mi><mo>·</mo><mi>N</mi></math>。沿用上面的配置，设 60 层、上下文 32K，每个 token 的缓存是 3.75 MiB，整段约 120 GiB；按 3 TB/s 的量级取带宽，每生成一个 token 至少也要 40 ms。这是按规格值推的量级估算，不替代具体设备上的测量；解码阶段的瓶颈因此在搬运：算术量只与当前这一个查询有关，读取量却与整段历史成正比。
 
@@ -26,7 +26,7 @@
 
 | 机制 | 改变的量 | 直接前驱 | 新增代价 |
 |---|---|---|---|
-| MHA | 基线：每头独立 K／V | 缩放点积注意力 | 缓存与解码读取随 Hq 增长 |
+| MHA | 基线：每头独立 K／V | 缩放点积注意力 | 缓存与解码读取随 <math><msub><mi>H</mi><mi>q</mi></msub></math> 增长 |
 | MQA | KV 头数降到 1 | MHA | 键值表示被全部查询头共用，表达能力受限 |
 | GQA | KV 头数降到 G | MQA 的头共享、MHA 的多头打分 | 需要继续预训练以恢复质量 |
 | MLA | 每个位置的存储对象改为潜在向量 | GQA 的共享思路、低秩投影 | 表示受瓶颈维数约束、位置分支必须解耦 |

@@ -4,9 +4,9 @@
 
 RED 小概率标记保留一部分速率信息。作一个独立 Bernoulli 教学近似：某窗口有 <math><mi>m</mi></math> 个包，各包标记概率为 <math><mi>ρ</mi></math>，则出现至少一个标记的概率是：
 
-<math display="block"><mrow><mi>h</mi><mo>=</mo><mn>1</mn><mo>−</mo><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo>)</mo></mrow><mi>m</mi></msup></mrow></math>
+<math display="block"><mrow><mi>h</mi><mo>=</mo><mn>1</mn><mo>−</mo><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo stretchy="false">)</mo></mrow><mi>m</mi></msup></mrow></math>
 
-在 <math><mrow><mi>m</mi><mi>ρ</mi><mo>≪</mo><mn>1</mn></mrow></math> 时，一阶展开为 <math><mrow><mi>h</mi><mo>≈</mo><mi>m</mi><mi>ρ</mi></mrow></math>，发包更多的流更容易触发 CNP；当两者都接近 1，区别又会饱和。若速率 <math><mi>R</mi></math> 用 bit/s、窗口 <math><mi>Δ</mi></math> 用秒、包长 <math><mi>L</mi></math> 用字节，则 <math><mrow><mi>m</mi><mo>≈</mo><mi>R</mi><mi>Δ</mi><mo>/</mo><mo>(</mo><mn>8</mn><mi>L</mi><mo>)</mo></mrow></math>，不能把 bit/s 直接当每秒包数放进指数。
+在 <math><mrow><mi>m</mi><mi>ρ</mi><mo>≪</mo><mn>1</mn></mrow></math> 时，一阶展开为 <math><mrow><mi>h</mi><mo>≈</mo><mi>m</mi><mi>ρ</mi></mrow></math>，发包更多的流更容易触发 CNP；当两者都接近 1，区别又会饱和。若速率 <math><mi>R</mi></math> 用 bit/s、窗口 <math><mi>Δ</mi></math> 用秒、包长 <math><mi>L</mi></math> 用字节，则 <math><mrow><mi>m</mi><mo>≈</mo><mi>R</mi><mi>Δ</mi><mo>/</mo><mo stretchy="false">(</mo><mn>8</mn><mi>L</mi><mo stretchy="false">)</mo></mrow></math>，不能把 bit/s 直接当每秒包数放进指数。
 
 该近似忽略了相关突发、队列随时间变化与 CNP 时间窗对齐，仅解释小概率标记为何可能区分流；不是 max-min 公平证明。论文用更快 timer 和较大的 byte 门限削弱“发送快就恢复快”的偏置，并配合 RED；实际随机标记也可能造成模型未展示的吞吐波动。[3]（§§5.2、6.1）
 

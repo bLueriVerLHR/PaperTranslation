@@ -14,7 +14,7 @@ MAE 把遮挡安排在编码器之前：随机移除图块，较大的编码器�
 
 固定可见条件 c，把缺失像素向量记为随机变量 X，且假定条件二阶矩有限。令 μ(c)=E[X|c]，模型输出为 a。展开平方并利用 E[X−μ(c)|c]=0，可得：
 
-<math display="block"><mi>𝔼</mi><mo stretchy="false">[</mo><msubsup><mrow><mo>‖</mo><mi>X</mi><mo>−</mo><mi>a</mi><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup><mo>|</mo><mi>c</mi><mo stretchy="false">]</mo><mo>=</mo><mi>𝔼</mi><mo>[</mo><msubsup><mrow><mo>‖</mo><mi>X</mi><mo>−</mo><mi>μ</mi><mo stretchy="false">(</mo><mi>c</mi><mo stretchy="false">)</mo><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup><mo>|</mo><mi>c</mi><mo>]</mo><mo>+</mo><msubsup><mrow><mo>‖</mo><mi>a</mi><mo>−</mo><mi>μ</mi><mo stretchy="false">(</mo><mi>c</mi><mo stretchy="false">)</mo><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup></math>
+<math display="block"><mi>𝔼</mi><mo stretchy="false">[</mo><msubsup><mrow><mo>‖</mo><mi>X</mi><mo>−</mo><mi>a</mi><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup><mo>|</mo><mi>c</mi><mo stretchy="false">]</mo><mo>=</mo><mi>𝔼</mi><mo stretchy="false">[</mo><msubsup><mrow><mo>‖</mo><mi>X</mi><mo>−</mo><mi>μ</mi><mo stretchy="false">(</mo><mi>c</mi><mo stretchy="false">)</mo><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup><mo>|</mo><mi>c</mi><mo stretchy="false">]</mo><mo>+</mo><msubsup><mrow><mo>‖</mo><mi>a</mi><mo>−</mo><mi>μ</mi><mo stretchy="false">(</mo><mi>c</mi><mo stretchy="false">)</mo><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup></math>
 
 第一项是给定可见内容后仍剩下的不确定性，第二项在 a=μ(c) 时最小。因而，无容量限制的平方误差预测器选择条件均值；若同一可见区域允许多个不同补全，最优均值可以位于这些补全之间，并不一定对应一幅自然图像。这个数学性质说明重建误差、视觉逼真度与语义识别各自衡量不同的量；有限网络的实际结果还受模型和数据限制。
 

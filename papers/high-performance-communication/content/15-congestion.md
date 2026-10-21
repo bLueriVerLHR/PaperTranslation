@@ -8,7 +8,7 @@
 
 <math display="block"><mrow><mfrac><mrow><mi>d</mi><mi>q</mi></mrow><mrow><mi>d</mi><mi>t</mi></mrow></mfrac><mo>=</mo><mi>A</mi><mo>−</mo><mi>C</mi></mrow></math>
 
-队列为零且 <math><mrow><mi>A</mi><mo>&lt;</mo><mi>C</mi></mrow></math> 时，占用保持零而非变负。反馈延迟 <math><mi>τ</mi></math> 内若过载量保持为 <math><mrow><mi>A</mi><mo>−</mo><mi>C</mi></mrow></math>，就额外积累约 <math><mrow><mo>(</mo><mi>A</mi><mo>−</mo><mi>C</mi><mo>)</mo><mi>τ</mi></mrow></math> 字节。这是近似的队列平衡，不是完整交换机缓冲模型。
+队列为零且 <math><mrow><mi>A</mi><mo>&lt;</mo><mi>C</mi></mrow></math> 时，占用保持零而非变负。反馈延迟 <math><mi>τ</mi></math> 内若过载量保持为 <math><mrow><mi>A</mi><mo>−</mo><mi>C</mi></mrow></math>，就额外积累约 <math><mrow><mo stretchy="false">(</mo><mi>A</mi><mo>−</mo><mi>C</mi><mo stretchy="false">)</mo><mi>τ</mi></mrow></math> 字节。这是近似的队列平衡，不是完整交换机缓冲模型。
 
 以教学数字说明：8 个 100 Gbit/s 发送者同时汇入 100 Gbit/s 出口，持续 10 微秒的净积累约为 875 kB（按十进制字节），未计帧开销与流量变化。该数字不是论文实验，而是说明缓冲可以在很短时间内被同步突发填满。
 

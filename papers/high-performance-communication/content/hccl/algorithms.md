@@ -49,6 +49,6 @@ Full Mesh 可以让不同对端通过多路独立 HCCS 链路同时交付分片�
 
 Star 围绕 root 直接辐射：Broadcast 是 root 向外复制，Reduce／Gather 是向 root 汇合。归档 Star 页面有把 Broadcast 写成 root 收集的文字，本篇依据算子语义区分方向，不把该文字当作另一个广播定义。单轮 root 的吞吐以总出口／入口为限制，不能因为每个非根只传一份，就省掉 root 的聚合工作。[16]（Star）
 
-Pairwise 将 AlltoAll(v／VC) 的多对多流量排成轮次。等长块时每轮负载一致；变长块时，第 <math><mi>s</mi></math> 轮的服务时间由该轮最重发送及接收路径决定。在相同单端口模型下，可写成启动项 <math><mrow><mo>(</mo><mi>p</mi><mo>−</mo><mn>1</mn><mo>)</mo><mi>α</mi></mrow></math> 加各轮最大块传输项，而不是总字节平均除以 rank 数。它降低同一端口并发目的数，代价是轮数和暂存需求；网中其他流量仍可拥塞。[16]（Pairwise、HCCL_ALGO）
+Pairwise 将 AlltoAll(v／VC) 的多对多流量排成轮次。等长块时每轮负载一致；变长块时，第 <math><mi>s</mi></math> 轮的服务时间由该轮最重发送及接收路径决定。在相同单端口模型下，可写成启动项 <math><mrow><mo stretchy="false">(</mo><mi>p</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mi>α</mi></mrow></math> 加各轮最大块传输项，而不是总字节平均除以 rank 数。它降低同一端口并发目的数，代价是轮数和暂存需求；网中其他流量仍可拥塞。[16]（Pairwise、HCCL_ALGO）
 
 Pipeline 则是[第 10 章](#hierarchical-communication)的跨层重叠：已收到的块本地分发时，继续跨 Server 转发下一块。它不是把各层串行执行，也不是单独改变算子输出。分组 Full Mesh 在 Atlas A3 的 AlltoAll 系列中控制超节点内外不同并发度；它与一般 Mesh 算法、可手工选择的环境变量选项仍需区分。[16]（algo_intro）

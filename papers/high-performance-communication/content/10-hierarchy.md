@@ -27,9 +27,9 @@ HCCL 的 Atlas A2 单算子分级说明给出 AllGather 先 Server 内、再 Ser
 
 ### 聚合与流水不是同一项优化
 
-Two-Step AlltoAll 将发往同一服务器的小块合并。若原来有 <math><mi>m</mi></math> 条消息、整理后为 <math><mi>k</mi></math> 条，且有效载荷不变，理想启动节约是 <math><mrow><mo>(</mo><mi>m</mi><mo>−</mo><mi>k</mi><mo>)</mo><mi>α</mi></mrow></math>；本地打包／解包与额外内存流量要另计。AlltoAllv 下，不均匀的目的负载还会使某一服务器或端口成为瓶颈。[1]（§4.2.2）
+Two-Step AlltoAll 将发往同一服务器的小块合并。若原来有 <math><mi>m</mi></math> 条消息、整理后为 <math><mi>k</mi></math> 条，且有效载荷不变，理想启动节约是 <math><mrow><mo stretchy="false">(</mo><mi>m</mi><mo>−</mo><mi>k</mi><mo stretchy="false">)</mo><mi>α</mi></mrow></math>；本地打包／解包与额外内存流量要另计。AlltoAllv 下，不均匀的目的负载还会使某一服务器或端口成为瓶颈。[1]（§4.2.2）
 
-Pipeline 则让一个块跨服务器转发时，另一个已到达块在服务器内分发。若每块两层服务时间分别为 <math><mi>a</mi></math>、<math><mi>b</mi></math>，两层资源真正独立、顺序块数为 <math><mi>q</mi></math>，两级流水的教学模型是 <math><mrow><mi>a</mi><mo>+</mo><mi>b</mi><mo>+</mo><mo>(</mo><mi>q</mi><mo>−</mo><mn>1</mn><mo>)</mo><mi>max</mi><mo>(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>)</mo></mrow></math>，而串行模型为 <math><mrow><mi>q</mi><mo>(</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo>)</mo></mrow></math>。收益来自重叠，不来自把慢层带宽改快。共享 DMA／内存控制器、细粒度同步及不均匀块都会缩小收益。[16]（Pipeline）
+Pipeline 则让一个块跨服务器转发时，另一个已到达块在服务器内分发。若每块两层服务时间分别为 <math><mi>a</mi></math>、<math><mi>b</mi></math>，两层资源真正独立、顺序块数为 <math><mi>q</mi></math>，两级流水的教学模型是 <math><mrow><mi>a</mi><mo>+</mo><mi>b</mi><mo>+</mo><mo stretchy="false">(</mo><mi>q</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mi>max</mi><mo stretchy="false">(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo stretchy="false">)</mo></mrow></math>，而串行模型为 <math><mrow><mi>q</mi><mo stretchy="false">(</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo stretchy="false">)</mo></mrow></math>。收益来自重叠，不来自把慢层带宽改快。共享 DMA／内存控制器、细粒度同步及不均匀块都会缩小收益。[16]（Pipeline）
 
 <figure>
 <a href="assets/figures/24-pipeline.svg"><img src="assets/figures/24-pipeline.svg" alt="节点间转发与节点内分发的两级流水"></a>

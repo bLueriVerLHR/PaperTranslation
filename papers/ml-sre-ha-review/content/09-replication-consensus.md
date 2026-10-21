@@ -48,11 +48,11 @@ Raft 把共识拆成领导选举、日志复制与成员变更三部分。节点
 
 若读可以落到任意副本，3 副本的读可用性为
 
-<math display="block"><mrow><msub><mi>A</mi><mtext>read</mtext></msub><mo>=</mo><mn>1</mn><mo>−</mo><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo>)</mo></mrow><mn>3</mn></msup></mrow></math>
+<math display="block"><mrow><msub><mi>A</mi><mtext>read</mtext></msub><mo>=</mo><mn>1</mn><mo>−</mo><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo stretchy="false">)</mo></mrow><mn>3</mn></msup></mrow></math>
 
 若写需要多数派确认，3 副本的写可用性为
 
-<math display="block"><mrow><msub><mi>A</mi><mtext>write</mtext></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>2</mn></mrow><mn>3</mn></munderover><mrow><mo>(</mo><mfrac linethickness="0"><mn>3</mn><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>a</mi><mi>k</mi></msup><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo>)</mo></mrow><mrow><mn>3</mn><mo>−</mo><mi>k</mi></mrow></msup></mrow></math>
+<math display="block"><mrow><msub><mi>A</mi><mtext>write</mtext></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>2</mn></mrow><mn>3</mn></munderover><mrow><mo>(</mo><mfrac linethickness="0"><mn>3</mn><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>a</mi><mi>k</mi></msup><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo stretchy="false">)</mo></mrow><mrow><mn>3</mn><mo>−</mo><mi>k</mi></mrow></msup></mrow></math>
 
 取 <math><mi>a</mi><mo>=</mo><mn>0.99</mn></math>，读可用性为 99.9999%，写可用性为 99.9702%。把副本数提到 5，读可用性升到 99.99999999%，写可用性升到 99.9990%。这组数字的两个含义是：三副本对读的提升已经足够，对写的提升有限；增加副本对写可用性的边际收益递减，而成本与写延迟线性上升。
 

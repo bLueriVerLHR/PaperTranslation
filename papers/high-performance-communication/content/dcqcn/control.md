@@ -9,7 +9,7 @@ CP（Congestion Point）是交换机拥塞点，按出口队列占用标记数�
 
 论文采用 RED 式概率标记。在 <math><mrow><msub><mi>K</mi><mtext>min</mtext></msub><mo>&lt;</mo><msub><mi>K</mi><mtext>max</mtext></msub></mrow></math> 时，队列大小 <math><mi>q</mi></math> 对应的标记概率为：
 
-<math display="block"><mrow><mi>P</mi><mo>(</mo><mi>q</mi><mo>)</mo><mo>=</mo><mo>{</mo><mtable columnalign="left left"><mtr><mtd><mn>0</mn></mtd><mtd><mi>q</mi><mo>≤</mo><msub><mi>K</mi><mtext>min</mtext></msub></mtd></mtr><mtr><mtd><msub><mi>P</mi><mtext>max</mtext></msub><mfrac><mrow><mi>q</mi><mo>−</mo><msub><mi>K</mi><mtext>min</mtext></msub></mrow><mrow><msub><mi>K</mi><mtext>max</mtext></msub><mo>−</mo><msub><mi>K</mi><mtext>min</mtext></msub></mrow></mfrac></mtd><mtd><msub><mi>K</mi><mtext>min</mtext></msub><mo>&lt;</mo><mi>q</mi><mo>≤</mo><msub><mi>K</mi><mtext>max</mtext></msub></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mi>q</mi><mo>&gt;</mo><msub><mi>K</mi><mtext>max</mtext></msub></mtd></mtr></mtable></mrow></math>
+<math display="block"><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>q</mi><mo stretchy="false">)</mo><mo>=</mo><mo>{</mo><mtable columnalign="left left"><mtr><mtd><mn>0</mn></mtd><mtd><mi>q</mi><mo>≤</mo><msub><mi>K</mi><mtext>min</mtext></msub></mtd></mtr><mtr><mtd><msub><mi>P</mi><mtext>max</mtext></msub><mfrac><mrow><mi>q</mi><mo>−</mo><msub><mi>K</mi><mtext>min</mtext></msub></mrow><mrow><msub><mi>K</mi><mtext>max</mtext></msub><mo>−</mo><msub><mi>K</mi><mtext>min</mtext></msub></mrow></mfrac></mtd><mtd><msub><mi>K</mi><mtext>min</mtext></msub><mo>&lt;</mo><mi>q</mi><mo>≤</mo><msub><mi>K</mi><mtext>max</mtext></msub></mtd></mtr><mtr><mtd><mn>1</mn></mtd><mtd><mi>q</mi><mo>&gt;</mo><msub><mi>K</mi><mtext>max</mtext></msub></mtd></mtr></mtable></mrow></math>
 
 当 <math><msub><mi>P</mi><mtext>max</mtext></msub></math> 小于 1 时，上越 <math><msub><mi>K</mi><mtext>max</mtext></msub></math> 后概率会跳到 1；它不是一直延伸的小斜率直线。令两阈值相同则成为阈值式 cut-off，不能在上面的分母为零时直接代入计算。[3]（图 5、式 5）
 
@@ -21,11 +21,11 @@ RP 保存当前速率 <math><msub><mi>R</mi><mi>C</mi></msub></math>、目标速
 
 收到 CNP 时，按论文式 1 的顺序保存减速前的目标、降低当前速率，再加强拥塞记忆：
 
-<math display="block"><mtable columnalign="right left"><mtr><mtd><msub><mi>R</mi><mi>T</mi></msub></mtd><mtd><mo>←</mo><msub><mi>R</mi><mi>C</mi></msub></mtd></mtr><mtr><mtd><msub><mi>R</mi><mi>C</mi></msub></mtd><mtd><mo>←</mo><msub><mi>R</mi><mi>C</mi></msub><mo>(</mo><mn>1</mn><mo>−</mo><mfrac><mi>α</mi><mn>2</mn></mfrac><mo>)</mo></mtd></mtr><mtr><mtd><mi>α</mi></mtd><mtd><mo>←</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>g</mi><mo>)</mo><mi>α</mi><mo>+</mo><mi>g</mi></mtd></mtr></mtable></math>
+<math display="block"><mtable columnalign="right left"><mtr><mtd><msub><mi>R</mi><mi>T</mi></msub></mtd><mtd><mo>←</mo><msub><mi>R</mi><mi>C</mi></msub></mtd></mtr><mtr><mtd><msub><mi>R</mi><mi>C</mi></msub></mtd><mtd><mo>←</mo><msub><mi>R</mi><mi>C</mi></msub><mo>(</mo><mn>1</mn><mo>−</mo><mfrac><mi>α</mi><mn>2</mn></mfrac><mo>)</mo></mtd></mtr><mtr><mtd><mi>α</mi></mtd><mtd><mo>←</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>g</mi><mo stretchy="false">)</mo><mi>α</mi><mo>+</mo><mi>g</mi></mtd></mtr></mtable></math>
 
 这里减速使用更新前的 <math><mi>α</mi></math>。初值为 1，所以第一次反馈可把当前速率减半；若初始 40 Gbit/s，就是 20 Gbit/s，而目标仍记为 40 Gbit/s。其他主机流和本地 QoS 可以限制实际起始速率，不能普遍假定所有新流都获得整个端口。
 
-未收到反馈的更新间隔中，<math><mrow><mi>α</mi><mo>←</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>g</mi><mo>)</mo><mi>α</mi></mrow></math>，拥塞记忆逐渐衰减。连续 <math><mi>m</mi></math> 个这样的更新后，<math><mrow><msub><mi>α</mi><mi>m</mi></msub><mo>=</mo><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>g</mi><mo>)</mo></mrow><mi>m</mi></msup><msub><mi>α</mi><mn>0</mn></msub></mrow></math>。较小 <math><mi>g</mi></math> 保留更长记忆，能减少激进变化，也可能放慢适应；它不是“越小越正确”。论文 α 更新间隔为 55 微秒，略大于 NP 的 50 微秒窗口，以避免尚等下一次 CNP 时过早判断无拥塞。[3]（§§3.1、5.2）
+未收到反馈的更新间隔中，<math><mrow><mi>α</mi><mo>←</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>g</mi><mo stretchy="false">)</mo><mi>α</mi></mrow></math>，拥塞记忆逐渐衰减。连续 <math><mi>m</mi></math> 个这样的更新后，<math><mrow><msub><mi>α</mi><mi>m</mi></msub><mo>=</mo><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>g</mi><mo stretchy="false">)</mo></mrow><mi>m</mi></msup><msub><mi>α</mi><mn>0</mn></msub></mrow></math>。较小 <math><mi>g</mi></math> 保留更长记忆，能减少激进变化，也可能放慢适应；它不是“越小越正确”。论文 α 更新间隔为 55 微秒，略大于 NP 的 50 微秒窗口，以避免尚等下一次 CNP 时过早判断无拥塞。[3]（§§3.1、5.2）
 
 ### 恢复：两种触发源与三种阶段
 
@@ -44,7 +44,7 @@ RP 保存当前速率 <math><msub><mi>R</mi><mi>C</mi></msub></math>、目标速
 <figcaption>图 33：减速和三类恢复阶段的状态关系</figcaption>
 </figure>
 
-图按论文图 7 的门限关系整理：用 <math><mi>u</mi></math> 表示自最近减速以来的 timer 事件次数，<math><mi>v</mi></math> 表示 byte 事件次数，阈值为 <math><mi>F</mi></math>。若 <math><mrow><mi>max</mi><mo>(</mo><mi>u</mi><mo>,</mo><mi>v</mi><mo>)</mo><mo>&lt;</mo><mi>F</mi></mrow></math> 则快速恢复；若 <math><mrow><mi>min</mi><mo>(</mo><mi>u</mi><mo>,</mo><mi>v</mi><mo>)</mo><mo>&gt;</mo><mi>F</mi></mrow></math> 则 hyper increase；中间区域是加性增加。新 CNP 导致减速并重置相关计时／计数。论文正文用 <math><mrow><mi>F</mi><mo>=</mo><mn>5</mn></mrow></math> 概括快速恢复长度，但图中是两计数器判定，不等于简单“每收到五个包换阶段”。
+图按论文图 7 的门限关系整理：用 <math><mi>u</mi></math> 表示自最近减速以来的 timer 事件次数，<math><mi>v</mi></math> 表示 byte 事件次数，阈值为 <math><mi>F</mi></math>。若 <math><mrow><mi>max</mi><mo stretchy="false">(</mo><mi>u</mi><mo>,</mo><mi>v</mi><mo stretchy="false">)</mo><mo>&lt;</mo><mi>F</mi></mrow></math> 则快速恢复；若 <math><mrow><mi>min</mi><mo stretchy="false">(</mo><mi>u</mi><mo>,</mo><mi>v</mi><mo stretchy="false">)</mo><mo>&gt;</mo><mi>F</mi></mrow></math> 则 hyper increase；中间区域是加性增加。新 CNP 导致减速并重置相关计时／计数。论文正文用 <math><mrow><mi>F</mi><mo>=</mo><mn>5</mn></mrow></math> 概括快速恢复长度，但图中是两计数器判定，不等于简单“每收到五个包换阶段”。
 
 ### 不采用慢启动的收益与风险
 

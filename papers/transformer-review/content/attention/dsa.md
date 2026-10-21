@@ -8,11 +8,11 @@ NSA 也做同一件事，区别在选择粒度与依据：NSA 复用压缩分支
 
 设当前查询位置 t，可见历史位置 s≤t。索引器有 Hᴵ 个头，每头索引查询 qᴵₜ,ⱼ 为 dᴵ 维，历史位置共用一份索引键 kᴵₛ，当前输入另外给出每头一个标量权重 wᴵₜ,ⱼ。索引分数是各头点积的加权和，激活函数取 ReLU：[34]（Eq.1）
 
-<math display="block"><msub><mi>I</mi><mrow><mi>t</mi><mi>s</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><msup><mi>H</mi><mi>I</mi></msup></munderover><msubsup><mi>w</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mi mathvariant="normal">ReLU</mi><mo>(</mo><msup><mrow><mo stretchy="false">(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><msubsup><mi>k</mi><mi>s</mi><mi>I</mi></msubsup><mo>)</mo></math>
+<math display="block"><msub><mi>I</mi><mrow><mi>t</mi><mi>s</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><msup><mi>H</mi><mi>I</mi></msup></munderover><msubsup><mi>w</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mi mathvariant="normal">ReLU</mi><mo stretchy="false">(</mo><msup><mrow><mo stretchy="false">(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><msubsup><mi>k</mi><mi>s</mi><mi>I</mi></msubsup><mo stretchy="false">)</mo></math>
 
 多个索引头先合成一个位置分数，再取 Top-k，得到的是一套共享的位置集合：
 
-<math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">TopK</mi><mo>(</mo><mo>{</mo><msub><mi>I</mi><mrow><mi>t</mi><mi>s</mi></mrow></msub><mo>:</mo><mi>s</mi><mo>≤</mo><mi>t</mi><mo>}</mo><mo>,</mo><mi>k</mi><mo>)</mo></math>
+<math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">TopK</mi><mo stretchy="false">(</mo><mo stretchy="false">{</mo><msub><mi>I</mi><mrow><mi>t</mi><mi>s</mi></mrow></msub><mo>:</mo><mi>s</mi><mo>≤</mo><mi>t</mi><mo stretchy="false">}</mo><mo>,</mo><mi>k</mi><mo stretchy="false">)</mo></math>
 
 历史不足 k 时取已有的全部合法位置。这套集合由该位置的全部主注意力头共用，因为它对齐的是 MLA 的公共潜在 KV 条目：一个被选中的历史位置贡献的是一份潜在状态，各主头各自拿它算自己的分数。索引器头数少、维度小，还可以用 FP8 实现，扫描一遍全历史的代价远低于完整主注意力。它依然要看过历史，扫描量随当前历史长度增长。
 
@@ -34,7 +34,7 @@ NSA 也做同一件事，区别在选择粒度与依据：NSA 复用压缩分支
 
 Top-k 的索引选取不可微，“哪些位置值得读”这件事没法学。DeepSeek-V3.2 分两段训练：[34]（§2.1.1）稠密预热阶段冻结主模型，只练新增的索引器；主注意力各头的概率按位置求和，再沿序列做 L1 归一化，得到教师分布 pₜ，索引器用 KL 散度对齐它：
 
-<math display="block"><msub><mi>ℒ</mi><mi>I</mi></msub><mo>=</mo><munder><mo>∑</mo><mi>t</mi></munder><msub><mi>D</mi><mi mathvariant="normal">KL</mi></msub><mo>(</mo><mi mathvariant="normal">stopgrad</mi><mo stretchy="false">(</mo><msub><mi>p</mi><mi>t</mi></msub><mo stretchy="false">)</mo><mo>‖</mo><mi mathvariant="normal">softmax</mi><mo stretchy="false">(</mo><msub><mi>I</mi><mrow><mi>t</mi><mo>,</mo><mo>:</mo></mrow></msub><mo stretchy="false">)</mo><mo>)</mo></math>
+<math display="block"><msub><mi>ℒ</mi><mi>I</mi></msub><mo>=</mo><munder><mo>∑</mo><mi>t</mi></munder><msub><mi>D</mi><mi mathvariant="normal">KL</mi></msub><mo stretchy="false">(</mo><mi mathvariant="normal">stopgrad</mi><mo stretchy="false">(</mo><msub><mi>p</mi><mi>t</mi></msub><mo stretchy="false">)</mo><mo>‖</mo><mi mathvariant="normal">softmax</mi><mo stretchy="false">(</mo><msub><mi>I</mi><mrow><mi>t</mi><mo>,</mo><mo>:</mo></mrow></msub><mo stretchy="false">)</mo><mo stretchy="false">)</mo></math>
 
 教师端取自动梯度，索引器输入也从计算图上断开，于是这项损失只更新索引器的投影，主模型由语言建模损失单独负责。稀疏阶段打开 Top-k，主模型学着适应新的连接模式，索引器转为在入选集合上对齐归一化后的主注意力分布。两段的规模在报告中写得很清楚：预热 1,000 步，每步 16 条 128K 序列，合计 2.1B token；稀疏训练 15,000 步，每步 480 条 128K 序列，合计 943.7B token。
 

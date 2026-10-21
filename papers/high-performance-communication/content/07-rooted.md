@@ -30,7 +30,7 @@ root 持有按 rank 顺序排列的 p 个块 `[x₀ | x₁ | … | xₚ₋₁]`�
 
 每个 rank i 输入 xᵢ，root 接收按 rank 顺序的拼接结果。它不对相同位置的数字做运算。
 
-<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>y</mi><mi>r</mi></msub><mo>=</mo><mo>[</mo><msub><mi>x</mi><mn>0</mn></msub><mo>|</mo><msub><mi>x</mi><mn>1</mn></msub><mo>|</mo><mo>⋯</mo><mo>|</mo><msub><mi>x</mi><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>]</mo></mrow></math>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>y</mi><mi>r</mi></msub><mo>=</mo><mo stretchy="false">[</mo><msub><mi>x</mi><mn>0</mn></msub><mo>|</mo><msub><mi>x</mi><mn>1</mn></msub><mo>|</mo><mo>⋯</mo><mo>|</mo><msub><mi>x</mi><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow></msub><mo stretchy="false">]</mo></mrow></math>
 
 <figure><a href="assets/figures/13-gather.svg"><img src="assets/figures/13-gather.svg" alt="rank 0、1、2 分别输入 A、B、C，root 0 接收按 rank 拼接的 A、B、C，其他 rank 没有规定接收结果。"></a><figcaption>图 13：Gather。root 的接收容量随参与者数量增长，其他 rank 不获得汇集结果。</figcaption></figure>
 
@@ -42,7 +42,7 @@ Scatter 和 Gather 在**布局意义**上相反，但不互为任意程序状态
 
 设每个 rank 输入长度为 b 的向量 xᵢ，归约运算为 ⊕。Reduce 把相同位置的值合并，只在 root 的接收缓冲留下长度为 b 的结果。
 
-<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>y</mi><mi>r</mi></msub><mo>[</mo><mi>k</mi><mo>]</mo><mo>=</mo><munderover><mo>⨁</mo><mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow></munderover><msub><mi>x</mi><mi>i</mi></msub><mo>[</mo><mi>k</mi><mo>]</mo><mo>,</mo><mspace width="1em"/><mn>0</mn><mo>≤</mo><mi>k</mi><mo>&lt;</mo><mi>b</mi><mspace width="1em"/><mtext>（归约覆盖全部 p 个 rank）</mtext></mrow></math>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>y</mi><mi>r</mi></msub><mo stretchy="false">[</mo><mi>k</mi><mo stretchy="false">]</mo><mo>=</mo><munderover><mo>⨁</mo><mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow></munderover><msub><mi>x</mi><mi>i</mi></msub><mo stretchy="false">[</mo><mi>k</mi><mo stretchy="false">]</mo><mo>,</mo><mspace width="1em"/><mn>0</mn><mo>≤</mo><mi>k</mi><mo>&lt;</mo><mi>b</mi><mspace width="1em"/><mtext>（归约覆盖全部 p 个 rank）</mtext></mrow></math>
 
 <figure><a href="assets/figures/14-reduce.svg"><img src="assets/figures/14-reduce.svg" alt="rank 0 输入一和十，rank 1 输入二和二十，rank 2 输入三和三十；求和 Reduce 后 root 得到六和六十。"></a><figcaption>图 14：求和 Reduce。三份两元素输入生成一份两元素结果，而不是六元素拼接。</figcaption></figure>
 

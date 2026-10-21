@@ -2,7 +2,7 @@
 
 Ring AllGather 将 rank 排成逻辑环，每个 rank 首先发送自己的块，随后转发上一轮收到的块。经过 <math><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow></math> 轮，所有 rank 都拥有全部块。每轮传输 <math><mfrac><mi>n</mi><mi>p</mi></mfrac></math> 字节，因此单 rank 的发送总量为完整结果的 <math><mfrac><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow><mi>p</mi></mfrac></math>，而不是每轮都发送一个完整向量。
 
-<math display="block"><mrow><msub><mi>T</mi><mtext>Ring-AG</mtext></msub><mo>=</mo><mo>(</mo><mi>p</mi><mo>−</mo><mn>1</mn><mo>)</mo><mi>α</mi><mo>+</mo><mfrac><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow><mi>p</mi></mfrac><mi>n</mi><mi>β</mi></mrow></math>
+<math display="block"><mrow><msub><mi>T</mi><mtext>Ring-AG</mtext></msub><mo>=</mo><mo stretchy="false">(</mo><mi>p</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mi>α</mi><mo>+</mo><mfrac><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow><mi>p</mi></mfrac><mi>n</mi><mi>β</mi></mrow></math>
 
 Ring AllReduce 再加一个 ReduceScatter 阶段。每个块沿环传播时，收到该块的 rank 把本地同位置输入归约进去；第一阶段结束后，每块都纳入全部 rank 的贡献，但分别归属于不同 rank。第二阶段只复制这些已完成的块，不能再次归约，否则会重复计入贡献。两阶段各需 <math><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow></math> 轮。[1]（§4.1.1）
 
@@ -13,7 +13,7 @@ Ring AllReduce 再加一个 ReduceScatter 阶段。每个块沿环传播时，�
 
 图中的块标签表示数据归属，不指定某个库的精确块编号。内部 ReduceScatter 的归属可以置换；只要随后 AllGather 恢复完整向量及正确位置，AllReduce 的外部语义仍成立。独立调用 ReduceScatter 时则必须遵守 rank 到输出块的映射。
 
-<math display="block"><mrow><msub><mi>T</mi><mtext>Ring-AR</mtext></msub><mo>=</mo><mn>2</mn><mo>(</mo><mi>p</mi><mo>−</mo><mn>1</mn><mo>)</mo><mi>α</mi><mo>+</mo><mn>2</mn><mfrac><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow><mi>p</mi></mfrac><mi>n</mi><mi>β</mi><mo>+</mo><mfrac><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow><mi>p</mi></mfrac><mi>n</mi><mi>γ</mi></mrow></math>
+<math display="block"><mrow><msub><mi>T</mi><mtext>Ring-AR</mtext></msub><mo>=</mo><mn>2</mn><mo stretchy="false">(</mo><mi>p</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mi>α</mi><mo>+</mo><mn>2</mn><mfrac><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow><mi>p</mi></mfrac><mi>n</mi><mi>β</mi><mo>+</mo><mfrac><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow><mi>p</mi></mfrac><mi>n</mi><mi>γ</mi></mrow></math>
 
 发送量渐近接近每 rank 两个完整向量，启动项却随规模线性增长。因此“带宽效率好”与“规模大时延迟低”是不同评价。环的单邻居通信也不保证物理网络无拥塞：多条逻辑环可能共享同一条上行链路。
 
@@ -26,7 +26,7 @@ Broadcast 的直接根发送把全部出口工作集中在 root；二项树让�
 <figcaption>图 20：八 rank 二项树广播及反向归约</figcaption>
 </figure>
 
-在 <math><mrow><mi>p</mi><mo>=</mo><msup><mn>2</mn><mi>k</mi></msup></mrow></math>、每轮发送完整 <math><mi>n</mi></math> 字节的简化模型中，关键路径经过 <math><mi>k</mi></math> 轮，所以广播成本为 <math><mrow><mi>k</mi><mo>(</mo><mi>α</mi><mo>+</mo><mi>n</mi><mi>β</mi><mo>)</mo></mrow></math>。Reduce 沿反向边汇合，每轮增加相应归约成本，得到 <math><mrow><mi>k</mi><mo>(</mo><mi>α</mi><mo>+</mo><mi>n</mi><mi>β</mi><mo>+</mo><mi>n</mi><mi>γ</mi><mo>)</mo></mrow></math>。[1]（§4.1.2）
+在 <math><mrow><mi>p</mi><mo>=</mo><msup><mn>2</mn><mi>k</mi></msup></mrow></math>、每轮发送完整 <math><mi>n</mi></math> 字节的简化模型中，关键路径经过 <math><mi>k</mi></math> 轮，所以广播成本为 <math><mrow><mi>k</mi><mo stretchy="false">(</mo><mi>α</mi><mo>+</mo><mi>n</mi><mi>β</mi><mo stretchy="false">)</mo></mrow></math>。Reduce 沿反向边汇合，每轮增加相应归约成本，得到 <math><mrow><mi>k</mi><mo stretchy="false">(</mo><mi>α</mi><mo>+</mo><mi>n</mi><mi>β</mi><mo>+</mo><mi>n</mi><mi>γ</mi><mo stretchy="false">)</mo></mrow></math>。[1]（§4.1.2）
 
 短消息受启动项支配，减少轮数很有吸引力；长向量却会在关键路径上反复传输完整消息。分段流水可以改善带宽利用，但引入段启动、管线填充与排空，不再等于上述未分段成本式。非交换归约还要维护操作数顺序，不能任意反转或重排树边。
 

@@ -8,7 +8,7 @@
 
 冻结编码器只优化任务头，相当于在固定特征上选择读出规则；全量微调允许特征本身重组。设初始化为 θ₀，任务目标为：
 
-<math display="block"><munder><mi mathvariant="normal">min</mi><mrow><mi>θ</mi><mo>,</mo><mi>W</mi><mo>,</mo><mi>b</mi></mrow></munder><msub><mi>𝔼</mi><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo><mo>∼</mo><msub><mi>P</mi><mi mathvariant="normal">task</mi></msub></mrow></msub><mo>[</mo><mi>ℓ</mi><mo stretchy="false">(</mo><mi>W</mi><msub><mi>h</mi><mi>θ</mi></msub><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>+</mo><mi>b</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo><mo>]</mo></math>
+<math display="block"><munder><mi mathvariant="normal">min</mi><mrow><mi>θ</mi><mo>,</mo><mi>W</mi><mo>,</mo><mi>b</mi></mrow></munder><msub><mi>𝔼</mi><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo><mo>∼</mo><msub><mi>P</mi><mi mathvariant="normal">task</mi></msub></mrow></msub><mo stretchy="false">[</mo><mi>ℓ</mi><mo stretchy="false">(</mo><mi>W</mi><msub><mi>h</mi><mi>θ</mi></msub><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>+</mo><mi>b</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo><mo stretchy="false">]</mo></math>
 
 冻结时 θ 被限制为 θ₀；部分微调则只允许一组参数变化。它们定义不同的可优化函数族，也承担不同的估计与计算成本。更多可变参数能够表达更多适配，但小数据下也会增加拟合偶然相关的机会，原有表示未必需要全部改变。
 

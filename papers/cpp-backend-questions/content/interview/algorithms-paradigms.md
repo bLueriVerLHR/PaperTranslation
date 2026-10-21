@@ -34,9 +34,9 @@
 
 以正整数面额、数量不限、最少枚数为例，定义 dp[a] 为恰好凑出金额 a 的最少枚数，dp[0] 为零，不可达状态为无穷。枚举最后一枚面额 c，取所有合法前驱的最小值：
 
-<math display="block"><mrow><mi>dp</mi><mo>[</mo><mi>a</mi><mo>]</mo><mo>=</mo><munder><mi>min</mi><mrow><mi>c</mi><mo>∈</mo><mi>C</mi><mo>,</mo><mi>c</mi><mo>≤</mo><mi>a</mi></mrow></munder><mo>(</mo><mi>dp</mi><mo>[</mo><mi>a</mi><mo>−</mo><mi>c</mi><mo>]</mo><mo>+</mo><mn>1</mn><mo>)</mo></mrow></math>
+<math display="block"><mrow><mi>dp</mi><mo stretchy="false">[</mo><mi>a</mi><mo stretchy="false">]</mo><mo>=</mo><munder><mi>min</mi><mrow><mi>c</mi><mo>∈</mo><mi>C</mi><mo>,</mo><mi>c</mi><mo>≤</mo><mi>a</mi></mrow></munder><mo stretchy="false">(</mo><mi>dp</mi><mo stretchy="false">[</mo><mi>a</mi><mo>−</mo><mi>c</mi><mo stretchy="false">]</mo><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></math>
 
-C 是面额集合，空候选集合仍不可达；实际整数实现不能对无穷哨兵直接加一。按金额递增计算，所有前驱已经确定。目标金额 A、面额数 K 时，时间为 <math><mi>O</mi><mo>(</mo><mi>A</mi><mi>K</mi><mo>)</mo></math>，状态空间为线性于 A；这依赖金额数值而非其编码位数，是伪多项式界。前面的 6 元反例因此能得到两枚。
+C 是面额集合，空候选集合仍不可达；实际整数实现不能对无穷哨兵直接加一。按金额递增计算，所有前驱已经确定。目标金额 A、面额数 K 时，时间为 <math><mi>O</mi><mo stretchy="false">(</mo><mi>A</mi><mi>K</mi><mo stretchy="false">)</mo></math>，状态空间为线性于 A；这依赖金额数值而非其编码位数，是伪多项式界。前面的 6 元反例因此能得到两枚。
 
 最长公共子序列可按两个前缀长度建状态，末符号相等时接到较短前缀解，否则取删去一侧末符号的较优结果。0/1 背包的一维更新通常逆序枚举容量，避免同一物品被本轮重复选取；完全背包允许复用，顺序不同。滚动数组减少存储，但可能丢失恢复完整方案所需的前驱。记忆化递归与按依赖序填表复用同一状态思想，区别不在是否出现递归；贪心只保留选择，回溯则探索分支。[128]
 
@@ -51,7 +51,7 @@ C 是面额集合，空候选集合仍不可达；实际整数实现不能对无
 
 在给定符号频率、二进制逐符号前缀码模型下，目标是频率乘码长的总和。两个最轻符号可置于最深的一对兄弟叶子：把较重叶子与它们交换不会使成本增加；合并后，两个权重各多贡献一位，其余问题成为较小的同类问题。这解释了合并规则的最优性范围，而不是所有编码方法的最优性。
 
-最小堆实现对 K 个符号反复取出两个最小权重并放回合并节点，常规时间为 <math><mi>O</mi><mo>(</mo><mi>K</mi><mi>log</mi><mi>K</mi><mo>)</mo></math>。解码还需传递码表或树、数据长度等信息；单一符号也需要约定其码和计数。同权重可产生不同但同成本的码树。模型没有利用跨符号相关性，且头部开销可能超过节约，不能保证每个文件都缩小。[134]
+最小堆实现对 K 个符号反复取出两个最小权重并放回合并节点，常规时间为 <math><mi>O</mi><mo stretchy="false">(</mo><mi>K</mi><mi>log</mi><mi>K</mi><mo stretchy="false">)</mo></math>。解码还需传递码表或树、数据长度等信息；单一符号也需要约定其码和计数。同权重可产生不同但同成本的码树。模型没有利用跨符号相关性，且头部开销可能超过节约，不能保证每个文件都缩小。[134]
 
 </div>
 </article>

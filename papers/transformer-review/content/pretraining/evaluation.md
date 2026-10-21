@@ -8,7 +8,7 @@
 
 一个四点例子可以说明这种区别。设输入和二元目标为：
 
-<math display="block"><mi>x</mi><mo>∈</mo><msup><mrow><mo>{</mo><mo>−</mo><mn>1</mn><mo>,</mo><mn>1</mn><mo>}</mo></mrow><mn>2</mn></msup><mo>,</mo><mspace width="1em"/><mi>y</mi><mo>=</mo><msub><mi>x</mi><mn>1</mn></msub><msub><mi>x</mi><mn>2</mn></msub></math>
+<math display="block"><mi>x</mi><mo>∈</mo><msup><mrow><mo stretchy="false">{</mo><mo>−</mo><mn>1</mn><mo>,</mo><mn>1</mn><mo stretchy="false">}</mo></mrow><mn>2</mn></msup><mo>,</mo><mspace width="1em"/><mi>y</mi><mo>=</mo><msub><mi>x</mi><mn>1</mn></msub><msub><mi>x</mi><mn>2</mn></msub></math>
 
 相同符号的两点属于正类，不同符号的两点属于负类。若线性分数 w₁x₁+w₂x₂+b 能严格分开两类，两个正类不等式相加要求 2b>0，两个负类不等式相加又要求 2b<0，矛盾。因此原坐标中的目标线性不可分。
 

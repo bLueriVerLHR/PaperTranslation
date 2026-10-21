@@ -72,7 +72,7 @@ ARQ 是确认与重传相结合的恢复思路。停等只让一份数据等待�
 
 RTO 不是固定 RTT。RFC 6298 根据有效 RTT 样本维护平滑值 SRTT 和波动估计 RTTVAR，G 表示计时粒度，基本计算是：
 
-<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi mathvariant="normal">RTO</mi><mo>=</mo><mi mathvariant="normal">SRTT</mi><mo>+</mo><mi mathvariant="normal">max</mi><mo>(</mo><mi>G</mi><mo>,</mo><mn>4</mn><mo>·</mo><mi mathvariant="normal">RTTVAR</mi><mo>)</mo></mrow></math>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi mathvariant="normal">RTO</mi><mo>=</mo><mi mathvariant="normal">SRTT</mi><mo>+</mo><mi mathvariant="normal">max</mi><mo stretchy="false">(</mo><mi>G</mi><mo>,</mo><mn>4</mn><mo>·</mo><mi mathvariant="normal">RTTVAR</mi><mo stretchy="false">)</mo></mrow></math>
 
 标准还规定初始化、更新和相应下限等规则，因此这个表达式不是某个内核的完整计时配置。Karn 取样原则避免把重传后无法判断归属的 ACK 用作普通 RTT 样本，时间戳能在相应条件下消除歧义。定时器不是为每个字节各开一个：尚有未确认数据时维护重传计时，推进确认后按规则重启；到期重传最早未确认段并增大 RTO。快速重传等恢复则可能先于超时发生。[80]
 
@@ -89,7 +89,7 @@ MSS 限制相应 TCP 数据部分，MTU 约束链路或路径上的 IP 分组大
 
 在窗口以字节计、以同一确认边界为基准的简化发送模型中，FlightSize 表示已发送但尚未确认的数据量，新发送额度近似为：
 
-<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi mathvariant="normal">额度</mi><mo>=</mo><mi mathvariant="normal">max</mi><mo>(</mo><mn>0</mn><mo>,</mo><mi mathvariant="normal">min</mi><mo>(</mo><mi mathvariant="normal">rwnd</mi><mo>,</mo><mi mathvariant="normal">cwnd</mi><mo>)</mo><mo>−</mo><mi mathvariant="normal">FlightSize</mi><mo>)</mo></mrow></math>
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi mathvariant="normal">额度</mi><mo>=</mo><mi mathvariant="normal">max</mi><mo stretchy="false">(</mo><mn>0</mn><mo>,</mo><mi mathvariant="normal">min</mi><mo stretchy="false">(</mo><mi mathvariant="normal">rwnd</mi><mo>,</mo><mi mathvariant="normal">cwnd</mi><mo stretchy="false">)</mo><mo>−</mo><mi mathvariant="normal">FlightSize</mi><mo stretchy="false">)</mo></mrow></math>
 
 这个表达式说明共同约束和已用额度，不代替重传恢复、SACK 记账或 pacing 的完整规则。即使窗口允许，应用没有数据或其他发送条件未满足时，也不会自动发满。例如 `rwnd=20 KiB`、`cwnd=12 KiB`、在途 8 KiB 时，简化额度为 4 KiB，而不是 32 KiB。
 

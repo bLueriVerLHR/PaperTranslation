@@ -30,6 +30,6 @@
 
 课程进一步改变来源在什么阶段出现。即使两种安排各使用一次来源 A 和 B，有限步优化也未必到达相同参数。以相同步长 η 的两次普通梯度更新为例，在初始 θ 处记梯度为 gₐ、gᵦ，Hessian 为 Hₐ、Hᵦ。若损失足够光滑、邻域中的相应导数有界，Taylor 展开给出：
 
-<math display="block"><msub><mi>θ</mi><mi mathvariant="normal">AB</mi></msub><mo>−</mo><msub><mi>θ</mi><mi mathvariant="normal">BA</mi></msub><mo>=</mo><msup><mi>η</mi><mn>2</mn></msup><mo>(</mo><msub><mi>H</mi><mi mathvariant="normal">B</mi></msub><msub><mi>g</mi><mi mathvariant="normal">A</mi></msub><mo>−</mo><msub><mi>H</mi><mi mathvariant="normal">A</mi></msub><msub><mi>g</mi><mi mathvariant="normal">B</mi></msub><mo>)</mo><mo>+</mo><mi>O</mi><mo stretchy="false">(</mo><msup><mi>η</mi><mn>3</mn></msup><mo stretchy="false">)</mo></math>
+<math display="block"><msub><mi>θ</mi><mi mathvariant="normal">AB</mi></msub><mo>−</mo><msub><mi>θ</mi><mi mathvariant="normal">BA</mi></msub><mo>=</mo><msup><mi>η</mi><mn>2</mn></msup><mo stretchy="false">(</mo><msub><mi>H</mi><mi mathvariant="normal">B</mi></msub><msub><mi>g</mi><mi mathvariant="normal">A</mi></msub><mo>−</mo><msub><mi>H</mi><mi mathvariant="normal">A</mi></msub><msub><mi>g</mi><mi mathvariant="normal">B</mi></msub><mo stretchy="false">)</mo><mo>+</mo><mi>O</mi><mo stretchy="false">(</mo><msup><mi>η</mi><mn>3</mn></msup><mo stretchy="false">)</mo></math>
 
 原因是第二步梯度在第一步更新后的参数处求值。这个局部分析说明数据顺序可以改变学习路径，而不据此确定哪一种课程最优。混合比例、课程和领域继续训练分别控制目标权重、更新顺序与分布变化，最终还要结合旧能力保持和目标任务表现解释。[17]

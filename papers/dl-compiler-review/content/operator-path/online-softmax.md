@@ -4,11 +4,11 @@
 
 融合写法把 `S` 拆成块，边算边归约，不落盘。对每一行维护三个量：当前最大分值 `m_i`、指数和 `l_i`、以及未归一化的输出 `acc`。处理第 `j` 个键块时依次做三件事：
 
-<math display="block"><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>=</mo><mi mathvariant="normal">max</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>,</mo><msub><mrow><mi mathvariant="normal">max</mi></mrow><mi>j</mi></msub><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>)</mo></math>
+<math display="block"><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>=</mo><mi mathvariant="normal">max</mi><mo stretchy="false">(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>,</mo><msub><mrow><mi mathvariant="normal">max</mi></mrow><mi>j</mi></msub><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo stretchy="false">)</mo></math>
 
-<math display="block"><mi mathvariant="normal">acc</mi><mo>←</mo><mi mathvariant="normal">acc</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><mo>+</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><msub><mi>V</mi><mi>j</mi></msub></math>
+<math display="block"><mi mathvariant="normal">acc</mi><mo>←</mo><mi mathvariant="normal">acc</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo stretchy="false">)</mo><mo>+</mo><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo stretchy="false">)</mo><msub><mi>V</mi><mi>j</mi></msub></math>
 
-<math display="block"><mi>l</mi><mo>←</mo><mi>l</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo></math>
+<math display="block"><mi>l</mi><mo>←</mo><mi>l</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo stretchy="false">)</mo><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo stretchy="false">)</mo></math>
 
 递推的关键在第一行与随之而来的缩放。先前累计的 `acc` 与 `l` 是按旧的 `m_i` 归一化的，一旦出现更大的分值，它们必须整体重标定，乘上 `exp(m_i − m_new)`。这一步让“先看完全部键再归一化”变成“边看边修正估计”，也正是它使块内计算成为可能。
 

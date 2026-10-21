@@ -10,7 +10,7 @@
 
 设完成时间为 <math><mi>t</mi></math>、算子定义的有效数据大小为 <math><mi>n</mi></math>，算法带宽可记为 <math><mrow><msub><mi>B</mi><mtext>alg</mtext></msub><mo>=</mo><mi>n</mi><mo>/</mo><mi>t</mi></mrow></math>。关键在于 <math><mi>n</mi></math> 的定义：AllReduce 是每 rank 的完整向量，AllGather 可以按每 rank 输入或完整输出计量，必须先对齐口径。
 
-一些基准按算法流量系数换算 bus bandwidth。对第 9 章理想 Ring AllReduce，单 rank 发送量为 <math><mrow><mn>2</mn><mo>(</mo><mi>p</mi><mo>−</mo><mn>1</mn><mo>)</mo><mi>n</mi><mo>/</mo><mi>p</mi></mrow></math>，所以对应换算值为：
+一些基准按算法流量系数换算 bus bandwidth。对第 9 章理想 Ring AllReduce，单 rank 发送量为 <math><mrow><mn>2</mn><mo stretchy="false">(</mo><mi>p</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><mi>n</mi><mo>/</mo><mi>p</mi></mrow></math>，所以对应换算值为：
 
 <math display="block"><mrow><msub><mi>B</mi><mtext>bus</mtext></msub><mo>=</mo><mn>2</mn><mfrac><mrow><mi>p</mi><mo>−</mo><mn>1</mn></mrow><mi>p</mi></mfrac><mfrac><mi>n</mi><mi>t</mi></mfrac></mrow></math>
 

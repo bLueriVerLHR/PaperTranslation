@@ -22,7 +22,7 @@
 
 把这件事写成算式可以直接执行。设本次灰度允许消耗月度预算的 5%，则放量到 <math><mi>p</mi></math> 比例时，允许的错误率为
 
-<math display="block"><mrow><msub><mi>e</mi><mtext>allow</mtext></msub><mo>=</mo><mfrac><mrow><mn>0.05</mn><mo>·</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>S</mi><mi>L</mi><mi>O</mi><mo>)</mo><mo>·</mo><mi>P</mi></mrow><mi>W</mi></mfrac><mo>·</mo><mfrac><mn>1</mn><mi>p</mi></mfrac></mrow></math>
+<math display="block"><mrow><msub><mi>e</mi><mtext>allow</mtext></msub><mo>=</mo><mfrac><mrow><mn>0.05</mn><mo>·</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>S</mi><mi>L</mi><mi>O</mi><mo stretchy="false">)</mo><mo>·</mo><mi>P</mi></mrow><mi>W</mi></mfrac><mo>·</mo><mfrac><mn>1</mn><mi>p</mi></mfrac></mrow></math>
 
 其中 <math><mi>P</mi></math> 是预算周期，<math><mi>W</mi></math> 是灰度窗口。取 <math><mi>S</mi><mi>L</mi><mi>O</mi><mo>=</mo><mn>99.9</mn><mo>%</mo></math>、<math><mi>P</mi><mo>=</mo><mn>30</mn></math> 天、<math><mi>W</mi><mo>=</mo><mn>1</mn></math> 小时、<math><mi>p</mi><mo>=</mo><mn>0.01</mn></math>，则允许错误率约为 3.6%。这意味着在 1% 流量、1 小时窗口下，即使新版本把错误率抬到 3%，也不会超出允许的预算消耗。这个数字通常会让人意外地宽松，说明灰度窗口太短时，预算判据的灵敏度不足；解决方式是拉长窗口或增加流量比例，而不是收紧阈值。
 

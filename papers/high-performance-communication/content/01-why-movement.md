@@ -8,7 +8,7 @@
 
 屋顶线模型（roofline）用两个量刻画一个计算任务：峰值算力 <math><mi>P</mi></math>（每秒浮点运算次数）与内存带宽 <math><mi>B</mi></math>（每秒字节数），以及该任务的算术强度 <math><mi>I</mi></math>（每搬入一个字节所完成的浮点运算次数）[17]。任务可达到的性能上界是：
 
-<math display="block"><mrow><mi>F</mi><mo>≤</mo><mi>min</mi><mo>(</mo><mi>P</mi><mo>,</mo><mspace width="0.3em"/><mi>I</mi><msup><mo>·</mo><mrow><mspace width="0.2em"/></mrow></msup><mi>B</mi><mo>)</mo></mrow></math>
+<math display="block"><mrow><mi>F</mi><mo>≤</mo><mi>min</mi><mo stretchy="false">(</mo><mi>P</mi><mo>,</mo><mspace width="0.3em"/><mi>I</mi><msup><mo>·</mo><mrow><mspace width="0.2em"/></mrow></msup><mi>B</mi><mo stretchy="false">)</mo></mrow></math>
 
 式中的 <math><mi>min</mi></math> 是两条上界取小：真正决定结果的是算力上限 <math><mi>P</mi></math> 还是带宽上限 <math><mrow><mi>I</mi><mi>B</mi></mrow></math>。两者相等处的强度
 
