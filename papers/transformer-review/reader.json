@@ -239,6 +239,10 @@
     "59": {
       "text": "DeepSeek-AI. DeepSelect: TopK kernels for DeepSeek Sparse Attention and samplers. Inspected commit bfa4507d935f17ebfc3d0f00ff7d3c9a4d0e5c18.",
       "url": "https://github.com/deepseek-ai/DeepSelect/tree/bfa4507d935f17ebfc3d0f00ff7d3c9a4d0e5c18"
+    },
+    "60": {
+      "text": "DeepSeek-AI. DeepGEMM at its initial release (2025-02-25), including deep_gemm/jit/interleave_ffma.py and the README section “FFMA SASS interleaving”. Fixed commit a6d97a1c1b48a7a9d7994d0e155ee6f11d0a3f07.",
+      "url": "https://github.com/deepseek-ai/DeepGEMM/tree/a6d97a1c1b48a7a9d7994d0e155ee6f11d0a3f07"
     }
   }
 }
