@@ -18,7 +18,7 @@
   <button id="top-button" type="button" hidden>顶部</button>
 </div>
 
-<main class="page" id="content" data-content-hash="0f4f29512eea"><a class="site-home" href="../index.html">← 文库</a>
+<main class="page" id="content" data-content-hash="dd272b309982"><a class="site-home" href="../index.html">← 文库</a>
   <header class="title-block">
     <h1>编译栈：前端抽象、Pass 与后端</h1>
     <p class="subtitle">LLVM、MLIR、TVM、Triton、TileLang、CuTe、PyTorch 与昇腾的源码分析</p>
@@ -3868,9 +3868,9 @@ RegAllocBase::allocatePhysRegs
 <h2 id="online-softmax">先把算法的代价算清楚</h2>
 <p>标准写法里，注意力先算 <code>S = QK^T</code>，再对每一行做 softmax 得到 <code>P</code>，最后算 <code>O = PV</code>。假定序列长度 <code>n = 4096</code>、头维度 <code>d = 128</code>、数值用 16 位浮点，那么 <code>S</code> 是一个 4096×4096 的矩阵：<code>4096² = 16,777,216</code> 个元素，每个 2 字节，合计 32 MiB。这只是单个头、单个批次中的一份中间结果，而它存在的意义只是被立刻做一次归约。</p>
 <p>融合写法把 <code>S</code> 拆成块，边算边归约，不落盘。对每一行维护三个量：当前最大分值 <code>m_i</code>、指数和 <code>l_i</code>、以及未归一化的输出 <code>acc</code>。处理第 <code>j</code> 个键块时依次做三件事：</p>
-<p><math display="block"><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>=</mo><mi mathvariant="normal">max</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>,</mo><msub><mrow><mi mathvariant="normal">max</mi></mrow><mi>j</mi></msub><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>)</mo></math></p>
-<p><math display="block"><mi mathvariant="normal">acc</mi><mo>←</mo><mi mathvariant="normal">acc</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><mo>+</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><msub><mi>V</mi><mi>j</mi></msub></math></p>
-<p><math display="block"><mi>l</mi><mo>←</mo><mi>l</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>)</mo></math></p>
+<p><math display="block"><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo>=</mo><mi mathvariant="normal">max</mi><mo stretchy="false">(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>,</mo><msub><mrow><mi mathvariant="normal">max</mi></mrow><mi>j</mi></msub><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo stretchy="false">)</mo></math></p>
+<p><math display="block"><mi mathvariant="normal">acc</mi><mo>←</mo><mi mathvariant="normal">acc</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo stretchy="false">)</mo><mo>+</mo><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo stretchy="false">)</mo><msub><mi>V</mi><mi>j</mi></msub></math></p>
+<p><math display="block"><mi>l</mi><mo>←</mo><mi>l</mi><mo>·</mo><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>m</mi><mi>i</mi></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo stretchy="false">)</mo><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>−</mo><msub><mi>m</mi><mi mathvariant="normal">new</mi></msub><mo stretchy="false">)</mo></math></p>
 <p>递推的关键在第一行与随之而来的缩放。先前累计的 <code>acc</code> 与 <code>l</code> 是按旧的 <code>m_i</code> 归一化的，一旦出现更大的分值，它们必须整体重标定，乘上 <code>exp(m_i − m_new)</code>。这一步让“先看完全部键再归一化”变成“边看边修正估计”，也正是它使块内计算成为可能。</p>
 <p>空间占用随之改变。块大小取 128×128，一个分值块只占 <code>128 × 128 × 2 B = 32 KiB</code>，与那个 32 MiB 的完整矩阵相差 1024 倍。占用从“与序列长度平方成正比”变成“与块大小平方成正比加上输出本身”，这是融合带来的主要收益。</p>
 <p>收益之外还有新增的计算。每次遇到新的键块，<code>acc</code>（尺寸为查询块行数 × <code>d</code>）要被重标定一次。按查询块大小为 128 计，总的重标定次数是 <code>(n/128) × (n/128)</code> 次块操作，每次作用于 128×128 个元素，于是额外的乘加量约为 <code>n²d / 128</code>；而两次矩阵乘本身的乘加量约为 <code>2n²d</code>。两者相除得到 <code>1/(2 × 128) ≈ 0.39%</code>。用不到半个百分点的额外计算换掉一个按平方增长的中间矩阵，这项交换在长序列上通常成立。</p>

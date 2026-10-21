@@ -18,7 +18,7 @@
   <button id="top-button" type="button" hidden>顶部</button>
 </div>
 
-<main class="page" id="content" data-content-hash="eaf4afa666a1"><a class="site-home" href="../index.html">← 文库</a>
+<main class="page" id="content" data-content-hash="b5ea34764a37"><a class="site-home" href="../index.html">← 文库</a>
   <header class="title-block">
     <h1>机器学习系统的 SRE 与高可用：容器、编排与故障预算</h1>
     <p class="subtitle">从错误预算、容器隔离、调度与共识，到存储带宽账本与训推算力运营</p>
@@ -502,7 +502,7 @@
 <p>SLO 定得越高越好是一个常见的默认假设。SRE 书给出的判断是：每提高一个 9，可靠性改进的成本可能比上一档高 100 倍；而用户往往感知不到差别，因为体验被更不可靠的环节（终端、蜂窝网络）主导<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。同一章还给了一个可复算的收益估算：某服务年收入 100 万美元，把目标从 99.9% 提到 99.99%，可用性提升 0.09%，对应收益 100 万 × 0.0009 = 900 美元；如果提升一个 9 的成本低于 900 美元就值得做，高于则不值<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。</p>
 <p>这个算式粗糙，但它把讨论从“我们要不要更稳”变成了“这一档稳定性值多少钱”。对生成式 AI 平台，收入侧还要乘以请求价值的不均匀性：训练失败损失的是机时，推理失败损失的是用户请求，两者的单价相差几个数量级，不能共用一个预算阈值。</p>
 <h3 id="27-窗口长度与统计噪声">2.7 窗口长度与统计噪声</h3>
-<p>错误预算的周期不能取得太短，原因是统计噪声。以第 3 章的量级为例：日请求 250 万，目标 99.99%，允许错误 250 个。若真实错误率恰好等于预算错误率 0.01%，每日错误数的标准差约为 <math><msqrt><mrow><mi>n</mi><mi>p</mi><mo>(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo>)</mo></mrow></msqrt><mo>≈</mo><msqrt><mn>250</mn></msqrt><mo>≈</mo><mn>15.8</mn></mrow></math>，相对上限约 6%。也就是说，即使系统完全按目标运行，也会有一部分日子“超额”。</p>
+<p>错误预算的周期不能取得太短，原因是统计噪声。以第 3 章的量级为例：日请求 250 万，目标 99.99%，允许错误 250 个。若真实错误率恰好等于预算错误率 0.01%，每日错误数的标准差约为 <math><msqrt><mrow><mi>n</mi><mi>p</mi><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo stretchy="false">)</mo></mrow></msqrt><mo>≈</mo><msqrt><mn>250</mn></msqrt><mo>≈</mo><mn>15.8</mn></mrow></math>，相对上限约 6%。也就是说，即使系统完全按目标运行，也会有一部分日子“超额”。</p>
 <p>若把预算周期定为一天，这些日子会被当成故障处理，实际只是噪声。把周期拉长到 30 天，噪声的相对幅度降到约 1%；拉长到一个季度，噪声进一步下降。这就是预算周期按月或按季度定义的统计依据，而不是组织习惯。</p>
 <p>同一条推理也适用于燃烧率告警。短窗口的燃烧率估计方差大，长窗口的估计滞后。把两者组合使用的理由在这里得到量化：短窗口用来降低检测延迟，长窗口用来控制误报，两者的阈值可以独立取。</p>
 <h3 id="28-预算与规模的相互作用">2.8 预算与规模的相互作用</h3>
@@ -516,11 +516,11 @@
 <h3 id="31-排队放大">3.1 排队放大</h3>
 <p>先看最简单的情形：单个服务台、到达过程近似泊松、服务时间近似指数分布（M/M/1）。设服务强度为 <math><mi>ρ</mi></math>（到达率乘以平均服务时间），平均等待时间为</p>
 <p><math display="block"><mrow><mi>W</mi><mo>=</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mi>S</mi></mrow></math></p>
-<p>其中 <math><mi>S</mi></math> 是平均服务时间。放大因子 <math><mi>ρ</mi><mo>/</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo>)</mo></math> 在利用率接近 1 时发散：ρ 取 0.5 是 1 倍，0.8 是 4 倍，0.9 是 9 倍，0.95 是 19 倍。</p>
+<p>其中 <math><mi>S</mi></math> 是平均服务时间。放大因子 <math><mi>ρ</mi><mo>/</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo stretchy="false">)</mo></math> 在利用率接近 1 时发散：ρ 取 0.5 是 1 倍，0.8 是 4 倍，0.9 是 9 倍，0.95 是 19 倍。</p>
 <p>M/M/1 假设太强，实用的是它的近似推广（Kingman 公式）：</p>
-<p><math display="block"><mrow><mi>E</mi><mo>&#91;</mo><mi>W</mi><mo>&#93;</mo><mo>≈</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><msubsup><mi>C</mi><mi>a</mi><mn>2</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>s</mi><mn>2</mn></msubsup></mrow><mn>2</mn></mfrac><mo>·</mo><mi>E</mi><mo>&#91;</mo><mi>S</mi><mo>&#93;</mo></mrow></math></p>
+<p><math display="block"><mrow><mi>E</mi><mo stretchy="false">&#91;</mo><mi>W</mi><mo stretchy="false">&#93;</mo><mo>≈</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><msubsup><mi>C</mi><mi>a</mi><mn>2</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>s</mi><mn>2</mn></msubsup></mrow><mn>2</mn></mfrac><mo>·</mo><mi>E</mi><mo stretchy="false">&#91;</mo><mi>S</mi><mo stretchy="false">&#93;</mo></mrow></math></p>
 <p><math><msub><mi>C</mi><mi>a</mi></msub></math> 与 <math><msub><mi>C</mi><mi>s</mi></msub></math> 分别是到达间隔与服务时间的变异系数。这个式子给出两个可操作的结论：决定时延的除了利用率，还有服务时间的离散程度；降低方差与降低利用率是等效的手段，而前者通常更便宜。</p>
-<p>代入一组教学取值说明量级：平均服务时间 50 ms，要求平均等待不超过 50 ms。若服务时间接近指数分布（变异系数 1），则要求 <math><mi>ρ</mi><mo>/</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo>)</mo><mo>≤</mo><mn>1</mn></math>，即 ρ ≤ 0.5。若批处理让服务时间的变异系数升到 2，同样的等待目标要求</p>
+<p>代入一组教学取值说明量级：平均服务时间 50 ms，要求平均等待不超过 50 ms。若服务时间接近指数分布（变异系数 1），则要求 <math><mi>ρ</mi><mo>/</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo stretchy="false">)</mo><mo>≤</mo><mn>1</mn></math>，即 ρ ≤ 0.5。若批处理让服务时间的变异系数升到 2，同样的等待目标要求</p>
 <p><math display="block"><mrow><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><mn>1</mn><mo>+</mo><mn>4</mn></mrow><mn>2</mn></mfrac><mo>≤</mo><mn>1</mn><mo>⇒</mo><mi>ρ</mi><mo>≤</mo><mn>0.4</mn></mrow></math></p>
 <p>也就是说，同样一台机器，服务时间方差翻倍就要把规划利用率从 50% 降到 40%，否则尾时延会越过目标。生成式推理恰好属于方差大的情形：连续批处理把不同长度的请求拼进同一批，批内 token 数决定了这一批的服务时间。</p>
 <h3 id="32-生成式推理的双约束">3.2 生成式推理的双约束</h3>
@@ -536,7 +536,7 @@
 <p>第三点尤其重要：干扰不能靠“看起来不忙”来判断，因为利用率与 CPI 的相关性很弱。可行的做法是运行时保护，而不是事前预测。第 8 章讨论 GPU 上的同类问题，其结论比 CPU 更尖锐，因为 GPU 的共享粒度更粗、错误的传播面更大。</p>
 <h3 id="35-冗余预算看尾部而不是均值">3.5 冗余预算：看尾部而不是均值</h3>
 <p>容量规划的另一半是冗余：为吸收故障需要预留多少资源。设集群有 <math><mi>n</mi></math> 台机器，单台在某个窗口内出故障的概率为 <math><mi>p</mi></math>，同时故障的台数近似服从二项分布：</p>
-<p><math display="block"><mrow><mi>P</mi><mo>(</mo><mi>X</mi><mo>=</mo><mi>k</mi><mo>)</mo><mo>=</mo><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>p</mi><mi>k</mi></msup><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo>)</mo></mrow><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup></mrow></math></p>
+<p><math display="block"><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>X</mi><mo>=</mo><mi>k</mi><mo stretchy="false">)</mo><mo>=</mo><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>p</mi><mi>k</mi></msup><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo stretchy="false">)</mo></mrow><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup></mrow></math></p>
 <p>取 <math><mi>n</mi><mo>=</mo><mn>100</mn></math>，按 <math><mi>p</mi></math> 取三档算出“至少 3 台同时故障”的概率，结果如表 3-1。表中概率按上式逐项计算，<math><mi>p</mi></math> 为教学取值，实际应按监控数据估计。</p>
 <div class="table-wrap"><table>
 <thead>
@@ -724,7 +724,7 @@
 <p>宽限期的取值需要覆盖在途请求的最长处理时间。对流式推理，最长处理时间可能是数十秒；对训练作业，进程退出前可能需要保存检查点，时间更长。宽限期设得短，会周期性地产生“未完成的请求”与“损坏的检查点”，而这两类问题在指标上往往只表现为少量错误率的抬升。</p>
 <h3 id="67-滚动更新与可用容量">6.7 滚动更新与可用容量</h3>
 <p>滚动更新在替换副本时会临时降低可用容量。设稳定副本数为 <math><mi>N</mi></math>，更新时允许的最大不可用比例为 <math><mi>u</mi></math>，则更新期间的可用副本下限为</p>
-<p><math display="block"><mrow><msub><mi>N</mi><mtext>min</mtext></msub><mo>=</mo><mo>⌈</mo><mi>N</mi><mo>·</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>u</mi><mo>)</mo><mo>⌉</mo></mrow></math></p>
+<p><math display="block"><mrow><msub><mi>N</mi><mtext>min</mtext></msub><mo>=</mo><mo>⌈</mo><mi>N</mi><mo>·</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>u</mi><mo stretchy="false">)</mo><mo>⌉</mo></mrow></math></p>
 <p>取 <math><mi>N</mi><mo>=</mo><mn>4</mn></math>、<math><mi>u</mi><mo>=</mo><mn>0.25</mn></math>，下限为 3 个副本。若单副本只能承载 30% 的峰值流量，3 个副本刚好能支撑（<math><mn>3</mn><mo>×</mo><mn>0.3</mn><mo>=</mo><mn>0.9</mn></math>），几乎没有余量；此时更新期间一旦有一个副本启动失败，就会直接越界。这就是“副本数够但一发布就超时”的典型成因。</p>
 <p>把这条算式与容量规划放在一起，得到的结论是：更新期间的容量需求高于稳态，必须按更新时的下限做容量校验，而不只按稳态副本数校验。对推理服务，还可以把更新拆成两段：先扩容新版本、再缩容旧版本，使可用容量在更新期间不降；代价是更新期间额外占用一倍资源。</p>
 <p>驱逐也需要同类的保护。人为维护（节点排空）与自动驱逐都会同时移除副本，如果不设上限，一次大规模维护可能把可用副本降到低于下限。通常用“最小可用副本数”的约束把维护动作限住，使维护变成可预测的步进，而不是一次性批量操作。</p>
@@ -825,9 +825,9 @@
 <h3 id="96-可用性的算术">9.6 可用性的算术</h3>
 <p>把副本数与可用性放在一起算，会得到一个常被忽略的结论：读与写的可用性上限不同。设单副本在某个窗口内的可用概率为 <math><mi>a</mi></math>，副本故障相互独立（这是简化假设，实际同机架、同电源的故障相关）。</p>
 <p>若读可以落到任意副本，3 副本的读可用性为</p>
-<p><math display="block"><mrow><msub><mi>A</mi><mtext>read</mtext></msub><mo>=</mo><mn>1</mn><mo>−</mo><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo>)</mo></mrow><mn>3</mn></msup></mrow></math></p>
+<p><math display="block"><mrow><msub><mi>A</mi><mtext>read</mtext></msub><mo>=</mo><mn>1</mn><mo>−</mo><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo stretchy="false">)</mo></mrow><mn>3</mn></msup></mrow></math></p>
 <p>若写需要多数派确认，3 副本的写可用性为</p>
-<p><math display="block"><mrow><msub><mi>A</mi><mtext>write</mtext></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>2</mn></mrow><mn>3</mn></munderover><mrow><mo>(</mo><mfrac linethickness="0"><mn>3</mn><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>a</mi><mi>k</mi></msup><msup><mrow><mo>(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo>)</mo></mrow><mrow><mn>3</mn><mo>−</mo><mi>k</mi></mrow></msup></mrow></math></p>
+<p><math display="block"><mrow><msub><mi>A</mi><mtext>write</mtext></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>2</mn></mrow><mn>3</mn></munderover><mrow><mo>(</mo><mfrac linethickness="0"><mn>3</mn><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>a</mi><mi>k</mi></msup><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>a</mi><mo stretchy="false">)</mo></mrow><mrow><mn>3</mn><mo>−</mo><mi>k</mi></mrow></msup></mrow></math></p>
 <p>取 <math><mi>a</mi><mo>=</mo><mn>0.99</mn></math>，读可用性为 99.9999%，写可用性为 99.9702%。把副本数提到 5，读可用性升到 99.99999999%，写可用性升到 99.9990%。这组数字的两个含义是：三副本对读的提升已经足够，对写的提升有限；增加副本对写可用性的边际收益递减，而成本与写延迟线性上升。</p>
 <p>写延迟的下限也可以直接算。多数派确认意味着一次写要等待最慢的那部分副本，跨机房部署时下限等于多数派内最远的往返时延。同城两机房往返 1 ms，写延迟下限约 1 ms；跨洲往返 100 ms 以上，写延迟下限随之抬到百毫秒级。这条约束决定了“元数据放哪里”这类决策：把强一致元数据跨洲复制，会把每次元数据操作的成本抬到百毫秒，而推理服务的首 token 时延预算通常只有数百毫秒。</p>
 <h3 id="97-切换的判据">9.7 切换的判据</h3>
@@ -993,7 +993,7 @@
 <h3 id="143-灰度判据">14.3 灰度判据</h3>
 <p>灰度的两个参数是窗口长度与放量速度。SRE 书把这两个参数列为产品与 SRE 之间的固有张力之一：窗口太长会拖慢发布，太短则无法暴露低频问题<a class="citation" href="https://sre.google/sre-book/table-of-contents/" title="Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。" aria-label="引用 [3]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Betsy Beyer, Chris Jones, Jennifer Petoff, Niall Richard Murphy. Site Reliability Engineering: How Google Runs Production Systems. Sebastopol: O&#x27;Reilly Media, 2016. 本文采用第 3 章 Embracing Risk（时间型与产出型可用性、错误预算）、第 4 章 Service Level Objectives（SLI/SLO/SLA 定义）、第 6 章 Monitoring Distributed Systems（症状告警与分页原则）、第 15 章 Postmortem Culture（复盘触发条件与无指责原则）。&quot;, &quot;url&quot;: &quot;https://sre.google/sre-book/table-of-contents/&quot;, &quot;fallback&quot;: false}]">[3]</a>。解决方式是用错误预算给出客观判据：灰度期间消耗的预算不超过某个比例则继续放量，超过则回退。</p>
 <p>把这件事写成算式可以直接执行。设本次灰度允许消耗月度预算的 5%，则放量到 <math><mi>p</mi></math> 比例时，允许的错误率为</p>
-<p><math display="block"><mrow><msub><mi>e</mi><mtext>allow</mtext></msub><mo>=</mo><mfrac><mrow><mn>0.05</mn><mo>·</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>S</mi><mi>L</mi><mi>O</mi><mo>)</mo><mo>·</mo><mi>P</mi></mrow><mi>W</mi></mfrac><mo>·</mo><mfrac><mn>1</mn><mi>p</mi></mfrac></mrow></math></p>
+<p><math display="block"><mrow><msub><mi>e</mi><mtext>allow</mtext></msub><mo>=</mo><mfrac><mrow><mn>0.05</mn><mo>·</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>S</mi><mi>L</mi><mi>O</mi><mo stretchy="false">)</mo><mo>·</mo><mi>P</mi></mrow><mi>W</mi></mfrac><mo>·</mo><mfrac><mn>1</mn><mi>p</mi></mfrac></mrow></math></p>
 <p>其中 <math><mi>P</mi></math> 是预算周期，<math><mi>W</mi></math> 是灰度窗口。取 <math><mi>S</mi><mi>L</mi><mi>O</mi><mo>=</mo><mn>99.9</mn><mo>%</mo></math>、<math><mi>P</mi><mo>=</mo><mn>30</mn></math> 天、<math><mi>W</mi><mo>=</mo><mn>1</mn></math> 小时、<math><mi>p</mi><mo>=</mo><mn>0.01</mn></math>，则允许错误率约为 3.6%。这意味着在 1% 流量、1 小时窗口下，即使新版本把错误率抬到 3%，也不会超出允许的预算消耗。这个数字通常会让人意外地宽松，说明灰度窗口太短时，预算判据的灵敏度不足；解决方式是拉长窗口或增加流量比例，而不是收紧阈值。</p>
 <h3 id="144-控制器化">14.4 控制器化</h3>
 <p>把运维知识写进控制器，是 Kubernetes 生态的标准做法：自定义资源描述期望状态，控制器负责收敛<a class="citation" href="https://www.tsinghua.edu.cn/" title="王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。" aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;王伟峰. 深入高可用系统原理与设计. 北京：清华大学出版社，2025. 本文采用第 1 章（云原生与容器演进，第 11–40 页）、第 5–6 章（一致性与共识，第 222–276 页）、第 7 章（容器编排技术，第 279–378 页）与第 9 章（系统可观测性，第 421–438 页）的机制描述；页码为该书正文页。&quot;, &quot;url&quot;: &quot;https://www.tsinghua.edu.cn/&quot;, &quot;fallback&quot;: false}]">[1]</a>。收益是操作可重复，代价是把“人的判断”替换成“代码的判断”，而代码在异常状态下容易抖动：反复创建与删除资源、反复重启容器、反复扩缩副本。</p>
