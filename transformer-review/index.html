@@ -18,11 +18,11 @@
   <button id="top-button" type="button" hidden>顶部</button>
 </div>
 
-<main class="page" id="content" data-content-hash="bb1085c07670"><a class="site-home" href="../index.html">← 文库</a>
+<main class="page" id="content" data-content-hash="53ea9c4a1eff"><a class="site-home" href="../index.html">← 文库</a>
   <header class="title-block">
     <h1>Transformer：架构、训练、推理与应用综述</h1>
     <p class="subtitle">通用架构与序列建模</p>
-    <p class="meta"><span class="latin">原创研读与整理</span> · 原创综述 · 更新于 2026-10-20</p>
+    <p class="meta"><span class="latin">原创研读与整理</span> · 原创综述 · 更新于 2026-10-21</p>
     <p class="meta reading-notice">引用文献与图示遵循各自原有许可与权利要求。</p>
 
 <details class="meta source-details"><summary>出处与说明</summary><p>本篇是围绕输入表示、交互计算、学习目标与应用接口组织的原创综述。主要方法证据包括原始 Transformer、BERT、ViT、MAE、CLIP，以及 MoE、GQA、MLA、DeepSeek DSA、MiniMax MSA、LoRA、偏好优化、投机采样、GPTQ、DETR、Whisper、PatchTST 和蛋白质语言建模的原始来源；DSec 作为智能体训练基础设施案例，相关综述提供分类与系统线索。训练／推理框架部分另依据固定提交的 FlashAttention 及本地框架源码，区分算子、训练执行、引擎调度与服务；不将旧研读笔记的性能比较当作实测。语言、视觉、音频、时间序列及蛋白质序列按各自输入、目标和评价条件讨论，不作全领域覆盖或跨任务性能保证。</p>
@@ -95,9 +95,74 @@
 <td>组内查询头共享 K／V；分组不指切分输入序列</td>
 </tr>
 <tr>
-<td>Multi-head Latent Attention (MLA)</td>
+<td>multi-head Latent Attention (MLA)</td>
 <td>多头潜在注意力（MLA）</td>
 <td>联合低维参数化内容 K／V，缓存潜在向量及解耦的位置键</td>
+</tr>
+<tr>
+<td>linear attention / kernelized linear attention</td>
+<td>线性注意力／核化线性注意力</td>
+<td>把相似性写成有限维特征內积，交换求和顺序，用累计状态代替逐位置键值</td>
+</tr>
+<tr>
+<td>state</td>
+<td>状态</td>
+<td>递推机制用矩阵或向量汇总的历史，不等同于 KV 缓存，也不保证逐位置可寻址</td>
+</tr>
+<tr>
+<td>decay</td>
+<td>衰减</td>
+<td>旧状态按位置距离或输入系数缩小的机制；标量、通道向量与逐头取值需分别说明</td>
+</tr>
+<tr>
+<td>delta rule / write strength</td>
+<td>delta 规则／写强度</td>
+<td>用目标值减当前读值修正状态的写入规则；写强度 β 越大修正越彻底</td>
+</tr>
+<tr>
+<td>gated delta network (GDN)</td>
+<td>门控 delta 网络（GDN）</td>
+<td>在 delta 规则上乘输入相关的逐头衰减 α；不是门控注意力的别名</td>
+</tr>
+<tr>
+<td>Kimi Delta Attention (KDA)</td>
+<td>Kimi Delta 注意力（KDA）</td>
+<td>把 GDN 的逐头标量门控换成逐通道对角门控；名称保留</td>
+</tr>
+<tr>
+<td>diagonal-plus-low-rank (DPLR)</td>
+<td>对角加低秩（DPLR）</td>
+<td>转移矩阵形如 D − abᵀ 的状态演化族；可分块但数值与吞吐代价各异</td>
+</tr>
+<tr>
+<td>WY representation</td>
+<td>WY 表示</td>
+<td>把一叠 Householder 乘积压成两个小矩阵的紧凑形式，使分块训练可用矩阵乘</td>
+</tr>
+<tr>
+<td>state space model (SSM) / selection</td>
+<td>状态空间模型（SSM）／选择性</td>
+<td>连续时间系统离散化后的递推；选择性指 Δ、B、C 随输入变化</td>
+</tr>
+<tr>
+<td>RWKV</td>
+<td>RWKV</td>
+<td>从线性注意力出发、衰减写成通道向量的递推结构；名称保留</td>
+</tr>
+<tr>
+<td>Native Sparse Attention (NSA)</td>
+<td>原生稀疏注意力（NSA）</td>
+<td>压缩、选择、窗口三条分支并联，在预训练阶段就打开稀疏</td>
+</tr>
+<tr>
+<td>needle-in-a-haystack (NIAH) / S-NIAH</td>
+<td>单针检索（S-NIAH）</td>
+<td>把键值对埋进长上下文并要求原样取回的合成评测；S-NIAH 指单针变体</td>
+</tr>
+<tr>
+<td>L2 normalization</td>
+<td>L2 归一化</td>
+<td>把查询与键的范数缩到单位长度的归一化，用于稳定递推类机制的训练</td>
 </tr>
 <tr>
 <td>DeepSeek Sparse Attention (DSA)</td>
@@ -631,11 +696,81 @@
 <li><a href="#局部窗口拿深度换连接数">局部窗口：拿深度换连接数</a></li>
 <li><a href="#固定学习与层级给出不同的偏置">固定、学习与层级给出不同的偏置</a></li>
 </ol></li>
+<li><a href="#输入组织与计算复杂度">输入组织与计算复杂度</a><ol>
+<li><a href="#二次交互什么时候成为主项">二次交互什么时候成为主项</a></li>
+<li><a href="#输入粒度决定成本涨在哪一项">输入粒度决定成本涨在哪一项</a></li>
+<li><a href="#算术与存储可以分开优化">算术与存储可以分开优化</a></li>
+</ol></li>
+<li><a href="#架构变体的作用层次与设计约束">架构变体的作用层次与设计约束</a><ol>
+<li><a href="#长序列成本与结构先验">长序列成本与结构先验</a></li>
+<li><a href="#高效方法改动的是哪个对象">高效方法改动的是哪个对象</a></li>
+</ol></li>
+</ol></li>
+<li><a href="#2-注意力机制共享压缩递推与选择">2. 注意力机制：共享、压缩、递推与选择</a><ol>
+<li><a href="#记法与谱系">记法与谱系</a><ol>
+<li><a href="#四个分开记的量">四个分开记的量</a></li>
+<li><a href="#谱系表">谱系表</a></li>
+<li><a href="#表的用法">表的用法</a></li>
+</ol></li>
+<li><a href="#mhamqagqa先动-kv-头的共享方式">MHA、MQA、GQA：先动 KV 头的共享方式</a><ol>
+<li><a href="#解码时带宽为什么先到上限">解码时带宽为什么先到上限</a></li>
+<li><a href="#mqa-只保留一套键值">MQA 只保留一套键值</a></li>
+<li><a href="#gqa-在两者之间取值">GQA 在两者之间取值</a></li>
+<li><a href="#共享停在每头多宽这一步">共享停在“每头多宽”这一步</a></li>
+</ol></li>
 <li><a href="#mla把-kv-缓存压进一个潜在向量">MLA：把 KV 缓存压进一个潜在向量</a><ol>
-<li><a href="#mhamqagqa-先改变-kv-头的共享方式">MHA、MQA、GQA 先改变 KV 头的共享方式</a></li>
 <li><a href="#联合低维参数化保留头间差异">联合低维参数化保留头间差异</a></li>
 <li><a href="#矩阵吸收历史访问留在低维空间">矩阵吸收：历史访问留在低维空间</a></li>
 <li><a href="#rope-为什么必须解耦">RoPE 为什么必须解耦</a></li>
+<li><a href="#宽度压缩了位置个数还在">宽度压缩了，位置个数还在</a></li>
+</ol></li>
+<li><a href="#核化线性注意力把求和顺序换过来">核化线性注意力：把求和顺序换过来</a><ol>
+<li><a href="#从核函数到可累计状态">从核函数到可累计状态</a></li>
+<li><a href="#三种计算形态的并行度与算术量">三种计算形态的并行度与算术量</a></li>
+<li><a href="#有限维特征装不下指数点积矩阵">有限维特征装不下指数点积矩阵</a></li>
+<li><a href="#加法写入的两个缺口">加法写入的两个缺口</a></li>
+</ol></li>
+<li><a href="#retnet给状态加一层与内容无关的衰减">RetNet：给状态加一层与内容无关的衰减</a><ol>
+<li><a href="#从状态递推到带衰减的并行形式">从状态递推到带衰减的并行形式</a></li>
+<li><a href="#逐头衰减给出不同的有效记忆长度">逐头衰减给出不同的有效记忆长度</a></li>
+<li><a href="#固定衰减补了一半">固定衰减补了一半</a></li>
+</ol></li>
+<li><a href="#deltanet把加法写入换成误差修正">DeltaNet：把加法写入换成误差修正</a><ol>
+<li><a href="#一次写入只改一个秩一项">一次写入只改一个秩一项</a></li>
+<li><a href="#状态容量可以算出来">状态容量可以算出来</a></li>
+<li><a href="#并行化靠-wy-表示">并行化靠 WY 表示</a></li>
+<li><a href="#剩下的两处">剩下的两处</a></li>
+</ol></li>
+<li><a href="#gdn门控与-delta-写进同一个转移矩阵">GDN：门控与 delta 写进同一个转移矩阵</a><ol>
+<li><a href="#用在线学习目标读出两项各自的作用">用在线学习目标读出两项各自的作用</a></li>
+<li><a href="#三种检索任务暴露三种失效">三种检索任务暴露三种失效</a></li>
+<li><a href="#分块训练要把门控乘进三角求解">分块训练要把门控乘进三角求解</a></li>
+<li><a href="#单层递推在检索上的短板要靠混合补">单层递推在检索上的短板要靠混合补</a></li>
+</ol></li>
+<li><a href="#kda门控细化到通道并在半精度矩阵乘里成立">KDA：门控细化到通道，并在半精度矩阵乘里成立</a><ol>
+<li><a href="#更新式与它对应的-dplr-结构">更新式与它对应的 DPLR 结构</a></li>
+<li><a href="#分块算法把逐元素缩放挤进矩阵乘两侧">分块算法：把逐元素缩放挤进矩阵乘两侧</a></li>
+<li><a href="#三个可核对的量">三个可核对的量</a></li>
+<li><a href="#把位置信息交给-kda">把位置信息交给 KDA</a></li>
+<li><a href="#参数化与开源权重">参数化与开源权重</a></li>
+<li><a href="#细门控的代价落在哪">细门控的代价落在哪</a></li>
+</ol></li>
+<li><a href="#ssm-与-rwkv同一套状态演化的另外两条入口">SSM 与 RWKV：同一套状态演化的另外两条入口</a><ol>
+<li><a href="#从连续时间系统到选择性扫描">从连续时间系统到选择性扫描</a></li>
+<li><a href="#mamba2-把递推与二次计算做成对偶">Mamba2 把递推与二次计算做成对偶</a></li>
+<li><a href="#rwkv把衰减放到通道上">RWKV：把衰减放到通道上</a></li>
+<li><a href="#七条更新式并排">七条更新式并排</a></li>
+</ol></li>
+<li><a href="#滑动窗口把可读位置限制成固定长度">滑动窗口：把可读位置限制成固定长度</a><ol>
+<li><a href="#感受野按层数线性累积">感受野按层数线性累积</a></li>
+<li><a href="#缓存变成环形缓冲">缓存变成环形缓冲</a></li>
+<li><a href="#覆盖与不读不是一回事">覆盖与不读不是一回事</a></li>
+<li><a href="#固定形状读不到内容需要的那一段">固定形状读不到内容需要的那一段</a></li>
+</ol></li>
+<li><a href="#nsa压缩选择滑动窗口三条分支并联">NSA：压缩、选择、滑动窗口三条分支并联</a><ol>
+<li><a href="#三个映射与一个门控">三个映射与一个门控</a></li>
+<li><a href="#配置与复杂度">配置与复杂度</a></li>
+<li><a href="#稀疏的是读取集合">稀疏的是读取集合</a></li>
 </ol></li>
 <li><a href="#dsa用轻量索引器挑出要读的历史">DSA：用轻量索引器挑出要读的历史</a><ol>
 <li><a href="#索引分数与主注意力权重各司其职">索引分数与主注意力权重各司其职</a></li>
@@ -648,24 +783,15 @@
 <li><a href="#教师分布取组内概率平均">教师分布取组内概率平均</a></li>
 <li><a href="#块稀疏没有消掉二次索引项">块稀疏没有消掉二次索引项</a></li>
 <li><a href="#从稀疏连接到-gpu-执行">从稀疏连接到 GPU 执行</a></li>
-<li><a href="#五种机制在同一条流水线上各管一段">五种机制在同一条流水线上各管一段</a></li>
+<li><a href="#块内冗余与二次索引项都还在">块内冗余与二次索引项都还在</a></li>
 </ol></li>
-<li><a href="#线性注意力与低秩压缩">线性注意力与低秩压缩</a><ol>
-<li><a href="#从核函数到可累计状态">从核函数到可累计状态</a></li>
-<li><a href="#有限维特征装不下指数点积矩阵">有限维特征装不下指数点积矩阵</a></li>
-<li><a href="#状态压缩与序列低秩压缩的取舍">状态压缩与序列低秩压缩的取舍</a></li>
-</ol></li>
-<li><a href="#输入组织与计算复杂度">输入组织与计算复杂度</a><ol>
-<li><a href="#二次交互什么时候成为主项">二次交互什么时候成为主项</a></li>
-<li><a href="#输入粒度决定成本涨在哪一项">输入粒度决定成本涨在哪一项</a></li>
-<li><a href="#算术与存储可以分开优化">算术与存储可以分开优化</a></li>
-</ol></li>
-<li><a href="#架构变体的作用层次与设计约束">架构变体的作用层次与设计约束</a><ol>
-<li><a href="#长序列成本与结构先验">长序列成本与结构先验</a></li>
-<li><a href="#高效方法改动的是哪个对象">高效方法改动的是哪个对象</a></li>
+<li><a href="#三条轴上的成本对照">三条轴上的成本对照</a><ol>
+<li><a href="#一个统一配置下的量级">一个统一配置下的量级</a></li>
+<li><a href="#收益为什么不能直接相乘">收益为什么不能直接相乘</a></li>
+<li><a href="#按最先到上限的那一项选">按最先到上限的那一项选</a></li>
 </ol></li>
 </ol></li>
-<li><a href="#2-预训练阶段">2. 预训练阶段</a><ol>
+<li><a href="#3-预训练阶段">3. 预训练阶段</a><ol>
 <li><a href="#目标函数与监督信号">目标函数与监督信号</a><ol>
 <li><a href="#条件预测决定模型需要保留的信息">条件预测决定模型需要保留的信息</a></li>
 <li><a href="#自回归目标与双向表征的不同条件">自回归目标与双向表征的不同条件</a></li>
@@ -694,7 +820,7 @@
 <li><a href="#评估协议决定结论的外延">评估协议决定结论的外延</a></li>
 </ol></li>
 </ol></li>
-<li><a href="#3-后训练阶段">3. 后训练阶段</a><ol>
+<li><a href="#4-后训练阶段">4. 后训练阶段</a><ol>
 <li><a href="#任务微调与领域适配">任务微调与领域适配</a><ol>
 <li><a href="#输出接口怎样定义监督">输出接口怎样定义监督</a></li>
 <li><a href="#领域继续训练与任务微调改变不同分布">领域继续训练与任务微调改变不同分布</a></li>
@@ -722,7 +848,7 @@
 <li><a href="#适配收益行为保持与系统成本">适配收益、行为保持与系统成本</a></li>
 </ol></li>
 </ol></li>
-<li><a href="#4-推理阶段">4. 推理阶段</a><ol>
+<li><a href="#5-推理阶段">5. 推理阶段</a><ol>
 <li><a href="#输出接口决定推理流程">输出接口决定推理流程</a></li>
 <li><a href="#kv-缓存的依据历史表示在追加下不变">KV 缓存的依据：历史表示在追加下不变</a></li>
 <li><a href="#状态容量与执行瓶颈">状态容量与执行瓶颈</a></li>
@@ -738,7 +864,7 @@
 <li><a href="#投机采样为什么能保住目标分布">投机采样为什么能保住目标分布</a></li>
 <li><a href="#端到端服务计算时间之外的状态与等待">端到端服务：计算时间之外的状态与等待</a></li>
 </ol></li>
-<li><a href="#5-训练推理框架">5. 训练／推理框架</a><ol>
+<li><a href="#6-训练推理框架">6. 训练／推理框架</a><ol>
 <li><a href="#从模型计算到系统执行三种不同的优化对象">从模型计算到系统执行：三种不同的优化对象</a><ol>
 <li><a href="#固定源码与结论范围">固定源码与结论范围</a></li>
 </ol></li>
@@ -814,7 +940,7 @@
 </ol></li>
 <li><a href="#按问题选择方案">按问题选择方案</a></li>
 </ol></li>
-<li><a href="#6-下游任务">6. 下游任务</a><ol>
+<li><a href="#7-下游任务">7. 下游任务</a><ol>
 <li><a href="#语言任务表示跨度与条件生成">语言任务：表示、跨度与条件生成</a><ol>
 <li><a href="#销售预测统计判断与干预收益">销售预测：统计判断与干预收益</a></li>
 </ol></li>
@@ -844,7 +970,7 @@
   <article class="body">
 <section id="sec-01-architecture">
 <h2 id="1-基础原理与架构演进">1. 基础原理与架构演进</h2>
-<p>Transformer 把序列建模拆成四件事：输入怎样表示、位置关系怎样进入计算、内容之间怎样交互、特征怎样变换，再由任务目标把这些组件组织起来。本章先说明这几步的基本计算，再看局部连接、累计状态与输入粒度怎样改变信息传播和资源需求。模型定义以原始论文为准，比较视角来自架构综述。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
+<p>Transformer 把序列建模拆成四件事：输入怎样表示、位置关系怎样进入计算、内容之间怎样交互、特征怎样变换，再由任务目标把这些组件组织起来。本章给出这几步的基本计算，再看局部连接、条件计算与输入粒度怎样改变信息传播和资源需求。模型定义以原始论文为准，比较视角来自架构综述。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
 
 Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
 
@@ -1044,188 +1170,7 @@ Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A 
 <h4 id="固定学习与层级给出不同的偏置">固定、学习与层级给出不同的偏置</h4>
 <p>固定窗口或块模式预先定好连接，规则简单、访存可预测，判断依据只有位置关系。学习得到的路由或聚类按内容组织候选，试图在有限预算内抓住任务真正需要的远距离关系，代价是候选构造、排序或路由本身。<a class="citation" href="https://doi.org/10.1145/3530811" title="Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A Survey. ACM Computing Surveys 55(6), Article 109 (December 2022), 28 pages. DOI: 10.1145/3530811." aria-label="引用 [10]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;10&quot;, &quot;text&quot;: &quot;Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A Survey. ACM Computing Surveys 55(6), Article 109 (December 2022), 28 pages. DOI: 10.1145/3530811.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3530811&quot;, &quot;fallback&quot;: false}]">[10]</a> 两者的差别落在“凭什么决定连接”这一点上，与稀疏比例高不高无关。</p>
 <p>层级结构再改一次分辨率：高层在更少的位置上交互，一个高层位置因而代表更大的一块输入。密集预测任务需要细节，就得保留降采样之前的路径，或把分辨率恢复回来。局部、全局、内容路由三种方式可以叠加使用，组合的目的是同时管住成本与依赖路径。</p>
-<p>因果掩码属于另一类约束。它排除未来信息，保留全部历史时，长度为 N 的序列仍有约 N²/2 个可见位置对。三角形只带来常数因子 1/2 的削减。想把连接数做到随长度线性，就得限制每个位置能看多远，或者换一种计算表达方式；后续几节讨论这两条路。</p>
-<h3 id="mla把-kv-缓存压进一个潜在向量">MLA：把 KV 缓存压进一个潜在向量</h3>
-<p>自回归解码每走一步，都要把全部历史 token 的 K 与 V 从显存里读回来。以 MHA 的配置算：128 个头、每头 128 维，一个层、一个 token 就要为 K 和 V 各存 16,384 个元素，合计 32,768 个；换 2 字节存储是 64 KiB，乘以层数和上下文长度之后成为显存的主要占用，读取它又成为带宽压力。MQA 把 KV 头压到一个，GQA 折中到若干组，两者都在共享表示本身。MLA 改变的是存储对象：先把 K、V 压成一个低维潜在向量存起来，用到时再展开。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).
-
-DeepSeek-AI et al. DeepSeek-V3 Technical Report. arXiv:2412.19437v2 (2025 revision; first submitted 2024)." aria-label="引用 [32, 33]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;33&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3 Technical Report. arXiv:2412.19437v2 (2025 revision; first submitted 2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.19437v2&quot;, &quot;fallback&quot;: false}]">[32, 33]</a>（§2.1）</p>
-<h4 id="mhamqagqa-先改变-kv-头的共享方式">MHA、MQA、GQA 先改变 KV 头的共享方式</h4>
-<p>多头注意力（Multi-head Attention，MHA）给每个查询头配一套 K／V。多查询注意力（Multi-query Attention，MQA）让全部查询头共用一套，查询头仍保留多个。分组查询注意力（Grouped-query Attention，GQA）把查询头分成 G 组，每组共享一套 KV。<a class="citation" href="https://arxiv.org/abs/2305.13245v3" title="Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023)." aria-label="引用 [36]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;36&quot;, &quot;text&quot;: &quot;Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2305.13245v3&quot;, &quot;fallback&quot;: false}]">[36]</a>（§2.2）“多查询”指的是 KV 只有一个，查询照旧是多份；“分组”与序列切分无关，它切的是头。</p>
-<p>设查询头数 Hq、KV 头数 Hkv、每头键维度 dₖ、值维度 dᵥ，每层每历史 token 的缓存元素数为：</p>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>机制</th>
-<th>KV 头的组织</th>
-<th>缓存元素数</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>MHA</td>
-<td>Hkv=Hq，各头独立</td>
-<td>Hq·(dₖ+dᵥ)</td>
-</tr>
-<tr>
-<td>GQA</td>
-<td>1&lt;Hkv&lt;Hq，组内共享</td>
-<td>Hkv·(dₖ+dᵥ)</td>
-</tr>
-<tr>
-<td>MQA</td>
-<td>Hkv=1，全部查询头共享</td>
-<td>dₖ+dᵥ</td>
-</tr>
-<tr>
-<td>MLA</td>
-<td>缓存潜在向量与位置键</td>
-<td>d𝚌+dᵣ</td>
-</tr>
-</tbody>
-</table></div>
-<p>GQA 省下的是 KV 的存储与读取，每个查询头照旧产生自己的注意力分布，打分的算术量并不按同样比例下降。它改变的是参数共享约束，把已有的 MHA 检查点照原样合并成 GQA 会损失质量，所以 GQA 原文的做法是均值池化后再继续预训练一小段。<a class="citation" href="https://arxiv.org/abs/2305.13245v3" title="Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023)." aria-label="引用 [36]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;36&quot;, &quot;text&quot;: &quot;Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2305.13245v3&quot;, &quot;fallback&quot;: false}]">[36]</a>（§2–3）</p>
-<h4 id="联合低维参数化保留头间差异">联合低维参数化保留头间差异</h4>
-<p>用列向量来推 MLA 的内容分支。输入 xₜ 为 d 维，潜在向量 cₜ 为 d𝚌 维，它由一个下投影产生；第 h 头的内容键和值各自由一个上投影展开：</p>
-<p><math display="block"><msub><mi>c</mi><mi>t</mi></msub><mo>=</mo><msub><mi>W</mi><mi>D</mi></msub><msub><mi>x</mi><mi>t</mi></msub><mo>,</mo><mspace width="1em"/><msubsup><mi>k</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>=</mo><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>t</mi></msub><mo>,</mo><mspace width="1em"/><msub><mi>v</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow></msub><mo>=</mo><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>t</mi></msub></math></p>
-<p><code>W_D</code> 的形状是 <code>d_c × d</code>，<code>U_K^h</code> 是 <code>d_h × d_c</code>，<code>U_V^h</code> 是 <code>d_v × d_c</code>，dₕ 专指内容查询与键的维度。各头共享 c，展开出来的键与值却各不相同。与 MQA 的差别正在这里：MQA 直接共用一份 K／V，MLA 共用的是生成 K／V 的那份低维状态。多出来的约束是各头的展开表示都要经过同一瓶颈，因此 MLA 成立的代价是表示受限额，而它换来的是每历史位置只需保存 c。</p>
-<p>查询同样可以压缩后再上投影。查询只服务当前这一步计算，无需像历史状态那样长期留在显存里，所以查询压缩省的是训练激活，与 KV 缓存的缩减来自不同地方。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a>（§2.1.2）</p>
-<h4 id="矩阵吸收历史访问留在低维空间">矩阵吸收：历史访问留在低维空间</h4>
-<p>设第 h 头的内容查询为 qᶜₜ,ₕ。忽略位置分支，它与历史位置 s 的打分可以重新结合：</p>
-<p><math display="block"><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>=</mo><msup><mrow><mo>(</mo><msup><mrow><mo>(</mo><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>c</mi><mi>s</mi></msub></math></p>
-<p>据此，先把当前查询做一次线性变换，得到 d𝚌 维的“吸收后查询”，就能直接拿它和缓存的 cₛ 打分，无需为每个历史位置重建每头的内容键。归一化得到权重 aₜₛʰ 之后，值分支靠线性性同样可以后移：</p>
-<p><math display="block"><msub><mi>o</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>=</mo><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><munder><mo>∑</mo><mrow><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub></math></p>
-<p>把输出投影按头拆成 Oₕ，最终贡献就是 <math><munder><mo>∑</mo><mi>h</mi></munder><mo>(</mo><msub><mi>O</mi><mi>h</mi></msub><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><mo>)</mo><mo>(</mo><munder><mo>∑</mo><mi>s</mi></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>)</mo></math>，值上投影与输出投影可以合成一个矩阵，挪到汇聚之后。注意 softmax 的非线性原封不动：各头的 a 互不相同，先把各头平均再共用一次汇聚会得到另一个函数。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a>（§2.1.2）</p>
-<p>这一串变换是运算顺序的重排，实现里并不需要真的把融合后的大矩阵显式存下来。吸收之后的点积与汇聚沿 d𝚌 维进行，d𝚌 比普通单头维度大时，每头的算术量反而上升。于是取舍出现了：省下的是缓存读取，代价在别处。训练与预填充阶段查询多，展开成多头计算更顺手；小批解码从潜在缓存里读更划算。DeepSeek-V3.2 附录 A 把这两种执行视图称作 MLA 的 MHA mode 与 MQA mode，指的是同一个已训练模型的两条计算路径。<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（附录 A）</p>
-<h4 id="rope-为什么必须解耦">RoPE 为什么必须解耦</h4>
-<p>旋转位置嵌入（Rotary Position Embedding，RoPE）给查询和键施加随位置变化的旋转 Rₜ、Rₛ。若直接旋转展开后的内容键，打分里会出现：</p>
-<p><math display="block"><msup><mi>q</mi><mi>T</mi></msup><msubsup><mi>R</mi><mi>t</mi><mi>T</mi></msubsup><msub><mi>R</mi><mi>s</mi></msub><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub></math></p>
-<p>Rₛ 夹在中间且随 s 变化。矩阵乘法不满足交换律，把上投影吸收到查询这一侧的前提就断了：每个历史位置都得重新算一遍键，缓存的收益随之消失。这也是 MLA 与 RoPE 相冲突的具体位置，与“低维向量装不下位置信息”无关。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a>（§2.1.3）</p>
-<p>MLA 的处理是把内容与位置分开：每头的内容查询与位置查询各走一条路，每个历史位置另存一个跨头共享、已经旋转过的位置键 kʳ，维度 dᵣ。主分数由两项相加构成：</p>
-<p><math display="block"><msubsup><mi>ℓ</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>=</mo><mfrac><mrow><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>+</mo><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>R</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>k</mi><mi>s</mi><mi>R</mi></msubsup></mrow><msqrt><mrow><msub><mi>d</mi><mi>h</mi></msub><mo>+</mo><msub><mi>d</mi><mi>r</mi></msub></mrow></msqrt></mfrac></math></p>
-<p>内容项照旧可以吸收，位置项单独算，两项相加后走同一次 softmax。缓存因此需要放下 cₛ 与 kʳₛ 两份数据。代回 DeepSeek-V2 的取值 d𝚌=512、dᵣ=64，每层每个 token 缓存 576 个元素；按 2 字节算合 1,152 字节。同一层的 MHA 对照值是 32,768 个元素、64 KiB，两者相差约 57 倍。这只是有效张量容量，分页、尺度、对齐与工作区另算，也不能据此推出端到端有同倍加速。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a>（§2.1.3、§3.1.2）</p>
-<p>MLA 缩减的是每个历史位置的表示宽度，历史位置的总数并没有减少：新查询仍要访问全部可见的潜在状态，预填充阶段的成对计算照旧是二次规模，缓存也照旧随上下文线性增长。要让主注意力少读一些位置，需要额外一层选择机制，这正是 DSA 的切入点。</p>
-<h3 id="dsa用轻量索引器挑出要读的历史">DSA：用轻量索引器挑出要读的历史</h3>
-<p>MLA 把每个历史位置的宽度压下来了，位置个数却没有减少。一个长度为 N 的序列仍有大约 N²/2 个可见位置对，主注意力要逐个打分、逐个汇聚，长上下文下这项开销重新成为主导。DeepSeek 稀疏注意力（DeepSeek Sparse Attention，DSA）在 MLA 之上加了一条轻量通道：先用低代价的索引器扫一遍历史，挑出重要的若干位置，再让主注意力只在这些位置之间做完整计算。DeepSeek-V3.2 用它把每查询的主分支读取量固定在 2,048 个 KV token。<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（§2.1）</p>
-<h4 id="索引分数与主注意力权重各司其职">索引分数与主注意力权重各司其职</h4>
-<p>设当前查询位置 t，可见历史位置 s≤t。索引器有 Hᴵ 个头，每头索引查询 qᴵₜ,ⱼ 为 dᴵ 维，历史位置共用一份索引键 kᴵₛ，当前输入另外给出每头一个标量权重 wᴵₜ,ⱼ。索引分数是各头点积的加权和，激活函数取 ReLU：<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（Eq.1）</p>
-<p><math display="block"><msub><mi>I</mi><mrow><mi>t</mi><mi>s</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><msup><mi>H</mi><mi>I</mi></msup></munderover><msubsup><mi>w</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mi mathvariant="normal">ReLU</mi><mo>(</mo><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>k</mi><mi>s</mi><mi>I</mi></msubsup><mo>)</mo></math></p>
-<p>多个索引头先合成一个位置分数，再取 Top-k，得到的是一套共享的位置集合：</p>
-<p><math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">TopK</mi><mo>(</mo><mo>{</mo><msub><mi>I</mi><mrow><mi>t</mi><mi>s</mi></mrow></msub><mo>:</mo><mi>s</mi><mo>≤</mo><mi>t</mi><mo>}</mo><mo>,</mo><mi>k</mi><mo>)</mo></math></p>
-<p>历史不足 k 时取已有的全部合法位置。这套集合由该位置的全部主注意力头共用，因为它对齐的是 MLA 的公共潜在 KV 条目：一个被选中的历史位置贡献的是一份潜在状态，各主头各自拿它算自己的分数。索引器头数少、维度小，还可以用 FP8 实现，扫描一遍全历史的代价远低于完整主注意力。它依然要看过历史，扫描量随当前历史长度增长。</p>
-<p>选出位置之后，主分支重新用自己的 MLA 查询、潜在状态和位置项打分，走一次 softmax 并汇聚：</p>
-<p><math display="block"><msub><mi>o</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>s</mi><mo>∈</mo><msub><mi>S</mi><mi>t</mi></msub></mrow></munder><mfrac><mrow><mi mathvariant="normal">exp</mi><mo>(</mo><msubsup><mi>ℓ</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>)</mo></mrow><mrow><munder><mo>∑</mo><mrow><mi>u</mi><mo>∈</mo><msub><mi>S</mi><mi>t</mi></msub></mrow></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msubsup><mi>ℓ</mi><mrow><mi>t</mi><mi>u</mi></mrow><mi>h</mi></msubsup><mo>)</mo></mrow></mfrac><msubsup><mi>v</mi><mi>s</mi><mi>h</mi></msubsup></math></p>
-<p>分母只统计入选位置，所以入选者的权重会因为没选中的位置被剔除而重新分配。ReLU 索引分数只承当路由代理的职责，最终权重仍由 ℓ 决定。</p>
-<h4 id="选定集合上的-softmax-是精确的">选定集合上的 softmax 是精确的</h4>
-<p>稀疏注意力在给定集合上做的仍是完整 softmax，问题在于这个集合是否装住了该装的信息。做一个局部估算：固定同一组主分数和值，设稠密分布在未选位置上的概率总和为 ε&lt;1，各值向量的范数不超过 V。稠密输出可以拆成入选部分与未选部分两个条件均值：</p>
-<p><math display="block"><msub><mi>o</mi><mi mathvariant="normal">dense</mi></msub><mo>=</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ε</mi><mo>)</mo><msub><mi>o</mi><mi>S</mi></msub><mo>+</mo><mi>ε</mi><msub><mi>o</mi><mover><mi>S</mi><mo>¯</mo></mover></msub><mo>,</mo><mspace width="1em"/><mo>‖</mo><msub><mi>o</mi><mi mathvariant="normal">dense</mi></msub><mo>−</mo><msub><mi>o</mi><mi>S</mi></msub><mo>‖</mo><mo>≤</mo><mn>2</mn><mi>ε</mi><mi>V</mi></math></p>
-<p><code>o_S</code> 是入选集合上重新归一化的输出，ε=0 时两个输出相同，此时未选部分的均值无需定义。这个式子说明只统计选对了多少位置并不够用：遗漏的概率质量和值的尺度都会进入误差。它只覆盖固定参数下的单个注意力层，后续层、非线性以及训练本身都在范围之外。</p>
-<h4 id="硬-top-k-靠辅助损失学习">硬 Top-k 靠辅助损失学习</h4>
-<p>Top-k 的索引选取不可微，“哪些位置值得读”这件事没法学。DeepSeek-V3.2 分两段训练：<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（§2.1.1）稠密预热阶段冻结主模型，只练新增的索引器；主注意力各头的概率按位置求和，再沿序列做 L1 归一化，得到教师分布 pₜ，索引器用 KL 散度对齐它：</p>
-<p><math display="block"><msub><mi>ℒ</mi><mi>I</mi></msub><mo>=</mo><munder><mo>∑</mo><mi>t</mi></munder><msub><mi>D</mi><mi mathvariant="normal">KL</mi></msub><mo>(</mo><mi mathvariant="normal">stopgrad</mi><mo>(</mo><msub><mi>p</mi><mi>t</mi></msub><mo>)</mo><mo>‖</mo><mi mathvariant="normal">softmax</mi><mo>(</mo><msub><mi>I</mi><mrow><mi>t</mi><mo>,</mo><mo>:</mo></mrow></msub><mo>)</mo><mo>)</mo></math></p>
-<p>教师端取自动梯度，索引器输入也从计算图上断开，于是这项损失只更新索引器的投影，主模型由语言建模损失单独负责。稀疏阶段打开 Top-k，主模型学着适应新的连接模式，索引器转为在入选集合上对齐归一化后的主注意力分布。两段的规模在报告中写得很清楚：预热 1,000 步，每步 16 条 128K 序列，合计 2.1B token；稀疏训练 15,000 步，每步 480 条 128K 序列，合计 943.7B token。</p>
-<p>2,048 这个数字值得单独说明：它是主分支每个查询的读取预算。把它当成上下文长度上限或者缓存容量都会算错：索引键与可供未来查询选择的潜在状态仍全部留在显存里，不同的查询会从不同的位置拼出自己的集合。DSA 因此与滑动窗口、与按重要性永久驱逐 KV 的做法都不同。</p>
-<h4 id="索引项的二次规模留在那里">索引项的二次规模留在那里</h4>
-<p>设序列长度为 N，主分支每查询的读取预算为 k，每条主连接的有效工作量记作 D。忽略投影、选择、逐元素运算与常数因子，预填充阶段的主要结构是：</p>
-<p><math display="block"><msub><mi>C</mi><mi mathvariant="normal">DSA</mi></msub><mo>=</mo><mi>O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><msup><mi>H</mi><mi>I</mi></msup><msup><mi>d</mi><mi>I</mi></msup><mo>)</mo><mo>+</mo><mi>O</mi><mo>(</mo><mi>N</mi><mi>k</mi><mi>D</mi><mo>)</mo></math></p>
-<p>第一项留在原处，只是系数小；被降下来的是第二项。对一个新查询，索引扫描的长度随当前历史增长，主分支的访问量由 k 封顶。排序、非连续 gather、索引缓存与内核启动都是新增开销，短上下文下这笔开销可能超过省下的主计算，报告因此对短序列预填充专门实现了带掩码的 MHA 视图。<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（§2.3）</p>
-<p>这些结论带着具体的训练条件：DSA 是在 DeepSeek-V3.1-Terminus 检查点上继续训练得到的，评测也落在相应设置内，把它当作任意 MLA 模型套用 Top-k 即可无损的依据并不成立。报告里的 H800 服务成本换算自真实部署，与另一篇论文的单内核时间不能拼成一栏排名。下一节的 MSA 用了另一套共享边界：选择在 GQA 组内共享，组与组之间可以不同。</p>
-<h3 id="minimax-msa每个-gqa-组挑自己的历史块">MiniMax MSA：每个 GQA 组挑自己的历史块</h3>
-<p>把选择粒度放到单个 token，精度最好，代价是路由变得零散：每个查询位置一套索引，几十个主头各自读不同的位置，GPU 上的分块矩阵乘拼不起来。MiniMax 稀疏注意力（MiniMax Sparse Attention，MSA）退一步处理这件事：选择在 GQA 组的粒度上做，一个组共用一套索引，组与组之间互不相同；被选中的单位是 token 块，粒度比单个 token 粗。<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a> 这样既保留了内容相关的稀疏性，又把访存整理成连续的块。这里的 MSA 指 MiniMax 的这套机制，与多头自注意力、与蛋白质主题中的多序列比对都无关。</p>
-<h4 id="每个-gqa-组选自己的历史块">每个 GQA 组选自己的历史块</h4>
-<p>设输入 X 为 <code>N × d_model</code>，主分支有 Hq 个查询头、Hkv 个 KV 头，每组包含 G=Hq/Hkv 个查询头。索引分支给每个组配一个 dᵢ 维的查询，索引键则在全部组之间共享，只保留一个头：<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§3.1，Eq.5–7）</p>
-<pre><code class="language-text">Q_idx:     [N, Hkv, d_i]
-K_idx:     [N, 1,   d_i]
-主分支 Q:  [N, Hq,  d_h]
-主分支 K、V:[N, Hkv, d_h]
-</code></pre>
-<p>这两条索引投影与主分支的 Q／K 各自独立，选择器因此可以做得比主分支轻得多。把历史按 B 个 token 一块切开，块 b 的位置集合记为 ℬᵦ。对位置 t、组 r，先算每个可见 token 的索引点积，再取块内最大值作为这一块的分数：</p>
-<p><math display="block"><msubsup><mi>s</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup><mo>=</mo><mfrac><mrow><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mi>t</mi><mi>r</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>k</mi><mi>s</mi></msub></mrow><msqrt><msub><mi>d</mi><mi>i</mi></msub></msqrt></mfrac><mo>,</mo><mspace width="1em"/><msubsup><mi>m</mi><mrow><mi>t</mi><mi>b</mi></mrow><mi>r</mi></msubsup><mo>=</mo><munder><mi mathvariant="normal">max</mi><mrow><mi>s</mi><mo>∈</mo><msub><mi>ℬ</mi><mi>b</mi></msub><mo>,</mo><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>s</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup></math></p>
-<p>式中的 q、k 是索引向量，主分支另有自己的投影。看不见任何因果位置的块记为负无穷。按 m 取最高的 k 个块，其中包含当前位置的本地块固定入选，占用 k 个名额中的一个。主分支随后读取入选块里所有可见 token，按每个主查询头自己的分数做 softmax，读取上限因此是 k·B 个位置。</p>
-<p>最大池化带来了一个可以预期的后果：块内只要有一个位置和当前查询匹配得上，整块就可能被读进来，邻近位置会一并被读入。把 B 调大，读取更连续、矩阵乘形状更规整，选择精度同时下降；把 B 调小则反过来。这是硬件友好度与内容粒度之间的实际取舍，调参时两个方向都要看。</p>
-<p>举个例子。设当前位于块 3，预算 k=2，本地块占掉一个名额。组 A 认为块 1 比块 2 重要，组 B 的判断相反，于是 A 读 <code>{1, 3}</code>、B 读 <code>{2, 3}</code>，两组在同一层里走了不同的检索路线；每组内部的多个查询头仍在这些块内形成各自的概率分布。MSA 给组以自由，但没有把自由下放到每个头，理由是后者的路由与访存会重新变得不规则。</p>
-<h4 id="教师分布取组内概率平均">教师分布取组内概率平均</h4>
-<p>索引选取同样不可微，MSA 用主分支当教师。在该组入选块覆盖的 token 上，先让每个主头各自 softmax，再对组内 G 个头求概率平均得到教师 P；索引分支在同一 token 集合上归一化，两边做 KL 对齐：<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§3.2，Eq.9–11）</p>
-<p><math display="block"><msubsup><mi>P</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup><mo>=</mo><mfrac><mn>1</mn><mi>G</mi></mfrac><munder><mo>∑</mo><mrow><mi>h</mi><mo>∈</mo><msub><mi>ℋ</mi><mi>r</mi></msub></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>ℒ</mi><mi mathvariant="normal">KL</mi></msub><mo>=</mo><mfrac><mn>1</mn><mrow><mi>N</mi><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub></mrow></mfrac><munder><mo>∑</mo><mrow><mi>t</mi><mo>,</mo><mi>r</mi></mrow></munder><msub><mi>D</mi><mi mathvariant="normal">KL</mi></msub><mo>(</mo><mi mathvariant="normal">stopgrad</mi><mo>(</mo><msup><mi>P</mi><mi>r</mi></msup><mo>)</mo><mo>‖</mo><msup><mi>P</mi><mi mathvariant="normal">idx</mi></msup><mo>)</mo></math></p>
-<p>ℋᵣ 是第 r 组的查询头集合，a 是各头在该集合上归一化后的主注意力概率，KL 两个分布省略了位置下标 t。教师端停止梯度，索引器输入 X 也停止梯度，辅助损失只更新两条索引投影：主分支继续由语言建模损失训练，索引器单独学“主分支会看哪里”。顺序上先跑一段全注意力做预热，等索引器大致对齐之后再切换到稀疏，训练时本地块始终强制保留。</p>
-<p>到这里，MSA 与 DSA 的数字出现了一个巧合：两者都写着 2,048。DSA 是每个查询选 2,048 个 token、全部主头共用；MSA 是每个查询、每个 GQA 组各选 16 块 ×128 token，并且其中一块被本地块占住。连接图不同，底座、训练数据、头数与硬件也不同，这个数字对齐并不意味着两种方法可以互相替代或直接比高低。</p>
-<h4 id="块稀疏没有消掉二次索引项">块稀疏没有消掉二次索引项</h4>
-<p>索引器依然要在全部因果位置上算一遍轻量分数，块最大值与 Top-k 削减的是随后主分支的读取集合。按论文的计数方式（一次乘加算 2 FLOPs，忽略投影与边界项），长序列下：</p>
-<p><math display="block"><msub><mi>F</mi><mi mathvariant="normal">GQA</mi></msub><mo>≈</mo><mn>2</mn><msub><mi>H</mi><mi>q</mi></msub><msub><mi>d</mi><mi>h</mi></msub><msup><mi>N</mi><mn>2</mn></msup></math></p>
-<p><math display="block"><msub><mi>F</mi><mi mathvariant="normal">MSA</mi></msub><mo>≈</mo><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub><msub><mi>d</mi><mi>i</mi></msub><msup><mi>N</mi><mn>2</mn></msup><mo>+</mo><mn>4</mn><msub><mi>H</mi><mi>q</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mi>N</mi><mi>k</mi><mi>B</mi></math></p>
-<p>第一项是索引分支，仍随 N² 增长，只是 Hkv·dᵢ 远小于 Hq·dₕ；第二项是主分支，固定 k·B 之后随 N 线性增长。序列继续加长，索引分支在总量中的占比会上升，这是这类两阶段结构的固有走向。</p>
-<p>状态方面，MSA 仍然保留完整的、可供未来查询读取的主 K／V，另外多出一份索引键。当前少读一些块，与永久释放其余块是两回事：后面的查询完全可能选到它们。它降低的是主注意力的读取工作，与 MLA 那种直接压缩每个位置表示宽度的做法落在不同位置。短输入上，索引与选择的固定开销还可能超过省下的计算。</p>
-<h4 id="从稀疏连接到-gpu-执行">从稀疏连接到 GPU 执行</h4>
-<p>第一步优化来自 softmax 的一个性质：它是保序的，同一行里 <math><msub><mi>s</mi><mi>i</mi></msub><mo>≤</mo><msub><mi>s</mi><mi>j</mi></msub></math> 与 <math><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>s</mi><msub><mo>)</mo><mi>i</mi></msub><mo>≤</mo><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>s</mi><msub><mo>)</mo><mi>j</mi></msub></math> 等价，因此选块直接用原始索引分数即可，省掉 max／exp／求和，Top-k 的结果不变。<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§4.1）主注意力与训练 KL 该做的归一化照做。</p>
-<p>接下来是循环顺序。按查询遍历，每个查询去收集自己选中的若干 KV 块，K／V 会被反复读取；按 KV 块遍历，先建一张反向索引，把选中该块的所有查询聚到一起，载入一份 K／V 就能服务多个查询和组内多个头。用论文给的一阶估计比较两种顺序的算术访存比（bf16，忽略次要项）：<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§4.2）</p>
-<ul>
-<li>查询外层：FLOPs 为 4·Hq·N·dₕ·k·B，IO 主要是 Q 与 O 的读写 4·Hq·N·dₕ 加上 K／V 的读取 4·Hkv·N·k·B·dₕ，比值约为 G。</li>
-<li>KV 外层：K／V 只读一遍，Q 与局部输出缓冲按 k 倍放大，比值约为 <math><mfrac><mn>2</mn><mn>3</mn></mfrac><mi>B</mi></math>。</li>
-</ul>
-<p>取论文的配置 G=16、B=128，两个比值分别是 16 与 85 左右，KV 外层高出数倍，因此实现选了后者。代回的代价也具体：热门块会被大量查询选中，一个 CTA 承担不了，需要沿查询方向切分并预先分配输出槽位；每个查询的输出被拆成 k 份，由不同 CTA 产生。</p>
-<p>这些局部结果不能直接平均。若第 b 块的局部归一化输出为 oᵦ、其对数指数和为 Lᵦ，正确合并方式是按各自的概率质量加权：</p>
-<p><math display="block"><mi>L</mi><mo>=</mo><mi mathvariant="normal">log</mi><munder><mo>∑</mo><mi>b</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>L</mi><mi>b</mi></msub><mo>)</mo><mo>,</mo><mspace width="1em"/><mi>o</mi><mo>=</mo><munder><mo>∑</mo><mi>b</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>L</mi><mi>b</mi></msub><mo>−</mo><mi>L</mi><mo>)</mo><msub><mi>o</mi><mi>b</mi></msub></math></p>
-<p>实现里减去最大的 Lᵦ 以免指数溢出。这与在线 softmax 的归一化守恒是同一件事：分块计算的各部分要按自己的概率质量相加，按块数等权相加会得到另一个结果。收益是 KV 复用与更规整的矩阵乘，代价是反向索引、局部输出与 LSE 缓冲，以及一个额外的合并阶段。</p>
-<p>论文的质量验证放在一个约 109B 总参数、每个 token 约 6B 激活参数的多模态 MoE 底座上：41 层，前 3 层稠密，其余 38 层为 MoE，64 个查询头、4 个 KV 头、头维 128、RoPE 维 64，每层 128 个路由专家加 1 个共享专家、每次选 4 个，训练 3T token；对比稠密 GQA、原生稀疏训练与从稠密检查点继续训练三条路线。<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§5.1–5.3）作者报告的结论支持这些设置下的可行性，换模型、换训练史仍是另一回事。本篇没有运行其内核，也没有复现这些测量。</p>
-<h4 id="五种机制在同一条流水线上各管一段">五种机制在同一条流水线上各管一段</h4>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>机制</th>
-<th>改变的轴</th>
-<th>缓解的压力</th>
-<th>随之而来的成本</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>MoE</td>
-<td>每个 token 激活哪些 FFN 专家</td>
-<td>抬高参数容量时的专家算术量</td>
-<td>总权重存储、路由偏斜、跨卡搬运</td>
-</tr>
-<tr>
-<td>EP</td>
-<td>专家权重的设备放置与激活流动</td>
-<td>单设备容量与专家计算分布</td>
-<td>通信延迟、热点、输入与返回重排</td>
-</tr>
-<tr>
-<td>MLA</td>
-<td>每个历史位置保存的 KV 表示</td>
-<td>KV 容量与潜在读取量</td>
-<td>表示受低维瓶颈约束、每头算术量可能上升</td>
-</tr>
-<tr>
-<td>DSA</td>
-<td>MLA 主分支读取哪些历史 token</td>
-<td>主注意力的全量交互</td>
-<td>索引扫描、选择误差、历史状态照旧保存</td>
-</tr>
-<tr>
-<td>MiniMax MSA</td>
-<td>各 GQA 组读取哪些历史块</td>
-<td>主交互量与不规则访存</td>
-<td>二次索引项、块内冗余、完整历史 KV</td>
-</tr>
-</tbody>
-</table></div>
-<p>前两者沿 FFN 与设备分布组织条件计算，后三者沿注意力状态与连接组织读取，虽然都含“路由”，作用对象相差很远。“选专家”选的是参数，“选历史”选的是数据。FlashAttention 又在另一个层面工作：它重排既定注意力的计算与中间存储，连接关系原封不动。一个模型可以同时用上 MoE、EP 和某种稀疏注意力，各自的收益也各自受限，把它们直接相乘得不到整机结论。</p>
-<h3 id="线性注意力与低秩压缩">线性注意力与低秩压缩</h3>
-<p>线性注意力、序列低秩压缩、权重低秩近似都会出现“低秩”这个词，改的对象却不一样：权重近似动的是模型参数，序列压缩动的是可供访问的键值表示，核化注意力改的是相似性表达与求和顺序。高效 Transformer 综述把这些路线放在可交叠的分类里，读实现时仍要回到各自的代数前提。<a class="citation" href="https://doi.org/10.1145/3530811" title="Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A Survey. ACM Computing Surveys 55(6), Article 109 (December 2022), 28 pages. DOI: 10.1145/3530811." aria-label="引用 [10]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;10&quot;, &quot;text&quot;: &quot;Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A Survey. ACM Computing Surveys 55(6), Article 109 (December 2022), 28 pages. DOI: 10.1145/3530811.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3530811&quot;, &quot;fallback&quot;: false}]">[10]</a></p>
-<h4 id="从核函数到可累计状态">从核函数到可累计状态</h4>
-<p>设相似性能用有限维特征写开，<math><mi>κ</mi><mo>(</mo><mi>q</mi><mo>,</mo><mi>k</mi><mo>)</mo><mo>=</mo><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><mi>q</mi><mo>)</mo><mi>φ</mi><mo>(</mo><mi>k</mi><mo>)</mo></math>，特征维度 r。配上正的归一化分母，位置 i 的输出就可以把只依赖查询的项提到对键的求和之外：</p>
-<p><math display="block"><msubsup><mi>y</mi><mi>i</mi><mi>T</mi></msubsup><mo>=</mo><mfrac><mrow><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><mo>)</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo><msubsup><mi>v</mi><mi>j</mi><mi>T</mi></msubsup></mrow><mrow><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><mo>)</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo></mrow></mfrac><mo>=</mo><mfrac><mrow><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><mo>)</mo><mi>R</mi></mrow><mrow><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><mo>)</mo><mi>z</mi></mrow></mfrac></math></p>
-<p>式中的 <math><mi>R</mi><mo>=</mo><munder><mo>∑</mo><mi>j</mi></munder><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo><msubsup><mi>v</mi><mi>j</mi><mi>T</mi></msubsup></math> 是特征与值的外积之和，<math><mi>z</mi><mo>=</mo><munder><mo>∑</mo><mi>j</mi></munder><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo></math> 累积归一化统计；值向量按列向量定义，输出公式给出它的行表示。这一步能做的原因是 φ(qᵢ) 不参与对 j 的求和，交换求和顺序因此合法。</p>
-<p>因果情形只对当前位置及历史求和，两个统计量可以增量更新：</p>
-<p><math display="block"><msub><mi>R</mi><mi>i</mi></msub><mo>=</mo><msub><mi>R</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>i</mi></msub><mo>)</mo><msubsup><mi>v</mi><mi>i</mi><mi>T</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>z</mi><mi>i</mi></msub><mo>=</mo><msub><mi>z</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>i</mi></msub><mo>)</mo></math></p>
-<p>代入数字看规模：特征维度 r=128、值维度 dᵥ=64 时，状态是 128×64+128=8320 个元素，与历史长度无关；同一模型若存显式 KV 缓存，8192 个历史位置需要 8192×64=524,288 个元素，相差约 63 倍。每步的更新与读取量也不再随历史增长，总工作量因此可以随序列长度线性增长。提高 r 以换取精度、或者特征构造本身较贵时，这部分的代价需要重新估计。</p>
-<h4 id="有限维特征装不下指数点积矩阵">有限维特征装不下指数点积矩阵</h4>
-<p>标准注意力用指数点积核，再按查询归一化。有限维特征给出的未归一化相似性矩阵是 <math><mi>Φ</mi><mo>(</mo><mi>Q</mi><mo>)</mo><msup><mi>Φ</mi><mi>T</mi></msup><mo>(</mo><mi>K</mi><mo>)</mo></math>，秩至多为 r。指数点积矩阵的秩上界要高得多：在维度为一、缩放为一时取 <math><msub><mi>q</mi><mi>i</mi></msub><mo>=</mo><mi>i</mi><mo>−</mo><mn>1</mn></math>、<math><msub><mi>k</mi><mi>j</mi></msub><mo>=</mo><mi mathvariant="normal">log</mi><msub><mi>t</mi><mi>j</mi></msub></math>，各 <math><msub><mi>t</mi><mi>j</mi></msub></math> 互异且为正，分数矩阵就是一个 Vandermonde 矩阵：</p>
-<p><math display="block"><msub><mi>B</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo><mo>=</mo><msubsup><mi>t</mi><mi>j</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msubsup><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">det</mi><mo>(</mo><mi>B</mi><mo>)</mo><mo>=</mo><munder><mo>∏</mo><mrow><mn>1</mn><mo>≤</mo><mi>i</mi><mo>&lt;</mo><mi>j</mi><mo>≤</mo><mi>N</mi></mrow></munder><mo>(</mo><msub><mi>t</mi><mi>j</mi></msub><mo>−</mo><msub><mi>t</mi><mi>i</mi></msub><mo>)</mo><mo>≠</mo><mn>0</mn></math></p>
-<p>行列式非零，矩阵满秩。按行除以正的行和相当于左乘一个可逆对角矩阵，秩不变。于是序列长度超过固定特征维度 r 时，这个标准 softmax 注意力矩阵写不成该有限维特征分解。反例证明的是“对任意输入、任意长度都等价”这个说法不成立；换到特定输入分布上，近似核或别的核照样可以训出有效模型。<a class="citation" href="https://doi.org/10.1145/3530811" title="Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A Survey. ACM Computing Surveys 55(6), Article 109 (December 2022), 28 pages. DOI: 10.1145/3530811." aria-label="引用 [10]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;10&quot;, &quot;text&quot;: &quot;Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A Survey. ACM Computing Surveys 55(6), Article 109 (December 2022), 28 pages. DOI: 10.1145/3530811.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3530811&quot;, &quot;fallback&quot;: false}]">[10]</a></p>
-<h4 id="状态压缩与序列低秩压缩的取舍">状态压缩与序列低秩压缩的取舍</h4>
-<p>可累计状态把过去的键和值压进几个统计量，查询只能通过这些统计量访问历史。序列低秩方法换一条路：把多个位置投影成较少的键值表示，查询再去访问压缩结果，归一化形式可以保留，压缩是否够用同样取决于任务。两条路都在缩小历史表示的规模，丢信息的方式不同。</p>
-<p>完整 KV 缓存保留每个历史位置的独立键值，用更大的存储与读取换取逐位置可寻址的选择能力；固定大小的累计状态省空间，代价是拿不回同样的寻址粒度。长上下文里的精确证据检索与持续状态建模，因此可能偏好不同的表示。判断一种线性结构适合什么任务，需要把渐近复杂度、历史访问方式和训练目标放在一起看。</p>
+<p>因果掩码属于另一类约束。它排除未来信息，保留全部历史时，长度为 N 的序列仍有约 N²/2 个可见位置对。三角形只带来常数因子 1/2 的削减。想把连接数做到随长度线性，就得限制每个位置能看多远，或者换一种计算表达方式。连接图的形状与层间传播只决定一个位置能看多远，具体机制还要在缓存、读取与算术上各付各的成本；<a href="#sec-02-attention">第 2 章</a>按继承关系展开三类做法：改变每个位置存什么，把历史压进可递推的状态，限制一次读取的集合。</p>
 <h3 id="输入组织与计算复杂度">输入组织与计算复杂度</h3>
 <p>问一个 Transformer 块的时间花在哪，答案随形状变化。把所有耗时归到注意力的二次项上，会漏掉隐藏维度宽时的投影与前馈；只看参数量，又看不到长输入带来的交互与状态增长。原始 Transformer 的复杂度讨论和 ViT 对理论计算量与设备速度的对照，分别对应“数学工作量”与“实际执行”这两个层次。<a class="citation" href="https://openreview.net/forum?id=YicbFdNTTy" title="Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
 
@@ -1301,8 +1246,608 @@ Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N
 <p>这张表把资源策略按作用对象分开。降低交互规模的算法在改模型能看见什么；FlashAttention 保留稠密注意力的数学定义，改的是它的存储与执行。前者要回答表示能力与任务适配，后者要回答数据搬运与硬件约定，两者都有“efficient attention”的名头，结论却无法互换。</p>
 </section>
 
-<section id="sec-02-pretraining">
-<h2 id="2-预训练阶段">2. 预训练阶段</h2>
+<section id="sec-02-attention">
+<h2 id="2-注意力机制共享压缩递推与选择">2. 注意力机制：共享、压缩、递推与选择</h2>
+<p>第 1 章把注意力写成一次打分、一次按行归一化和一次加权汇聚，那是标准多头注意力（Multi-head Attention，MHA）的形式。把它按自回归解码的方式用起来，代价集中在两处：每个历史位置要为每一层留下键与值，位置个数随上下文线性增长；每生成一个 token，又要按层把这些键值整体读回来。后续工作绕不开这两处代价，改动分别落在三条轴上：每个历史位置存什么，键值在多少个头之间共享、每个位置留多宽都属于这一条；历史怎样被压进一个可递推的状态；当前查询允许读到哪些位置。</p>
+<p>这三种改动各有自己的公式、状态口径和失效条件，混在别处只能讲成一句“更省缓存”。本章按引用与改进关系把它们排开，每项机制都要说清继承自谁、改了哪一步，收益与代价也落在同一组单位上。来源以最初定义该机制的那篇论文为准，后续论文转述时的措辞差异不作为定义。</p>
+<p>数字的读法需要事先统一。序列长度记为 N，查询头数 Hq，键值头数 Hkv，每头键维 d_k、值维 d_v，每层每个 token 的缓存元素数记为 E。容量由 E 决定，解码带宽由每步实际读取的元素数决定，算力由每 token 的乘加决定，递推类机制另有状态矩阵的大小决定它能存多少条互不干扰的关联。四项不能互相替代，参数量也不在其中。不同论文的硬件、批量、训练数据和评测协议各不相同，报告值只在口径相同的地方并列，不拼成一张排名。</p>
+<h3 id="记法与谱系">记法与谱系</h3>
+<h4 id="四个分开记的量">四个分开记的量</h4>
+<p>比较注意力机制先要把“省了什么”落到具体单位上，否则缓存小、显存少、时延低会被混成同一件事。四个量分开记，每个机制在这四项上各有自己的取值。</p>
+<p>缓存元素数 E 指每层每个历史位置留下的元素数。MHA 让每个查询头各有一套键和值，因此 E 随查询头数线性增长：</p>
+<p><math display="block"><msub><mi>E</mi><mi>MHA</mi></msub><mo>=</mo><msub><mi>H</mi><mi>q</mi></msub><mo>(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo>)</mo></math></p>
+<p>取 Hq=128、d_k=d_v=128，每层每个 token 是 32,768 个元素，按 2 字节存储合 64 KiB；乘上上下文长度与层数，这个数就换到 GiB 量级。</p>
+<p>每步读取量指解码时一次前向要搬进计算单元的元素数。显式缓存的机制每步都要读全部历史，读取量约为 <math><mi>E</mi><mo>·</mo><mi>N</mi></math>。沿用上面的配置，设 60 层、上下文 32K，每个 token 的缓存是 3.75 MiB，整段约 120 GiB；按 3 TB/s 的量级取带宽，每生成一个 token 至少也要 40 ms。这是按规格值推的量级估算，不替代具体设备上的测量；解码阶段的瓶颈因此在搬运：算术量只与当前这一个查询有关，读取量却与整段历史成正比。</p>
+<p>每 token 乘加量决定算力需求。按一次乘加计两次浮点运算，忽略投影与逐元素开销，因果注意力的成对项在序列长度上走二次：</p>
+<p><math display="block"><msub><mi>F</mi><mi>attn</mi></msub><mo>≈</mo><mn>2</mn><msub><mi>H</mi><mi>q</mi></msub><msub><mi>d</mi><mi>h</mi></msub><msup><mi>N</mi><mn>2</mn></msup></math></p>
+<p>状态矩阵大小只对递推类机制有意义。把历史压进一个矩阵状态时，状态是 <math><msub><mi>d</mi><mi>v</mi></msub><mo>×</mo><msub><mi>d</mi><mi>k</mi></msub></math> 个元素，与历史长度无关；同样的 128 维配置下是 16,384 个元素、32 KiB，比上面一个 token 的显式缓存还小。这个对比也带出它的代价：状态不再逐位置可寻址，能同时保存多少条互不干扰的键值关联，取决于它的维数，这一点在 delta 规则一节会算成具体的容量上限。</p>
+<p>四个量之间没有固定换算。压缩缓存宽度的机制可能抬高每头算术量，缩小状态的机制会丢掉逐位置检索能力，减少读取集合的机制要多付一份选择开销。后文每节都会交代改的是哪一项、另外三项怎么变。</p>
+<h4 id="谱系表">谱系表</h4>
+<p>下表按机制在主线上出现的位置排列，发表年份不决定次序。前驱一栏指它直接依赖的结构，代价一栏只写这一机制自身新增的开销。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>机制</th>
+<th>改变的量</th>
+<th>直接前驱</th>
+<th>新增代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MHA</td>
+<td>基线：每头独立 K／V</td>
+<td>缩放点积注意力</td>
+<td>缓存与解码读取随 Hq 增长</td>
+</tr>
+<tr>
+<td>MQA</td>
+<td>KV 头数降到 1</td>
+<td>MHA</td>
+<td>键值表示被全部查询头共用，表达能力受限</td>
+</tr>
+<tr>
+<td>GQA</td>
+<td>KV 头数降到 G</td>
+<td>MQA 的头共享、MHA 的多头打分</td>
+<td>需要继续预训练以恢复质量</td>
+</tr>
+<tr>
+<td>MLA</td>
+<td>每个位置的存储对象改为潜在向量</td>
+<td>GQA 的共享思路、低秩投影</td>
+<td>表示受瓶颈维数约束、位置分支必须解耦</td>
+</tr>
+<tr>
+<td>核化线性注意力</td>
+<td>求和顺序改为可累计状态</td>
+<td>注意力的核函数写法</td>
+<td>有限维特征装不下指数核</td>
+</tr>
+<tr>
+<td>RetNet</td>
+<td>状态上加逐头标量衰减</td>
+<td>核化线性注意力</td>
+<td>固定的衰减形状，与内容无关</td>
+</tr>
+<tr>
+<td>DeltaNet</td>
+<td>写入改为误差修正</td>
+<td>线性注意力的加法写入</td>
+<td>每步一次矩阵—向量读写、需要并行化算法</td>
+</tr>
+<tr>
+<td>GDN</td>
+<td>衰减改为输入相关，并与 delta 复合</td>
+<td>DeltaNet、Mamba2</td>
+<td>转移矩阵带门控，分块算法要重推</td>
+</tr>
+<tr>
+<td>KDA</td>
+<td>衰减从每头标量细化到逐通道</td>
+<td>GDN、DPLR 结构</td>
+<td>每头多一组低秩投影；三角逆仍串行</td>
+</tr>
+<tr>
+<td>Mamba／RWKV</td>
+<td>换掉注意力，用选择性状态或通道衰减</td>
+<td>连续时间状态空间、线性注意力</td>
+<td>依赖专用扫描内核，检索能力另有短板</td>
+</tr>
+<tr>
+<td>SWA</td>
+<td>把可读位置限制成固定窗口</td>
+<td>MHA</td>
+<td>远距离依赖只能靠层数堆积</td>
+</tr>
+<tr>
+<td>NSA</td>
+<td>压缩、选择、窗口三分支并联</td>
+<td>SWA、块选择类方法</td>
+<td>三分支各有投影与门控，索引项仍是二次</td>
+</tr>
+<tr>
+<td>DSA</td>
+<td>用轻量索引器选 token，主分支走 MLA</td>
+<td>MLA、Top-k 选择</td>
+<td>索引扫描、选择误差、历史状态照旧保存</td>
+</tr>
+<tr>
+<td>MSA</td>
+<td>按 GQA 组选 token 块</td>
+<td>GQA、DSA 的选择框架</td>
+<td>块内冗余、二次索引项</td>
+</tr>
+</tbody>
+</table></div>
+<h4 id="表的用法">表的用法</h4>
+<p>三者之间是一条因果链：MHA 的缓存随头数增长，于是有了共享；共享到极限就损失表示能力，于是有了低秩压缩；压缩只减宽度不减位置个数，于是有了递推与选择。</p>
+<p>表中相邻两行不表示替代关系。同一时期的不同工作可以并行存在，例如 GDN 与 RWKV-7 都在 delta 规则上加门控，但一个把门控做成每头标量、另一个做成通道向量，落地方式也不同。各行报告的加速比与质量分数都带有各自的底座、数据与硬件条件，正文引用时保留这些条件，不做跨行排名。</p>
+<h3 id="mhamqagqa先动-kv-头的共享方式">MHA、MQA、GQA：先动 KV 头的共享方式</h3>
+<p>多头注意力给每个查询头配一套键和值，缓存随之与查询头数成正比。两条最早的改法都从这份缓存出发：多查询注意力（Multi-query Attention，MQA）把键值头压缩到一个，分组查询注意力（Grouped-query Attention，GQA）把它压缩到若干组。两者都没有动一份键值有多宽。</p>
+<h4 id="解码时带宽为什么先到上限">解码时带宽为什么先到上限</h4>
+<p>MQA 的原文给出了增量解码的访存与算术之比：设批量 b、历史长度 n、模型维 d、头数 h、每头维度 k（取 k=d/h），增量解码 n 次的总算术量约为 <math><mi>Θ</mi><mo>(</mo><mi>b</mi><mi>n</mi><msup><mi>d</mi><mn>2</mn></msup><mo>)</mo></math>，主项来自四次投影与打分。MHA 的总访存量则含一项每次调用都要重读全部历史键值：<math><mi>b</mi><msup><mi>n</mi><mn>2</mn></msup><mi>d</mi></math>。<a class="citation" href="https://arxiv.org/abs/1911.02150v1" title="Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019)." aria-label="引用 [37]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;37&quot;, &quot;text&quot;: &quot;Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1911.02150v1&quot;, &quot;fallback&quot;: false}]">[37]</a>（§2.4.1）两者相除，访存与算术之比是：</p>
+<p><math display="block"><msub><mrow><mo>(</mo><mfrac><mi>M</mi><mi>F</mi></mfrac><mo>)</mo></mrow><mi>MHA</mi></msub><mo>=</mo><mi>Θ</mi><mo>(</mo><mfrac><mi>n</mi><mi>d</mi></mfrac><mo>+</mo><mfrac><mn>1</mn><mi>b</mi></mfrac><mo>)</mo></math></p>
+<p>MQA 把键值头压到一个，历史键值只剩单个头宽，同一比值变为：</p>
+<p><math display="block"><msub><mrow><mo>(</mo><mfrac><mi>M</mi><mi>F</mi></mfrac><mo>)</mo></mrow><mi>MQA</mi></msub><mo>=</mo><mi>Θ</mi><mo>(</mo><mfrac><mn>1</mn><mi>d</mi></mfrac><mo>+</mo><mfrac><mi>n</mi><mrow><mi>d</mi><mi>h</mi></mrow></mfrac><mo>+</mo><mfrac><mn>1</mn><mi>b</mi></mfrac><mo>)</mo></math></p>
+<p>起作用的只有第二项，它比 MHA 的对应项小了 h 倍。代入数字看量级：d=4096、h=32、n=4096、b=1 时，MHA 的比值是 1+1=2，MQA 是 0.031+0.0002+1≈1.03；瓶颈仍在，因为 1/b 这一项没有降低。把批量提到 32，两项分别变成 1.03 与 0.062，比值才拉开约 16 倍。这也是原文强调大批量下收益显著的原因：1/b 项随批量稀释，剩下的差距才由 n/d 与 n/(dh) 决定。GPU 的峰值算力通常比带宽高两个数量级，比值接近 1 意味着搬进来的每个字节都来不及被算完，此时多读一份键值就多一次等待。</p>
+<h4 id="mqa-只保留一套键值">MQA 只保留一套键值</h4>
+<p>MQA 的实现改动很小：查询头照旧是 h 份，键与值的投影矩阵只留一套，<a class="citation" href="https://arxiv.org/abs/1911.02150v1" title="Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019)." aria-label="引用 [37]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;37&quot;, &quot;text&quot;: &quot;Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1911.02150v1&quot;, &quot;fallback&quot;: false}]">[37]</a>（§3）于是每层每个历史位置的缓存元素数从 <math><msub><mi>H</mi><mi>q</mi></msub><mo>(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo>)</mo></math> 降到 <math><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub></math>。名字里的“多查询”说的是查询有多个，键值只有一份，与只保留一个查询头是两件事。</p>
+<p>代价落在表示能力上。所有查询头必须共用同一组键和值，各头只能靠自己的查询投影区分“要看什么”，无法再让某个头拥有专门的键空间。原文在 WMT 2014 英德翻译上的报告值是这样的：开发集 ln(PPL) 从 1.424 升到 1.439，开发集 BLEU 从 26.7 降到 26.5，测试集 beam 4 的 BLEU 从 28.4 升到 28.5；作为对照，减少头数或减小键值维度的几种改法在这组指标上更差。为了保持参数量与基线相同，它把前馈隐层从 4096 加宽到 5440。速度一侧，批量 1024、源与目标各 128 token 的增量解码里，解码器每步从 47 ms 降到 3.9 ms，摊到每 token 是 46 µs 降到 3.8 µs。<a class="citation" href="https://arxiv.org/abs/1911.02150v1" title="Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019)." aria-label="引用 [37]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;37&quot;, &quot;text&quot;: &quot;Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1911.02150v1&quot;, &quot;fallback&quot;: false}]">[37]</a>（§4）</p>
+<p>还有一条实现细节：增量解码时如果整批只用一个查询头，矩阵乘的第二个维度会塌成 1，硬件利用率很低；把批内的查询重新组织成更大的矩阵就能把算术强度拉回来，这也是 MQA 在实现上要专门做批量切分的原因。<a class="citation" href="https://arxiv.org/abs/1911.02150v1" title="Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019)." aria-label="引用 [37]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;37&quot;, &quot;text&quot;: &quot;Noam Shazeer. Fast Transformer Decoding: One Write-Head is All You Need. arXiv:1911.02150v1 (2019).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1911.02150v1&quot;, &quot;fallback&quot;: false}]">[37]</a>（§2.3.1）开源权重里能看到这种压缩后的结构，例如 Falcon-7B 的配置把 <code>multi_query</code> 置为真，71 个查询头共用一套键值投影。</p>
+<h4 id="gqa-在两者之间取值">GQA 在两者之间取值</h4>
+<p>分组查询注意力把查询头分成 G 组，每组共用一套键值，<a class="citation" href="https://arxiv.org/abs/2305.13245v3" title="Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023)." aria-label="引用 [36]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;36&quot;, &quot;text&quot;: &quot;Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2305.13245v3&quot;, &quot;fallback&quot;: false}]">[36]</a>（§2.2）因此 G=1 就是 MQA，G=Hq 就是 MHA，每层每个 token 的缓存元素数是 <math><msub><mi>H</mi><mi>k</mi><mi>v</mi></msub><mo>(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo>)</mo></math>。组内共享、组间不共享这一点与序列切分无关，它切的是头。</p>
+<p>把已有 MHA 检查点直接合并成 GQA 会掉质量，原文给的做法是先把组内的键值投影均值池化成一套，再用原预训练配方的 5% 继续训练：在 T5 XXL 上这一步耗约 600 个 TPUv3 芯片日，得到的 GQA 质量接近 MHA，解码速度接近 MQA。均值池化比随机初始化或只挑一个头效果更好：均值保留了组内各头键空间的重心，随机初始化则丢掉了预训练已经学到的方向。<a class="citation" href="https://arxiv.org/abs/2305.13245v3" title="Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023)." aria-label="引用 [36]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;36&quot;, &quot;text&quot;: &quot;Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2305.13245v3&quot;, &quot;fallback&quot;: false}]">[36]</a>（§2.1、§3.1）</p>
+<p>原文还给出一条与模型规模有关的判断：模型越大，键值缓存随 d 增长，而前馈的浮点运算随 d² 增长，所以大模型的注意力访存占比反而下降；另一方面，大模型常用分片部署，单个键值头会按分片数复制，GQA 顺带消掉这份重复。<a class="citation" href="https://arxiv.org/abs/2305.13245v3" title="Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023)." aria-label="引用 [36]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;36&quot;, &quot;text&quot;: &quot;Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebron, Sumit Sanghai. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023; inspected arXiv:2305.13245v3 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2305.13245v3&quot;, &quot;fallback&quot;: false}]">[36]</a>（§2.2）原文没有改编码器自注意力：那一层并行计算，访存不是主要瓶颈，替换只落在解码器自注意力与交叉注意力上。</p>
+<p>开源模型里 GQA 已是默认配置。Mistral 7B 的架构说明同时写了 GQA 与滑动窗口，<a class="citation" href="https://arxiv.org/abs/2310.06825v1" title="Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023)." aria-label="引用 [44]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;44&quot;, &quot;text&quot;: &quot;Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2310.06825v1&quot;, &quot;fallback&quot;: false}]">[44]</a> 而 Qwen3-Next 的全注意力层是 16 个查询头配 2 个键值头，<a class="citation" href="https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct" title="Qwen Team. Qwen3-Next-80B-A3B-Instruct model card and configuration. Hugging Face, 2025-09." aria-label="引用 [49]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;49&quot;, &quot;text&quot;: &quot;Qwen Team. Qwen3-Next-80B-A3B-Instruct model card and configuration. Hugging Face, 2025-09.&quot;, &quot;url&quot;: &quot;https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct&quot;, &quot;fallback&quot;: false}]">[49]</a> 属于 8 组共享。</p>
+<h4 id="共享停在每头多宽这一步">共享停在“每头多宽”这一步</h4>
+<p>MQA 与 GQA 改的都是“多少个查询头共用一份键值”，没有动一份键值有多宽，也没有动历史位置的个数。把 Hkv 降到 1 之后，剩下的空间只有每头维度 d_k、d_v，继续压就直接损害每个位置的表示；而缓存随上下文线性增长的那一项，在这条路线上完全没被触及。要让每个位置存得更少同时保住头间差异，得换掉存储的对象本身，这正是多头潜在注意力的入口。</p>
+<h3 id="mla把-kv-缓存压进一个潜在向量">MLA：把 KV 缓存压进一个潜在向量</h3>
+<p>MQA 与 GQA 都在“哪些查询头共用一份键值”上取值，键值本身的宽度没有变化。多头潜在注意力（Multi-head Latent Attention，MLA）换掉的是存储对象：先把键与值压缩成一个低维潜在向量存下来，用到时再展开。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).
+
+DeepSeek-AI et al. DeepSeek-V3 Technical Report. arXiv:2412.19437v2 (2025 revision; first submitted 2024)." aria-label="引用 [32, 33]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;33&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3 Technical Report. arXiv:2412.19437v2 (2025 revision; first submitted 2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.19437v2&quot;, &quot;fallback&quot;: false}]">[32, 33]</a>（§2.1）同一份缓存里因此能装下更多历史位置，或者在同一段历史上少读几个字节。</p>
+<h4 id="联合低维参数化保留头间差异">联合低维参数化保留头间差异</h4>
+<p>用列向量来推内容分支。输入 xₜ 为 d 维，潜在向量 cₜ 为 d𝚌 维，由一个下投影产生；第 h 头的内容键和值各自由一个上投影展开：</p>
+<p><math display="block"><msub><mi>c</mi><mi>t</mi></msub><mo>=</mo><msub><mi>W</mi><mi>D</mi></msub><msub><mi>x</mi><mi>t</mi></msub><mo>,</mo><mspace width="1em"/><msubsup><mi>k</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>=</mo><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>t</mi></msub><mo>,</mo><mspace width="1em"/><msub><mi>v</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow></msub><mo>=</mo><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>t</mi></msub></math></p>
+<p><code>W_D</code> 的形状是 <code>d_c × d</code>，<code>U_K^h</code> 是 <code>d_h × d_c</code>，<code>U_V^h</code> 是 <code>d_v × d_c</code>，dₕ 专指内容查询与键的维度。各头共享 c，展开出来的键与值却各不相同。与 MQA 的差别正在这里：MQA 直接共用一份投影后的键值，MLA 共用的是生成键值的那份低维状态，头与头之间的差异由各自的展开矩阵提供。代价也随之出现：所有头的键值表示都要经过同一个瓶颈，d𝚌 决定了这个瓶颈能保留多少信息。</p>
+<p>查询同样可以压缩后再上投影。查询只服务当前这一步计算，不需要像历史状态那样长期留在显存里，所以查询压缩省的是训练激活，与缓存压缩来自不同地方。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a>（§2.1.2）</p>
+<h4 id="矩阵吸收历史访问留在低维空间">矩阵吸收：历史访问留在低维空间</h4>
+<p>设第 h 头的内容查询为 qᶜₜ,ₕ。忽略位置分支，它与历史位置 s 的打分可以重新结合：</p>
+<p><math display="block"><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>=</mo><msup><mrow><mo>(</mo><msup><mrow><mo>(</mo><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>c</mi><mi>s</mi></msub></math></p>
+<p>据此，先把当前查询做一次线性变换，得到 d𝚌 维的“吸收后查询”，就能直接拿它和缓存的 cₛ 打分，无需为每个历史位置重建每头的内容键。归一化得到权重 aₜₛʰ 之后，值分支靠线性性同样可以后移：</p>
+<p><math display="block"><msub><mi>o</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>=</mo><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><munder><mo>∑</mo><mrow><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub></math></p>
+<p>把输出投影按头拆成 Oₕ，最终贡献就是 <math><munder><mo>∑</mo><mi>h</mi></munder><mo>(</mo><msub><mi>O</mi><mi>h</mi></msub><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><mo>)</mo><mo>(</mo><munder><mo>∑</mo><mi>s</mi></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>)</mo></math>，值上投影与输出投影可以合成一个矩阵，挪到汇聚之后。注意 softmax 的非线性原封不动：各头的 a 互不相同，先把各头平均再共用一次汇聚会得到另一个函数。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a>（§2.1.2）</p>
+<p>这一串变换是运算顺序的重排，实现里并不需要真的把融合后的大矩阵显式存下来。吸收之后的点积与汇聚沿 d𝚌 维进行，代回 DeepSeek-V2 的取值 d𝚌=512 与单头 128 维，每个头的点积长度从 128 变成一个更大的量，每头算术量因此上升约四倍。于是取舍出现了：省下的是缓存读取，代价在别处。训练与预填充阶段查询多，展开成多头计算更顺手；小批解码从潜在缓存里读更划算。DeepSeek-V3.2 附录 A 把这两种执行视图称作 MLA 的 MHA mode 与 MQA mode，指的是同一个已训练模型的两条计算路径，不是两套模型。<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（附录 A）</p>
+<h4 id="rope-为什么必须解耦">RoPE 为什么必须解耦</h4>
+<p>旋转位置嵌入（Rotary Position Embedding，RoPE）给查询和键施加随位置变化的旋转 Rₜ、Rₛ。若直接旋转展开后的内容键，打分里会出现：</p>
+<p><math display="block"><msup><mi>q</mi><mi>T</mi></msup><msubsup><mi>R</mi><mi>t</mi><mi>T</mi></msubsup><msub><mi>R</mi><mi>s</mi></msub><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub></math></p>
+<p>Rₛ 夹在中间且随 s 变化。矩阵乘法不满足交换律，把上投影吸收到查询这一侧的前提就断了：每个历史位置都得重新算一遍键，缓存的收益随之消失。这是 MLA 与 RoPE 冲突的具体位置，与“低维向量装不下位置信息”无关。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a>（§2.1.3）</p>
+<p>MLA 的处理是把内容与位置分开：每头的内容查询与位置查询各走一条路，每个历史位置另存一个跨头共享、已经旋转过的位置键 kʳ，维度 dᵣ。主分数由两项相加构成：</p>
+<p><math display="block"><msubsup><mi>ℓ</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>=</mo><mfrac><mrow><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>+</mo><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>R</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>k</mi><mi>s</mi><mi>R</mi></msubsup></mrow><msqrt><mrow><msub><mi>d</mi><mi>h</mi></msub><mo>+</mo><msub><mi>d</mi><mi>r</mi></msub></mrow></msqrt></mfrac></math></p>
+<p>内容项照旧可以吸收，位置项单独算，两项相加后走同一次 softmax。缓存因此需要放下 cₛ 与 kʳₛ 两份数据。DeepSeek-V2 的取值是 d𝚌=512、dᵣ=64，每层每个 token 缓存 576 个元素；按 2 字节算合 1,152 字节。同一层的 MHA 对照值是 32,768 个元素、64 KiB，两者相差约 57 倍。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a>（§2.1.3、§3.1.2）这只是有效张量容量，分页、尺度、对齐与工作区另算，也不能据此推出端到端有同倍加速。</p>
+<h4 id="宽度压缩了位置个数还在">宽度压缩了，位置个数还在</h4>
+<p>MLA 压缩的是每个历史位置的表示宽度，历史位置的总数没有减少：新查询仍要访问全部可见的潜在状态，预填充阶段的成对计算照旧是二次规模，缓存也照旧随上下文线性增长，只是每个格子的字节数变小。要让主注意力少读一些位置，需要一层额外的选择机制，这既是稀疏注意力那条线的起点，也是 DSA 直接接在 MLA 之上的原因。</p>
+<h3 id="核化线性注意力把求和顺序换过来">核化线性注意力：把求和顺序换过来</h3>
+<p>MQA、GQA 与 MLA 都在改“存什么、存多少”，键值仍然逐位置保存，随机访问的能力没有变化。核化线性注意力改写的是求和顺序本身：把相似性写成有限维特征的内积，只依赖查询的项就能提到对键的求和之外，历史因此被压成几个统计量，逐位置键值不再保留。<a class="citation" href="https://arxiv.org/abs/2006.16236v3" title="Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, François Fleuret. Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention. ICML 2020; inspected arXiv:2006.16236v3 (2020)." aria-label="引用 [38]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;38&quot;, &quot;text&quot;: &quot;Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, François Fleuret. Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention. ICML 2020; inspected arXiv:2006.16236v3 (2020).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2006.16236v3&quot;, &quot;fallback&quot;: false}]">[38]</a>（§3）</p>
+<h4 id="从核函数到可累计状态">从核函数到可累计状态</h4>
+<p>设相似性能用有限维特征写开，<math><mi>κ</mi><mo>(</mo><mi>q</mi><mo>,</mo><mi>k</mi><mo>)</mo><mo>=</mo><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><mi>q</mi><mo>)</mo><mi>φ</mi><mo>(</mo><mi>k</mi><mo>)</mo></math>，特征维度 r。配上正的归一化分母，位置 i 的输出就可以把只依赖查询的项提到对键的求和之外：</p>
+<p><math display="block"><msubsup><mi>y</mi><mi>i</mi><mi>T</mi></msubsup><mo>=</mo><mfrac><mrow><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><mo>)</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo><msubsup><mi>v</mi><mi>j</mi><mi>T</mi></msubsup></mrow><mrow><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><mo>)</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo></mrow></mfrac><mo>=</mo><mfrac><mrow><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><mo>)</mo><mi>R</mi></mrow><mrow><msup><mi>φ</mi><mi>T</mi></msup><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><mo>)</mo><mi>z</mi></mrow></mfrac></math></p>
+<p>式中的 <math><mi>R</mi><mo>=</mo><munder><mo>∑</mo><mi>j</mi></munder><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo><msubsup><mi>v</mi><mi>j</mi><mi>T</mi></msubsup></math> 是特征与值的外积之和，<math><mi>z</mi><mo>=</mo><munder><mo>∑</mo><mi>j</mi></munder><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo></math> 累积归一化统计；值向量按列向量定义，输出公式给出它的行表示。这一步成立的唯一条件是 φ(qᵢ) 不参与对 j 的求和，交换求和顺序因此合法，不依赖核的任何近似性质。</p>
+<p>因果情形只对当前位置及历史求和，两个统计量可以增量更新：</p>
+<p><math display="block"><msub><mi>R</mi><mi>i</mi></msub><mo>=</mo><msub><mi>R</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>i</mi></msub><mo>)</mo><msubsup><mi>v</mi><mi>i</mi><mi>T</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>z</mi><mi>i</mi></msub><mo>=</mo><msub><mi>z</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mi>i</mi></msub><mo>)</mo></math></p>
+<p>代入数字看规模：特征维度 r=128、值维度 dᵥ=64 时，状态是 128×64+128=8,320 个元素，与历史长度无关；同一模型若存显式 KV 缓存，8,192 个历史位置需要 8,192×64=524,288 个元素，相差约 63 倍。每步的更新与读取量也不再随历史增长，总工作量随序列长度线性增长。提高 r 以换取精度、或者特征构造本身较贵时，这部分的代价需要重新估计。原文用的具体特征是把 ELU 加一，取正值的目的是让分母为正；这一选择只保证归一化稳定，不保证与指数核等价。</p>
+<h4 id="三种计算形态的并行度与算术量">三种计算形态的并行度与算术量</h4>
+<p>同一套公式有三种落地方式，差别在并行度和中间量的存储上。<a class="citation" href="https://arxiv.org/abs/2406.06484v6" title="Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision)." aria-label="引用 [41]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;41&quot;, &quot;text&quot;: &quot;Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2406.06484v6&quot;, &quot;fallback&quot;: false}]">[41]</a>（§2.1）设序列长度 L、每头维度 d：</p>
+<ul>
+<li>并行形式 <math><mo>(</mo><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>⊙</mo><mi>M</mi><mo>)</mo><mi>V</mi></math> 与普通注意力同形，算术量 <math><mi>O</mi><mo>(</mo><msup><mi>L</mi><mn>2</mn></msup><mi>d</mi><mo>+</mo><mi>L</mi><msup><mi>d</mi><mn>2</mn></msup><mo>)</mo></math>，但可以一步算完。</li>
+<li>递推形式是上面的增量更新，算术量 <math><mi>O</mi><mo>(</mo><mi>L</mi><msup><mi>d</mi><mn>2</mn></msup><mo>)</mo></math>，沿序列不能并行，逐步的矩阵—向量操作也用不上张量核心。</li>
+<li>分块形式把序列切成每块 C 个位置，块内按并行形式算，块间按递推形式传状态，算术量 <math><mi>O</mi><mo>(</mo><mi>L</mi><mi>C</mi><mi>d</mi><mo>+</mo><mi>L</mi><msup><mi>d</mi><mn>2</mn></msup><mo>)</mo></math>，步数为 <math><mi>O</mi><mo>(</mo><mi>L</mi><mo>/</mo><mi>C</mi><mo>)</mo></math>，块内状态无需落盘。</li>
+</ul>
+<p>C=L 退化为全并行，C=1 退化为纯递推，实现里通常取 64 或 128，在并行度与算术量之间折中。这条折中关系是后面所有状态模型共用的：RetNet、DeltaNet、GDN 与 Mamba2 的训练内核都在分块形式上实现，整段序列上的纯递推只出现在推导里。</p>
+<h4 id="有限维特征装不下指数点积矩阵">有限维特征装不下指数点积矩阵</h4>
+<p>标准注意力用指数点积核，再按查询归一化。有限维特征给出的未归一化相似性矩阵是 <math><mi>Φ</mi><mo>(</mo><mi>Q</mi><mo>)</mo><msup><mi>Φ</mi><mi>T</mi></msup><mo>(</mo><mi>K</mi><mo>)</mo></math>，秩至多为 r。指数点积矩阵的秩上界要高得多：在维度为一、缩放为一时取 <math><msub><mi>q</mi><mi>i</mi></msub><mo>=</mo><mi>i</mi><mo>−</mo><mn>1</mn></math>、<math><msub><mi>k</mi><mi>j</mi></msub><mo>=</mo><mi>log</mi><msub><mi>t</mi><mi>j</mi></msub></math>，各 <math><msub><mi>t</mi><mi>j</mi></msub></math> 互异且为正，分数矩阵就是一个 Vandermonde 矩阵：</p>
+<p><math display="block"><msub><mi>B</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>q</mi><mi>i</mi></msub><msub><mi>k</mi><mi>j</mi></msub><mo>)</mo><mo>=</mo><msubsup><mi>t</mi><mi>j</mi><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></msubsup><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">det</mi><mo>(</mo><mi>B</mi><mo>)</mo><mo>=</mo><munder><mo>∏</mo><mrow><mn>1</mn><mo>≤</mo><mi>i</mi><mo>&lt;</mo><mi>j</mi><mo>≤</mo><mi>N</mi></mrow></munder><mo>(</mo><msub><mi>t</mi><mi>j</mi></msub><mo>−</mo><msub><mi>t</mi><mi>i</mi></msub><mo>)</mo><mo>≠</mo><mn>0</mn></math></p>
+<p>行列式非零，矩阵满秩。按行除以正的行和相当于左乘一个可逆对角矩阵，秩不变。于是序列长度超过固定特征维度 r 时，这个标准 softmax 注意力矩阵写不成该有限维特征分解。反例证明的是“对任意输入、任意长度都等价”这个说法不成立；换到特定输入分布上，近似核或别的核照样可以训出有效模型。<a class="citation" href="https://doi.org/10.1145/3530811" title="Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A Survey. ACM Computing Surveys 55(6), Article 109 (December 2022), 28 pages. DOI: 10.1145/3530811." aria-label="引用 [10]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;10&quot;, &quot;text&quot;: &quot;Yi Tay, Mostafa Dehghani, Dara Bahri, Donald Metzler. Efficient Transformers: A Survey. ACM Computing Surveys 55(6), Article 109 (December 2022), 28 pages. DOI: 10.1145/3530811.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1145/3530811&quot;, &quot;fallback&quot;: false}]">[10]</a></p>
+<h4 id="加法写入的两个缺口">加法写入的两个缺口</h4>
+<p>状态递推到此还很朴素：新来的键值对只是被加到状态上，旧关联没有任何删除途径。状态是 dᵥ×dₖ 的矩阵，一旦有效关联条数超过它的秩，不同的键就会映射到相近的读出结果，后续工作把这种现象称为键碰撞。<a class="citation" href="https://arxiv.org/abs/2406.06484v6" title="Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision)." aria-label="引用 [41]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;41&quot;, &quot;text&quot;: &quot;Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2406.06484v6&quot;, &quot;fallback&quot;: false}]">[41]</a>（§2.2）这留下两个具体缺口：写入无法纠错，衰减也无法随内容变化。RetNet 补的是衰减这一项，DeltaNet 补的是写入这一项，两者后来被合成同一个更新式。</p>
+<h3 id="retnet给状态加一层与内容无关的衰减">RetNet：给状态加一层与内容无关的衰减</h3>
+<p>核化线性注意力的状态只增不减，长上下文里旧信息会挤占容量。RetNet 的保留机制（retention）先把衰减补上：状态在每次更新前按一个固定比例缩小，缩小的幅度逐头不同，并且允许并行训练与递推推理两种等价写法。<a class="citation" href="https://arxiv.org/abs/2307.08621v4" title="Yutao Sun, Li Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, Furu Wei. Retentive Network: A Successor to Transformer for Large Language Models. arXiv:2307.08621v4 (2023)." aria-label="引用 [40]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;40&quot;, &quot;text&quot;: &quot;Yutao Sun, Li Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, Furu Wei. Retentive Network: A Successor to Transformer for Large Language Models. arXiv:2307.08621v4 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2307.08621v4&quot;, &quot;fallback&quot;: false}]">[40]</a>（§2.1）</p>
+<h4 id="从状态递推到带衰减的并行形式">从状态递推到带衰减的并行形式</h4>
+<p>从一个一般的线性递推出发，状态 sₙ 由转移矩阵 A、键 Kₙ 与值 vₙ 更新，输出由查询 Qₙ 读出：</p>
+<p><math display="block"><msub><mi>s</mi><mi>n</mi></msub><mo>=</mo><mi>A</mi><msub><mi>s</mi><mrow><mi>n</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><msubsup><mi>K</mi><mi>n</mi><mi>T</mi></msubsup><msub><mi>v</mi><mi>n</mi></msub><mo>,</mo><mspace width="1em"/><msub><mi>o</mi><mi>n</mi></msub><mo>=</mo><msub><mi>Q</mi><mi>n</mi></msub><msub><mi>s</mi><mi>n</mi></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>m</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>Q</mi><mi>n</mi></msub><msup><mi>A</mi><mrow><mi>n</mi><mo>−</mo><mi>m</mi></mrow></msup><msubsup><mi>K</mi><mi>m</mi><mi>T</mi></msubsup><msub><mi>v</mi><mi>m</mi></msub></math></p>
+<p>把 A 对角化成 <math><mi>A</mi><mo>=</mo><mi>Λ</mi><mo>(</mo><mi>γ</mi><msup><mi>e</mi><mrow><mi>i</mi><mi>θ</mi></mrow></msup><mo>)</mo><msup><mi>Λ</mi><mrow><mo>−</mo><mn>1</mn></mrow></msup></math>，再把它吸收进 Q、K 的投影，转移矩阵就变成一个逐位置的复数因子；把 γ 取成实标量，输出写成相对距离上的显式衰减：</p>
+<p><math display="block"><msub><mi>o</mi><mi>n</mi></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>m</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msup><mi>γ</mi><mrow><mi>n</mi><mo>−</mo><mi>m</mi></mrow></msup><mrow><mo>(</mo><msub><mi>Q</mi><mi>n</mi></msub><msup><mi>e</mi><mrow><mi>i</mi><mi>n</mi><mi>θ</mi></mrow></msup><mo>)</mo></mrow><msup><mrow><mo>(</mo><msub><mi>K</mi><mi>m</mi></msub><msup><mi>e</mi><mrow><mi>i</mi><mi>m</mi><mi>θ</mi></mrow></msup><mo>)</mo></mrow><mo>†</mo></msup><msub><mi>v</mi><mi>m</mi></msub></math></p>
+<p>指数项 <math><msup><mi>e</mi><mrow><mi>i</mi><mi>n</mi><mi>θ</mi></mrow></msup></math> 与位置成正比，随距离衰减的 <math><msup><mi>γ</mi><mrow><mi>n</mi><mo>−</mo><mi>m</mi></mrow></msup></math> 只依赖相对位置。两者合成一个矩阵，就得到与自注意力同形的并行写法：</p>
+<p><math display="block"><mi mathvariant="normal">Retention</mi><mo>(</mo><mi>X</mi><mo>)</mo><mo>=</mo><mo>(</mo><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>⊙</mo><mi>D</mi><mo>)</mo><mi>V</mi><mo>,</mo><mspace width="1em"/><msub><mi>D</mi><mrow><mi>n</mi><mi>m</mi></mrow></msub><mo>=</mo><msup><mi>γ</mi><mrow><mi>n</mi><mo>−</mo><mi>m</mi></mrow></msup><mspace width="0.3em"/><mo>(</mo><mi>n</mi><mo>≥</mo><mi>m</mi><mo>)</mo></math></p>
+<p>D 同时承担因果掩码与相对位置衰减。写成这样之后，训练可以按 <math><mi>O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><mi>d</mi><mo>)</mo></math> 的并行形式做，推理则用递推形式每步只读写一个 dᵥ×dₖ 的状态，复杂度与历史长度无关。</p>
+<p>分块形式把两者接起来：块内按并行形式算出 <math><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>⊙</mo><mi>D</mi></math> 那一项，块间的历史贡献只用 <math><mo>(</mo><mi>Q</mi><mo>·</mo><msub><mi>S</mi><mi>past</mi></msub><mo>)</mo></math> 与一个跨块衰减因子相乘，两部分相加得到块输出。<a class="citation" href="https://arxiv.org/abs/2307.08621v4" title="Yutao Sun, Li Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, Furu Wei. Retentive Network: A Successor to Transformer for Large Language Models. arXiv:2307.08621v4 (2023)." aria-label="引用 [40]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;40&quot;, &quot;text&quot;: &quot;Yutao Sun, Li Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, Furu Wei. Retentive Network: A Successor to Transformer for Large Language Models. arXiv:2307.08621v4 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2307.08621v4&quot;, &quot;fallback&quot;: false}]">[40]</a>（§2.1、图 4）这与核化线性注意力的分块折中是同一套结构，区别只在块间传递的状态带衰减。</p>
+<h4 id="逐头衰减给出不同的有效记忆长度">逐头衰减给出不同的有效记忆长度</h4>
+<p>RetNet 把 γ 设成逐头不同的常数，第 h 个头取 <math><msub><mi>γ</mi><mi>h</mi></msub><mo>=</mo><mn>1</mn><mo>−</mo><msup><mn>2</mn><mrow><mo>−</mo><mn>5</mn><mo>−</mo><mi>h</mi></mrow></msup></math>。<a class="citation" href="https://arxiv.org/abs/2307.08621v4" title="Yutao Sun, Li Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, Furu Wei. Retentive Network: A Successor to Transformer for Large Language Models. arXiv:2307.08621v4 (2023)." aria-label="引用 [40]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;40&quot;, &quot;text&quot;: &quot;Yutao Sun, Li Dong, Shaohan Huang, Shuming Ma, Yuqing Xia, Jilong Xue, Jianyong Wang, Furu Wei. Retentive Network: A Successor to Transformer for Large Language Models. arXiv:2307.08621v4 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2307.08621v4&quot;, &quot;fallback&quot;: false}]">[40]</a>（Eq.8）这个取值把“每个头看多长的历史”由公式直接定下，不需要再当超参数调：让不同头覆盖不同记忆跨度就是这一取值的设计意图。对 γ 接近 1 的情形，半衰期约为 <math><mi mathvariant="normal">ln</mi><mn>2</mn><mo>/</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>γ</mi><mo>)</mo></math>：h=1 时约 44 步，h=8 时约 5,680 步，头序号每加一，有效记忆长度翻一倍。</p>
+<h4 id="固定衰减补了一半">固定衰减补了一半</h4>
+<p>衰减解决了“状态只增不减”，却没有让写入变得可纠错，也没有让衰减随内容变化。每一步按同一比例缩小的做法对待所有历史一视同仁：需要忘掉的噪声与需要保留的证据按同一个速率衰减，键值关联写错之后也没有撤除手段。这两点分别由 delta 规则与门控补上，而它们最终被合进同一个更新式。</p>
+<h3 id="deltanet把加法写入换成误差修正">DeltaNet：把加法写入换成误差修正</h3>
+<p>衰减只管缩小旧内容，不管写进去的内容对不对。核化线性注意力的状态是若干个外积之和，同一把键被写入多次时，新值只是叠加上去，读出来的是所有历史值的混合。DeltaNet 换掉的是写入规则：写入前先读出当前键对应的旧值，只把“目标值与旧值之差”写进去。<a class="citation" href="https://arxiv.org/abs/2102.11174v3" title="Imanol Schlag, Kazuki Irie, Jürgen Schmidhuber. Linear Transformers Are Secretly Fast Weight Programmers. ICML 2021; inspected arXiv:2102.11174v3 (2021)." aria-label="引用 [39]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;39&quot;, &quot;text&quot;: &quot;Imanol Schlag, Kazuki Irie, Jürgen Schmidhuber. Linear Transformers Are Secretly Fast Weight Programmers. ICML 2021; inspected arXiv:2102.11174v3 (2021).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2102.11174v3&quot;, &quot;fallback&quot;: false}]">[39]</a><a class="citation" href="https://arxiv.org/abs/2406.06484v6" title="Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision)." aria-label="引用 [41]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;41&quot;, &quot;text&quot;: &quot;Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2406.06484v6&quot;, &quot;fallback&quot;: false}]">[41]</a>（§2.2）</p>
+<h4 id="一次写入只改一个秩一项">一次写入只改一个秩一项</h4>
+<p>设第 t 步的键为 kₜ、值为 vₜ、写入强度为 <math><msub><mi>β</mi><mi>t</mi></msub><mo>∈</mo><mo>(</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>)</mo></math>。状态的更新写成两步：先读出旧值，再按差值写入：</p>
+<p><math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><mo>(</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><msub><mi>k</mi><mi>t</mi></msub><mo>−</mo><msub><mi>v</mi><mi>t</mi></msub><mo>)</mo><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup><mo>=</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mrow><mo>(</mo><mi>I</mi><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup><mo>)</mo></mrow><mo>+</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>v</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup></math></p>
+<p>右端的转移矩阵 <math><mrow><mo>(</mo><mi>I</mi><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup><mo>)</mo></mrow></math> 是单位矩阵减去一个秩一项，属于广义 Householder 变换；βₜ=1 时旧值被完全替换，βₜ=0 时状态不动。把每次写入看成 kₜ 方向上的插值更直观：新值是 <math><msub><mi>β</mi><mi>t</mi></msub><msub><mi>v</mi><mi>t</mi></msub><mo>+</mo><mo>(</mo><mn>1</mn><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><mo>)</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><msub><mi>k</mi><mi>t</mi></msub></math>，写入就是把旧值换成这个插值。输出仍由 <math><msub><mi>o</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mi>t</mi></msub><msub><mi>q</mi><mi>t</mi></msub></math> 给出。</p>
+<p>这条规则有明确的优化解释。把状态看作一个把键映射到值的在线回归模型，第 t 步的损失取平方误差，一次梯度下降步长取 βₜ：</p>
+<p><math display="block"><msub><mi>ℒ</mi><mi>t</mi></msub><mo>(</mo><mi>S</mi><mo>)</mo><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><mo>‖</mo><mi>S</mi><msub><mi>k</mi><mi>t</mi></msub><mo>−</mo><msub><mi>v</mi><mi>t</mi></msub><msup><mo>‖</mo><mn>2</mn></msup><mo>,</mo><mspace width="1em"/><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><mi>∇</mi><msub><mi>ℒ</mi><mi>t</mi></msub><mo>(</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>)</mo></math></p>
+<p>展开梯度就回到上面的更新式。对照之下，核化线性注意力相当于优化负内积损失 <math><mo>−</mo><mo>⟨</mo><mi>S</mi><msub><mi>k</mi><mi>t</mi></msub><mo>,</mo><msub><mi>v</mi><mi>t</mi></msub><mo>⟩</mo></math>，它的梯度与预测误差无关：即使当前读出已经错得很远，写入量也不变。平方误差的梯度随误差增长，因此 DeltaNet 在预测错误时修正得更狠，这是它在关联召回任务上强于朴素线性注意力的机制来源。<a class="citation" href="https://arxiv.org/abs/2406.06484v6" title="Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision)." aria-label="引用 [41]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;41&quot;, &quot;text&quot;: &quot;Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2406.06484v6&quot;, &quot;fallback&quot;: false}]">[41]</a>（§2.2）</p>
+<h4 id="状态容量可以算出来">状态容量可以算出来</h4>
+<p>把状态写成 <math><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>i</mi><mo>≤</mo><mi>t</mi></mrow></munder><msub><mi>u</mi><mi>i</mi></msub><msubsup><mi>k</mi><mi>i</mi><mi>T</mi></msubsup></math> 的形式，代入上面的更新式并按归纳法展开，得到伪值的递推：</p>
+<p><math display="block"><msub><mi>u</mi><mi>t</mi></msub><mo>=</mo><msub><mi>β</mi><mi>t</mi></msub><mrow><mo>(</mo><msub><mi>v</mi><mi>t</mi></msub><mo>−</mo><munder><mo>∑</mo><mrow><mi>i</mi><mo>&lt;</mo><mi>t</mi></mrow></munder><msub><mi>u</mi><mi>i</mi></msub><mo>(</mo><msubsup><mi>k</mi><mi>i</mi><mi>T</mi></msubsup><msub><mi>k</mi><mi>t</mi></msub><mo>)</mo><mo>)</mo></mrow></math></p>
+<p>这一步说明三件事。其一，DeltaNet 并没有保存历史键值，它保存的是被改写过的伪值 uᵢ，读取时与线性注意力完全同形。其二，计算 uₜ 不需要把 S 显式算出来，只要知道已经写过的 uᵢ 与键的内积：计算 uₜ 只需 <math><mi>O</mi><mo>(</mo><mi>d</mi><mo>)</mo></math> 空间，显式维护一个 d×d 的状态才需要 <math><mi>O</mi><mo>(</mo><msup><mi>d</mi><mn>2</mn></msup><mo>)</mo></math>。其三，容量是算得出来的：若各 kᵢ 两两正交，交叉项 <math><msubsup><mi>k</mi><mi>i</mi><mi>T</mi></msubsup><msub><mi>k</mi><mi>t</mi></msub></math> 全为零，uᵢ=βᵢvᵢ，状态精确存下 dₖ 条关联；取 dₖ=128 就是 128 条。同一个模型换 MHA 显式缓存，32K 上下文能精确保留 32,768 个位置的键值。两者的检索精度差距主要来自这个容量上限，训练更充分难以弥平。</p>
+<h4 id="并行化靠-wy-表示">并行化靠 WY 表示</h4>
+<p>伪值递推本身沿序列串行，直接算的总时间是 <math><mi>O</mi><mo>(</mo><msup><mi>L</mi><mn>2</mn></msup><mi>d</mi><mo>)</mo></math>。并行化利用的是 WY 表示（compact WY representation）把一叠 Householder 乘积压成两个小矩阵。在长度 C 的块内，累积转移矩阵与累积写入分别写成：</p>
+<p><math display="block"><msub><mi>P</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><mi>I</mi><mo>−</mo><msubsup><mi>W</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>T</mi></msubsup><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>,</mo><mspace width="1em"/><msub><mi>H</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msubsup><mi>U</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>T</mi></msubsup><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math></p>
+<p>其中 W 与 U 由一个 C×C 的下三角逆一次性解出：</p>
+<p><math display="block"><msub><mi>T</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msup><mrow><mo>&#91;</mo><mi>I</mi><mo>+</mo><mi mathvariant="normal">strictLower</mi><mo>(</mo><mi mathvariant="normal">diag</mi><mo>(</mo><msub><mi>β</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msubsup><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>T</mi></msubsup><mo>)</mo><mo>&#93;</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mi mathvariant="normal">diag</mi><mo>(</mo><msub><mi>β</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></math></p>
+<p><math display="block"><msub><mi>W</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msub><mi>T</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>,</mo><mspace width="1em"/><msub><mi>U</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msub><mi>T</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msub><mi>V</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math></p>
+<p>块间状态与块内输出因此都只需要矩阵乘与一次三角求解：</p>
+<p><math display="block"><msub><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>+</mo><mn>1</mn><mo>&#93;</mo></mrow></msub><mo>=</mo><msub><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>+</mo><msup><mrow><mo>(</mo><msub><mi>U</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>−</mo><msub><mi>W</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msubsup><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>T</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math></p>
+<p><math display="block"><msub><mi>O</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msub><mi>Q</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msubsup><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>T</mi></msubsup><mo>+</mo><mo>(</mo><msub><mi>Q</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msubsup><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>T</mi></msubsup><mo>⊙</mo><mi>M</mi><mo>)</mo><mo>(</mo><msub><mi>U</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>−</mo><msub><mi>W</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msubsup><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>T</mi></msubsup><mo>)</mo></math></p>
+<p>这套形式让 DeltaNet 从只能在小任务上跑到 1.3B 参数、100B token 的规模。原文在相同条件下与 Mamba、GLA 等线性时间基线比较，报告的困惑度与零样本下游指标更好；把 DeltaNet 层与每两层插一个滑动窗口注意力、或与两个全局注意力层混合，得到的模型又能超过强 Transformer 基线。<a class="citation" href="https://arxiv.org/abs/2406.06484v6" title="Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision)." aria-label="引用 [41]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;41&quot;, &quot;text&quot;: &quot;Songlin Yang, Bailin Wang, Yu Zhang, Yikang Shen, Yoon Kim. Parallelizing Linear Transformers with the Delta Rule over Sequence Length. NeurIPS 2024; inspected arXiv:2406.06484v6 (2025 revision).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2406.06484v6&quot;, &quot;fallback&quot;: false}]">[41]</a>（摘要、§1）这些是原文在其设置下的报告，换底座与数据仍要重测。</p>
+<h4 id="剩下的两处">剩下的两处</h4>
+<p>伪值递推里的 βₜ 是一个标量写强度，它决定这次修正多大，但不决定历史衰减多快；衰减仍由外部给定，与内容无关。把“忘多快”也做成输入相关的量，并把两者乘进同一个转移矩阵，就是 GDN 的改动。<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（§3.1）</p>
+<h3 id="gdn门控与-delta-写进同一个转移矩阵">GDN：门控与 delta 写进同一个转移矩阵</h3>
+<p>DeltaNet 补上了写入纠错，衰减仍是外部给定的常数；Mamba2 有输入相关的衰减，写入却是纯加法。门控 delta 网络（Gated Delta Network，GDN）把两者乘进同一个转移矩阵：衰减项 αₜ 与写强度 βₜ 都由当前输入产生，delta 结构保证写入只改一个秩一项，αₜ 决定整个状态先缩多少。<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（§3.1）</p>
+<p><math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mrow><mo>(</mo><msub><mi>α</mi><mi>t</mi></msub><mo>(</mo><mi>I</mi><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup><mo>)</mo><mo>)</mo></mrow><mo>+</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>v</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>α</mi><mi>t</mi></msub><mo>∈</mo><mo>(</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>)</mo></math></p>
+<p>取 αₜ=1 就退回 DeltaNet，去掉 delta 结构就退回 Mamba2 的 <math><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><msub><mi>α</mi><mi>t</mi></msub><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><msub><mi>v</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup></math>。合并不是符号上的拼合，两项各自解决一个具体问题。</p>
+<h4 id="用在线学习目标读出两项各自的作用">用在线学习目标读出两项各自的作用</h4>
+<p>把状态更新写成“对当前键值对做一步在线学习”的闭式解，几种机制就落在同一张表里。<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（表 1，该框架引自在线学习视角的既有工作）按这个视角，每一步要解的目标由两部分组成：把新状态拉向上一步的正则项，和用当前键值对构造的回归项。GDN 的目标写成</p>
+<p><math display="block"><msub><mi>ℒ</mi><mi>t</mi></msub><mo>(</mo><mi>S</mi><mo>)</mo><mo>=</mo><msubsup><mrow><mo>‖</mo><mi>S</mi><mo>−</mo><msub><mi>α</mi><mi>t</mi></msub><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>‖</mo></mrow><mi>F</mi><mn>2</mn></msubsup><mo>−</mo><mn>2</mn><mo>⟨</mo><mi>S</mi><msub><mi>k</mi><mi>t</mi></msub><mo>,</mo><msub><mi>β</mi><mi>t</mi></msub><mo>(</mo><msub><mi>v</mi><mi>t</mi></msub><mo>−</mo><msub><mi>α</mi><mi>t</mi></msub><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><msub><mi>k</mi><mi>t</mi></msub><mo>)</mo><mo>⟩</mo></math></p>
+<p>式中的双竖线为 Frobenius 范数，尖括号为两个矩阵的内积。正则项的系数从 1 换成 αₜ，回归项里的目标值从 vₜ 换成相对上一步预测的误差。把四种机制在这两处的取值依次列出，就得到下表。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>机制</th>
+<th>更新式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>线性注意力</td>
+<td>S(t) = S(t−1) + v(t)k(t)ᵀ</td>
+</tr>
+<tr>
+<td>Mamba2</td>
+<td>S(t) = α(t)S(t−1) + v(t)k(t)ᵀ</td>
+</tr>
+<tr>
+<td>DeltaNet</td>
+<td>S(t) = S(t−1)(I − β(t)k(t)k(t)ᵀ) + β(t)v(t)k(t)ᵀ</td>
+</tr>
+<tr>
+<td>GDN</td>
+<td>S(t) = S(t−1)(α(t)(I − β(t)k(t)k(t)ᵀ)) + β(t)v(t)k(t)ᵀ</td>
+</tr>
+</tbody>
+</table></div>
+<p>第一项是正则：它惩罚新状态偏离上一步的程度。系数取 1 表示强约束，状态只能小步移动，历史因此被保留；系数取 αₜ&lt;1 表示放松约束，允许状态按当前输入偏离。状态越满，继续强行保留越会让多条信息叠在一起，读取时分辨不出对应关系，放松约束正是为这种情形准备的。第二项决定写入的形状：负内积对应“只往状态里加”，平方误差对应“先读出旧值再写差值”，后者在预测错得离谱时修正量也大。</p>
+<p>两项的作用对象不同，因而可以叠加：门控管“留多久”，delta 管“写得准不准”。消融给出了这两件事的量级差别：在 400M 参数、15B token 的同条件下，把门控 delta 规则换成朴素 delta 规则，平均困惑度从 27.35 升到 30.87，平均零样本准确率从 47.26 降到 45.12。<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（表 S.1）</p>
+<h4 id="三种检索任务暴露三种失效">三种检索任务暴露三种失效</h4>
+<p>单针检索（Single Needle-in-a-Haystack，S-NIAH）把键值对埋进上下文，正是这几项机制针对性要解决的问题。原文在 1.3B 规模上做了三组变体，结论按失效类型分开：S-NIAH-1 用重复的合成上下文，只需记住极少信息，考的是长期保持；S-NIAH-2 把针埋进真实文章，考的是在容量有限的记忆里清理无关内容；S-NIAH-3 把值换成 UUID，考复杂模式的写入。<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（§3.2、表 2）</p>
+<p>三组结果的走向并不一致。在第一组上，DeltaNet 到 8K 仍是 98.8，Mamba2 从 2K 的 98.8 掉到 8K 的 30.4，GDN 是 91.8：衰减过快会伤长期保持，delta 结构把损失压住了。第二组上，DeltaNet 在 8K 只剩 14.4，Mamba2 是 17.0，GDN 升到 29.6：没有输入相关的清除手段，固定容量的状态会被无关内容占满。第三组上 Mamba2 掉到 4.6，GDN 仍有 27.6，差距来自写入的方式而非衰减。三组数字合起来说明，门控与 delta 各自覆盖一类失效，任何单独一项都会在另外两组上暴露短板。</p>
+<h4 id="分块训练要把门控乘进三角求解">分块训练要把门控乘进三角求解</h4>
+<p>门控进入分块算法后，累积转移不再是 <math><msub><mi>P</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math> 而是 <math><msub><mi>γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msub><mi>P</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math>，块内的键内积项也要按位置对衰减加权。原文的做法是把两个位置的累积衰减之比 <math><msub><mi>Γ</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><msub><mi>γ</mi><mi>i</mi></msub><mo>/</mo><msub><mi>γ</mi><mi>j</mi></msub></math> 逐元素乘进 K Kᵀ，三角求解因此变成：<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（§3.3、附录 A）</p>
+<p><math display="block"><msub><mover><mi>U</mi><mo>~</mo></mover><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msup><mrow><mo>&#91;</mo><mi>I</mi><mo>+</mo><mi mathvariant="normal">strictLower</mi><mo>(</mo><mi mathvariant="normal">diag</mi><mo>(</mo><msub><mi>β</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo><mo>(</mo><msub><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>⊙</mo><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msubsup><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>T</mi></msubsup><mo>)</mo><mo>)</mo><mo>&#93;</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mi mathvariant="normal">diag</mi><mo>(</mo><msub><mi>β</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo><msub><mi>V</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math></p>
+<p>把逐位置的 γᵢγⱼ 直接相乘会放大数值误差：块长 64 时累积衰减可以小到 10⁻⁶ 量级，相乘后再求逆会把误差一起放大。取相邻位置的比值能把量级归一到 1 附近，原因在这一步。块间传递与块内输出沿用 DeltaNet 的形状，只需把查询、键与状态按各自方向加权：<math><msub><mover><mi>S</mi><mo>→</mo></mover><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msub><mi>γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msub><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math>、<math><msub><mover><mi>q</mi><mo>←</mo></mover><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msub><mi>γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msub><mi>q</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math>、<math><msub><mover><mi>k</mi><mo>→</mo></mover><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><mo>(</mo><msub><mi>γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>/</mo><msub><mi>γ</mi><mi>i</mi></msub><mo>)</mo><msub><mi>k</mi><mi>i</mi></msub></math>。多出来的计算是 α、β 两条投影与一次逐元素缩放，块内仍只有一次三角逆与几次矩阵乘。</p>
+<p>参数侧与 DeltaNet 的差别不大：查询、键、值各走一条线性投影加短卷积，查询与键再做 L2 归一化，α、β 只用线性投影。<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（§3.4）这些细节决定训练稳定性，不改变上面的状态口径。</p>
+<h4 id="单层递推在检索上的短板要靠混合补">单层递推在检索上的短板要靠混合补</h4>
+<p>纯递推模型在真实检索任务上仍落后同样规模的注意力模型，原文把原因分为两类：固定状态容量装不下精确的键值检索，线性结构本身也不擅长局部比较与位置平移。<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（§3.4、§4）它的应对是把 GDN 层与滑动窗口注意力交替堆叠，形成混合模型：H1 是 GDN 与 SWA 交替，H2 再加入 Mamba2 层。在 1.3B 参数、100B token、窗口 2K 的同条件下，纯 GDN 在常识推理平均分上是 55.32，H1 是 56.40；在 LongBench 的 14 项平均上分别是 16.6 与 17.8，而对照的 Transformer++ 是 11.0。<a class="citation" href="https://arxiv.org/abs/2412.06464v3" title="Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025)." aria-label="引用 [42]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;42&quot;, &quot;text&quot;: &quot;Songlin Yang, Jan Kautz, Ali Hatamizadeh. Gated Delta Networks: Improving Mamba2 with Delta Rule. ICLR 2025; inspected arXiv:2412.06464v3 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2412.06464v3&quot;, &quot;fallback&quot;: false}]">[42]</a>（表 3、表 5）原文同时指出，混合模型的检索提升主要来自那些注意力层，递推层提供的仍是线性成本的长程压缩。</p>
+<p>这个取舍在开源权重里可以看到具体配置。Qwen3-Next-80B-A3B 的模型卡写明用门控 delta 网络与门控注意力组合替换标准注意力，<a class="citation" href="https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct" title="Qwen Team. Qwen3-Next-80B-A3B-Instruct model card and configuration. Hugging Face, 2025-09." aria-label="引用 [49]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;49&quot;, &quot;text&quot;: &quot;Qwen Team. Qwen3-Next-80B-A3B-Instruct model card and configuration. Hugging Face, 2025-09.&quot;, &quot;url&quot;: &quot;https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct&quot;, &quot;fallback&quot;: false}]">[49]</a> 配置里 48 层按每 4 层一个全注意力层排列，其余为线性层；线性层的键头 16 个、值头 32 个、头维 128、短卷积核宽 4，全注意力层是 16 个查询头配 2 个键值头、头维 256、只对四分之一的维度施加旋转位置嵌入。厂商报告给出的对照是：相对 Qwen3-32B，训练成本约为十分之一，32K 以上上下文的推理吞吐约十倍。<a class="citation" href="https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct" title="Qwen Team. Qwen3-Next-80B-A3B-Instruct model card and configuration. Hugging Face, 2025-09." aria-label="引用 [49]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;49&quot;, &quot;text&quot;: &quot;Qwen Team. Qwen3-Next-80B-A3B-Instruct model card and configuration. Hugging Face, 2025-09.&quot;, &quot;url&quot;: &quot;https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct&quot;, &quot;fallback&quot;: false}]">[49]</a> 这些数字属于厂商自述，没有独立复现，只说明这套组合在实际模型规模上被采用过。</p>
+<h3 id="kda门控细化到通道并在半精度矩阵乘里成立">KDA：门控细化到通道，并在半精度矩阵乘里成立</h3>
+<p>GDN 的门控是每个头一个标量，衰减只能把整个状态等比缩小。Kimi Delta 注意力（Kimi Delta Attention，KDA）把它换成逐通道的对角矩阵，每个键维度各有自己的遗忘速率；同时它必须回答一个工程问题：更细的门控为什么没有把内核拖慢。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§3）</p>
+<h4 id="更新式与它对应的-dplr-结构">更新式与它对应的 DPLR 结构</h4>
+<p>KDA 的状态更新写成：</p>
+<p><math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><mrow><mo>(</mo><mi>I</mi><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup><mo>)</mo></mrow><mi mathvariant="normal">Diag</mi><mo>(</mo><msub><mi>α</mi><mi>t</mi></msub><mo>)</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>v</mi><mi>t</mi><mi>T</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>α</mi><mi>t</mi></msub><mo>∈</mo><msup><mrow><mo>&#91;</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>&#93;</mo></mrow><msub><mi>d</mi><mi>k</mi></msub></msup></math></p>
+<p>与 GDN 的式子相比，α 从标量换成了对角矩阵，两个因子不再可交换，乘法位置因此有了意义。GDN 的转移矩阵是 <math><msub><mi>α</mi><mi>t</mi></msub><mrow><mo>(</mo><mi>I</mi><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup><mo>)</mo></mrow></math>，先读出未衰减的旧值、再整体缩放；KDA 的转移矩阵是 <math><mrow><mo>(</mo><mi>I</mi><mo>−</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>k</mi><mi>t</mi><mi>T</mi></msubsup><mo>)</mo></mrow><mi mathvariant="normal">Diag</mi><mo>(</mo><msub><mi>α</mi><mi>t</mi></msub><mo>)</mo></math>，先逐通道衰减、再读出旧值做修正，写入项 <math><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>v</mi><mi>t</mi><mi>T</mi></msubsup></math> 不被同期衰减。结构上它属于对角加低秩（Diagonal-Plus-Low-Rank，DPLR）族：令 <math><mi>D</mi><mo>=</mo><mi mathvariant="normal">Diag</mi><mo>(</mo><msub><mi>α</mi><mi>t</mi></msub><mo>)</mo></math>、<math><msub><mi>a</mi><mi>t</mi></msub><mo>=</mo><msub><mi>β</mi><mi>t</mi></msub><msub><mi>k</mi><mi>t</mi></msub></math>、<math><msub><mi>b</mi><mi>t</mi></msub><mo>=</mo><msub><mi>k</mi><mi>t</mi></msub><mo>⊙</mo><msub><mi>α</mi><mi>t</mi></msub></math>，上式就是 <math><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><mo>(</mo><mi>D</mi><mo>−</mo><msub><mi>a</mi><mi>t</mi></msub><msubsup><mi>b</mi><mi>t</mi><mi>T</mi></msubsup><mo>)</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><msub><mi>k</mi><mi>t</mi></msub><msubsup><mi>v</mi><mi>t</mi><mi>T</mi></msubsup></math>，并且 a 与 b 都由同一把键派生。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§6.2）</p>
+<p>这条约束决定了它的工程可行性：一般的 DPLR 允许 a、b 独立，表达能力更强，但分块计算里会出现累积衰减的倒数，数值上极易溢出或下溢。此前 GLA 一类做法在 log 域计算并在全精度下做二级分块（secondary chunking）来守住数值范围，代价是不能全程使用半精度矩阵乘。KDA 把 a、b 都绑到 k，倒数的因子就可以拆进两侧的乘法里，不再需要那些额外的全精度分块。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§3.2、§6.2）</p>
+<h4 id="分块算法把逐元素缩放挤进矩阵乘两侧">分块算法：把逐元素缩放挤进矩阵乘两侧</h4>
+<p>块内累积转移与累积写入按递推展开，得到两个 Householder 乘积序列；把它们压成两个小矩阵，就是 WY 表示（这里采用 Comba 的形式，省掉一次额外的矩阵求逆）：<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（Eq.2–3）</p>
+<p><math display="block"><msub><mi>P</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><mi mathvariant="normal">Diag</mi><mo>(</mo><msubsup><mi>γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>r</mi></msubsup><mo>)</mo><mo>−</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>r</mi></munderover><mi mathvariant="normal">Diag</mi><mo>(</mo><msubsup><mi>γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mi>i</mi><mo>→</mo><mi>r</mi></mrow></msubsup><mo>)</mo><msubsup><mi>k</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>i</mi></msubsup><msup><mrow><mo>(</mo><msubsup><mi>w</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>i</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><mo>,</mo><mspace width="1em"/><msub><mi>H</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>r</mi></munderover><mi mathvariant="normal">Diag</mi><mo>(</mo><msubsup><mi>γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mi>i</mi><mo>→</mo><mi>r</mi></mrow></msubsup><mo>)</mo><msubsup><mi>k</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>i</mi></msubsup><msup><mrow><mo>(</mo><msubsup><mi>u</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>i</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup></math></p>
+<p>其中 w、u 由与 DeltaNet 同形的递推给出，只是键内积多了按位置对加权的衰减。把这一叠秩一更新压成稠密矩阵，用 UT 变换一次解出：<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（Eq.6–7）</p>
+<p><math display="block"><msub><mi>M</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msup><mrow><mo>&#91;</mo><mi>I</mi><mo>+</mo><mi mathvariant="normal">StrictTril</mi><mrow><mo>(</mo><mi mathvariant="normal">Diag</mi><mo>(</mo><msub><mi>β</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo><mrow><mo>(</mo><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mn>1</mn><mo>→</mo><mi>C</mi></mrow></msubsup><mo>⊙</mo><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></mrow><msup><mrow><mo>(</mo><mfrac><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mn>1</mn><mo>→</mo><mi>C</mi></mrow></msubsup></mfrac><mo>)</mo></mrow><mi>T</mi></msup><mo>)</mo></mrow><mo>&#93;</mo></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mi mathvariant="normal">Diag</mi><mo>(</mo><msub><mi>β</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></math></p>
+<p><math display="block"><msub><mi>W</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msub><mi>M</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mrow><mo>(</mo><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mn>1</mn><mo>→</mo><mi>C</mi></mrow></msubsup><mo>⊙</mo><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></mrow><mo>,</mo><mspace width="1em"/><msub><mi>U</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><msub><mi>M</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msub><mi>V</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math></p>
+<p>决定它在半精度下能不能成立的是括号里两个因子的写法：一个写成 <math><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mn>1</mn><mo>→</mo><mi>C</mi></mrow></msubsup><mo>⊙</mo><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub></math>，另一个写成 <math><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>/</mo><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mn>1</mn><mo>→</mo><mi>C</mi></mrow></msubsup></math>。两者相乘给出的正是位置对之间的衰减比 <math><msub><mi>γ</mi><mi>i</mi></msub><mo>/</mo><msub><mi>γ</mi><mi>j</mi></msub></math>，而式子本身仍是两次矩阵乘加一个 C×C 的下三角逆。倒数的数值风险被分摊到两个因子上，块内的衰减量级不再需要全精度才能算。三角逆用高斯消元的前向代入逐行求出，串行长度只有块宽 C。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§3.1）</p>
+<p>块间传递与块内输出沿用同一套因子拆分：<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（Eq.8–9）</p>
+<p><math display="block"><msub><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>+</mo><mn>1</mn><mo>&#93;</mo></mrow></msub><mo>=</mo><mi mathvariant="normal">Diag</mi><mo>(</mo><msubsup><mi>γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mi>C</mi></msubsup><mo>)</mo><msub><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>+</mo><msup><mrow><mo>(</mo><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mi>i</mi><mo>→</mo><mi>C</mi></mrow></msubsup><mo>⊙</mo><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></mrow><mi>T</mi></msup><mrow><mo>(</mo><msub><mi>U</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>−</mo><msub><mi>W</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msub><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></mrow></math></p>
+<p><math display="block"><msub><mi>O</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>=</mo><mrow><mo>(</mo><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mn>1</mn><mo>→</mo><mi>C</mi></mrow></msubsup><mo>⊙</mo><msub><mi>Q</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></mrow><msub><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>+</mo><mi mathvariant="normal">Tril</mi><mrow><mo>(</mo><mrow><mo>(</mo><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mn>1</mn><mo>→</mo><mi>C</mi></mrow></msubsup><mo>⊙</mo><msub><mi>Q</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></mrow><msup><mrow><mo>(</mo><mfrac><msub><mi>K</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msubsup><mi>Γ</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow><mrow><mn>1</mn><mo>→</mo><mi>C</mi></mrow></msubsup></mfrac><mo>)</mo></mrow><mi>T</mi></msup><mo>)</mo></mrow><mrow><mo>(</mo><msub><mi>U</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>−</mo><msub><mi>W</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><msub><mi>S</mi><mrow><mo>&#91;</mo><mi>t</mi><mo>&#93;</mo></mrow></msub><mo>)</mo></mrow></math></p>
+<p>输出分两部分：跨块项用衰减加权后的查询直接读状态，块内项按 DeltaNet 的形状算。整段的非矩阵乘运算被压到逐元素缩放与一次前向代入，这是它能把主要算术交给张量核心的前提。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§3.1）</p>
+<h4 id="三个可核对的量">三个可核对的量</h4>
+<p>第一项是矩阵乘次数。相对一般 DPLR，KDA 把二级分块的矩阵运算从四次减到两次，又在块间与输出阶段省掉约三次矩阵乘，同长度下内核速度约为 DPLR 的两倍（测试到 64K）。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§6.2、图 2）</p>
+<p>第二项是算术量。按分块内核的实现口径，单头、块宽 C、序列长度 T 的训练浮点运算量为：<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（Eq.13）</p>
+<p><math display="block"><msub><mi>FLOPs</mi><mi>KDA</mi></msub><mo>=</mo><mn>6</mn><mi>T</mi><msubsup><mi>d</mi><mi>h</mi><mn>2</mn></msubsup><mo>+</mo><mn>3</mn><mi>T</mi><mi>C</mi><msub><mi>d</mi><mi>h</mi></msub><mo>+</mo><mi>T</mi><msup><mi>C</mi><mn>2</mn></msup></math></p>
+<p>三项都对 T 线性，C² 是常数。取 d_h=128、C=64 得每个 token 约 126,976 次浮点运算；全注意力的主项是 <math><mn>2</mn><msup><mi>T</mi><mn>2</mn></msup><msub><mi>d</mi><mi>h</mi></msub></math>，同样配置下每 token 是 256T。两者相等的交叉点在 T≈496：短于它时全注意力的算术量更小，长于它时递推的线性优势逐段拉开。这条式子解释了为什么论文的比较从 4K 起步，也解释了为什么短上下文上混合模型与纯注意力打平。</p>
+<p>第三项是状态容量。KDA 的状态是 dᵥ×dₖ 的矩阵，与上下文长度无关；混合模型中每四层才有一层保存 KV，长序列生成时这部分占用最多下降 75%。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（摘要、§4）</p>
+<h4 id="把位置信息交给-kda">把位置信息交给 KDA</h4>
+<p>Kimi Linear 的混合方式是每三层 KDA 接一层全注意力（MLA）。混合以整层为单位，不在层内按头分派，理由是基础设施简单、训练稳定。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§4）另一项工程决定是位置编码：所有 MLA 层改用无位置编码（NoPE），位置与近因偏置完全由 KDA 承担。</p>
+<p>这样做的依据可以写成一个与 RoPE 同形的式子。把带门控的 delta 规则展开成对历史的加权求和，第 t 个查询对第 i 个键的权重里含一段累积转移乘积：<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（Eq.12）</p>
+<p><math display="block"><msub><mi>o</mi><mi>t</mi></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>t</mi></munderover><mrow><mo>(</mo><msubsup><mi>q</mi><mi>t</mi><mi>T</mi></msubsup><mrow><mo>(</mo><munderover><mo>∏</mo><mrow><mi>j</mi><mo>=</mo><mi>i</mi><mo>+</mo><mn>1</mn></mrow><mi>t</mi></munderover><mi mathvariant="normal">Diag</mi><mo>(</mo><msub><mi>α</mi><mi>j</mi></msub><mo>)</mo><mrow><mo>(</mo><mi>I</mi><mo>−</mo><msub><mi>β</mi><mi>j</mi></msub><msub><mi>k</mi><mi>j</mi></msub><msubsup><mi>k</mi><mi>j</mi><mi>T</mi></msubsup><mo>)</mo></mrow><mo>)</mo></mrow><msub><mi>k</mi><mi>i</mi></msub><mo>)</mo></mrow><msub><mi>v</mi><mi>i</mi></msub></math></p>
+<p>RoPE 在同一位置放的是旋转矩阵的乘积，那组矩阵正交，因此可以拆到查询与键两端分别施加，得到只依赖相对距离的相位。KDA 的乘积是数据相关且非正交的，同样位置出现的是“衰减多少、修正多少”，因此相对位置信息由内容自己给出，不再需要固定的频率表。逐通道门控在这里承担了 RoPE 逐维频率的角色，这也是 KDA 必须把门控细到通道、而不能停在每头标量的原因。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§6.1）</p>
+<p>NoPE 还带来两项工程收益：MLA 在推理时可以退化成纯多查询注意力，只需缓存潜在状态；长上下文训练不再需要调频率底数或引入 YaRN 一类外推方法。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（§4）</p>
+<h4 id="参数化与开源权重">参数化与开源权重</h4>
+<p>q、k 走线性投影、短卷积、Swish 激活与 L2 归一化，v 走投影、短卷积与 Swish；β 由 sigmoid 给出标量，α 由一组秩等于头维的低秩投影加衰减函数生成，逐通道取值；输出前有逐头 RMSNorm 与低秩门控。键与值的头维都取 128。<a class="citation" href="https://arxiv.org/abs/2510.26692v2" title="Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025)." aria-label="引用 [50]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;50&quot;, &quot;text&quot;: &quot;Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2510.26692v2&quot;, &quot;fallback&quot;: false}]">[50]</a>（Eq.10）</p>
+<p>开源权重 Kimi-Linear-48B-A3B 的配置给出了更硬的落地形态：27 层中 20 层是 KDA、7 层是全注意力（第 4、8、12、16、20、24、27 层），KDA 32 个头、头维 128、短卷积核宽 4；全注意力层是 MLA，潜在秩 512，键维与值维各 128。总参数 48B、激活 3B，前馈为 256 个路由专家、每 token 选 8 个加 1 个共享专家。</p>
+<p>论文报告的结果带着 1.4T token 同配方训练的条件：MMLU-Pro 上 51.0，对照 GDN 混合 47.9、纯 MLA 47.2；128K 的 RULER 上 84.3，对照 80.5 与 81.3；1M 上下文解码每输出 token 1.84 ms，对照 MLA 的 11.48 ms，约 6.3 倍；预填充在 512K 与 1M 上分别是 2.3 倍与 2.9 倍。这些数字属于论文在其配置下的报告，底座、数据与内核版本不同，不能直接搬到其他模型上。</p>
+<h4 id="细门控的代价落在哪">细门控的代价落在哪</h4>
+<p>逐通道门控把 α 从一个标量变成 dₖ 维向量，每个头都要多做一组低秩投影与一次逐元素缩放；分块内仍有一次 C×C 的三角逆要做前向代入，块宽越大，这段串行计算越长，这也是块宽通常停在 64 的原因。混合结构里那 1/4 的全注意力层仍然要付完整的 KV 缓存与二次计算，精确检索能力主要靠它们兜底；纯 KDA 在长上下文检索上仍弱于同规模全注意力，论文的消融也显示 3:1 是质量与吞吐的折中，而非普适比例。</p>
+<p>至于“更细的门控能否直接换成更强的表达力”，答案取决于转移矩阵是否仍落在可分块的族里。KDA 之所以能在半精度矩阵乘上成立，靠的正是把 a、b 绑到同一把键这一条约束；一旦放开这条约束回到一般 DPLR，内核就要重新面对全精度二级分块的开销。</p>
+<h3 id="ssm-与-rwkv同一套状态演化的另外两条入口">SSM 与 RWKV：同一套状态演化的另外两条入口</h3>
+<p>递推这条路不止从注意力改写而来。状态空间模型（State Space Model，SSM）从连续时间系统出发，RWKV 从线性注意力的通道衰减出发，两者最后落在与 GDN 同形的更新式上：一个对角衰减加一个秩一项。把它们并排看，能看清“门控的形状”与“状态大小”各自决定什么。</p>
+<h4 id="从连续时间系统到选择性扫描">从连续时间系统到选择性扫描</h4>
+<p>S4 用四个参数 (Δ, A, B, C) 定义一个序列到序列的变换，先把连续参数离散化：</p>
+<p><math display="block"><mover><mi>A</mi><mo>¯</mo></mover><mo>=</mo><mi mathvariant="normal">exp</mi><mo>(</mo><mi>Δ</mi><mi>A</mi><mo>)</mo><mo>,</mo><mspace width="1em"/><mover><mi>B</mi><mo>¯</mo></mover><mo>=</mo><mo>(</mo><mi>Δ</mi><mi>A</mi><msup><mo>)</mo><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo>(</mo><mi mathvariant="normal">exp</mi><mo>(</mo><mi>Δ</mi><mi>A</mi><mo>)</mo><mo>−</mo><mi>I</mi><mo>)</mo><mo>·</mo><mi>Δ</mi><mi>B</mi></math></p>
+<p>再按递推算出隐藏状态 hₜ 与输出 yₜ：<math><msub><mi>h</mi><mi>t</mi></msub><mo>=</mo><mover><mi>A</mi><mo>¯</mo></mover><msub><mi>h</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mover><mi>B</mi><mo>¯</mo></mover><msub><mi>x</mi><mi>t</mi></msub></math>，<math><msub><mi>y</mi><mi>t</mi></msub><mo>=</mo><mi>C</mi><msub><mi>h</mi><mi>t</mi></msub></math>。这里的参数不随输入变化，因此整段序列等价于一次固定的卷积，可以并行算出。<a class="citation" href="https://arxiv.org/abs/2312.00752v2" title="Albert Gu, Tri Dao. Mamba: Linear-Time Sequence Modeling with Selective State Spaces. arXiv:2312.00752v2 (2024 revision)." aria-label="引用 [45]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;45&quot;, &quot;text&quot;: &quot;Albert Gu, Tri Dao. Mamba: Linear-Time Sequence Modeling with Selective State Spaces. arXiv:2312.00752v2 (2024 revision).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2312.00752v2&quot;, &quot;fallback&quot;: false}]">[45]</a>（§2）</p>
+<p>Mamba 的改动只有一句：让 Δ、B、C 随输入变化，使得模型能按当前 token 决定放行还是遗忘。<a class="citation" href="https://arxiv.org/abs/2312.00752v2" title="Albert Gu, Tri Dao. Mamba: Linear-Time Sequence Modeling with Selective State Spaces. arXiv:2312.00752v2 (2024 revision)." aria-label="引用 [45]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;45&quot;, &quot;text&quot;: &quot;Albert Gu, Tri Dao. Mamba: Linear-Time Sequence Modeling with Selective State Spaces. arXiv:2312.00752v2 (2024 revision).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2312.00752v2&quot;, &quot;fallback&quot;: false}]">[45]</a>（§3.1）代价是固定卷积的形式消失了，只能用带扫描的并行算法重写前缀计算，这也解释了为什么选择性 SSM 的实现必须与内核一起设计。原文报告 3B 规模在语言建模上超过同规模 Transformer、追平两倍规模的 Transformer，以及相对 Transformer 约 5 倍的生成长度吞吐。</p>
+<h4 id="mamba2-把递推与二次计算做成对偶">Mamba2 把递推与二次计算做成对偶</h4>
+<p>Mamba2 把 A 从对角结构进一步简化成标量乘单位矩阵，并对每个头取更大的头维 P（常取 64 或 128），于是同一层有两种等价算法：递推形式沿序列线性，二次形式写成</p>
+<p><math display="block"><mo>(</mo><mi>L</mi><mo>∘</mo><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>)</mo><mo>·</mo><mi>V</mi><mo>,</mo><mspace width="1em"/><msub><mi>L</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><munderover><mo>∏</mo><mrow><mi>k</mi><mo>=</mo><mi>j</mi><mo>+</mo><mn>1</mn></mrow><mi>i</mi></munderover><msub><mi>a</mi><mi>k</mi></msub><mspace width="0.3em"/><mo>(</mo><mi>i</mi><mo>≥</mo><mi>j</mi><mo>)</mo></math></p>
+<p>其中 aₖ 是取值在 [0,1] 的输入相关标量。与标准注意力相比，它去掉了 softmax，把归一化换成逐位置的衰减累积。<a class="citation" href="https://arxiv.org/abs/2405.21060v1" title="Tri Dao, Albert Gu. Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality. arXiv:2405.21060v1 (2024)." aria-label="引用 [46]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;46&quot;, &quot;text&quot;: &quot;Tri Dao, Albert Gu. Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality. arXiv:2405.21060v1 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.21060v1&quot;, &quot;fallback&quot;: false}]">[46]</a>（§2.4）两种形式的选择只看形状：短序列用二次形式，矩阵乘的并行度高；长序列用递推，算术量少。线性注意力与 SSM 在代数上同源：1-SS 矩阵的乘法就是累积乘积和，Mamba2 的分块算法在这层等价上做调度。<a class="citation" href="https://arxiv.org/abs/2405.21060v1" title="Tri Dao, Albert Gu. Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality. arXiv:2405.21060v1 (2024)." aria-label="引用 [46]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;46&quot;, &quot;text&quot;: &quot;Tri Dao, Albert Gu. Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality. arXiv:2405.21060v1 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.21060v1&quot;, &quot;fallback&quot;: false}]">[46]</a>（§3.2、§5）</p>
+<h4 id="rwkv把衰减放到通道上">RWKV：把衰减放到通道上</h4>
+<p>RWKV-4 的出发点是带位置偏置的注意力，把偏置限制成只依赖相对距离的通道向量：<math><msub><mi>w</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow></msub><mo>=</mo><mo>−</mo><mo>(</mo><mi>t</mi><mo>−</mo><mi>i</mi><mo>)</mo><mi>w</mi></math>，w 非负，因此 <math><msup><mi>e</mi><msub><mi>w</mi><mrow><mi>t</mi><mo>,</mo><mi>i</mi></mrow></msub></msup><mo>≤</mo><mn>1</mn></math>、时间上单调衰减。<a class="citation" href="https://arxiv.org/abs/2305.13048v2" title="Bo Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Arcadinho, Stella Biderman, et al. RWKV: Reinventing RNNs for the Transformer Era. arXiv:2305.13048v2 (2023)." aria-label="引用 [47]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;47&quot;, &quot;text&quot;: &quot;Bo Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Arcadinho, Stella Biderman, et al. RWKV: Reinventing RNNs for the Transformer Era. arXiv:2305.13048v2 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2305.13048v2&quot;, &quot;fallback&quot;: false}]">[47]</a>（§2.2、Eq.10）这样改写之后，原来对全体的加权求和变成对单个状态的递推，训练可以按并行形式做，推理每步只读写一个状态。</p>
+<p>衰减向量 w 逐通道取值，初始化按层与通道给出单调的安排：第 l 层、第 i 个通道取 <math><mo>−</mo><mn>5</mn><mo>+</mo><mn>8</mn><msup><mrow><mo>(</mo><mi>i</mi><mo>/</mo><mo>(</mo><mi>d</mi><mo>−</mo><mn>1</mn><mo>)</mo><mo>)</mo></mrow><mrow><mn>0.7</mn><mo>+</mo><mn>1.3</mn><mi>l</mi><mo>/</mo><mo>(</mo><mi>L</mi><mo>−</mo><mn>1</mn><mo>)</mo></mrow></msup></math>，<a class="citation" href="https://arxiv.org/abs/2305.13048v2" title="Bo Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Arcadinho, Stella Biderman, et al. RWKV: Reinventing RNNs for the Transformer Era. arXiv:2305.13048v2 (2023)." aria-label="引用 [47]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;47&quot;, &quot;text&quot;: &quot;Bo Peng, Eric Alcaide, Quentin Anthony, Alon Albalak, Samuel Arcadinho, Stella Biderman, et al. RWKV: Reinventing RNNs for the Transformer Era. arXiv:2305.13048v2 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2305.13048v2&quot;, &quot;fallback&quot;: false}]">[47]</a>（附录）靠前的层衰减更快、靠后的层保留更久，通道之间也拉开差距。这与 RetNet 的逐头衰减是同一个设计思路，区别是衰减维度从“每头一个标量”变成“每通道一个值”。</p>
+<p>RWKV-7 把更新式推广成广义 delta 规则：<math><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><msub><mi>S</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mrow><mo>(</mo><mi mathvariant="normal">diag</mi><mo>(</mo><msub><mi>w</mi><mi>t</mi></msub><mo>)</mo><mo>+</mo><msubsup><mi>z</mi><mi>t</mi><mi>T</mi></msubsup><msub><mi>b</mi><mi>t</mi></msub><mo>)</mo></mrow><mo>+</mo><msubsup><mi>v</mi><mi>t</mi><mi>T</mi></msubsup><msub><mi>k</mi><mi>t</mi></msub></math>，其中 zₜ、bₜ 由同一把键派生（取 <math><msub><mi>z</mi><mi>t</mi></msub><mo>=</mo><mo>−</mo><msub><mover><mi>κ</mi><mo>^</mo></mover><mi>t</mi></msub></math>、<math><msub><mi>b</mi><mi>t</mi></msub><mo>=</mo><msub><mover><mi>κ</mi><mo>^</mo></mover><mi>t</mi></msub><mo>⊙</mo><msub><mi>a</mi><mi>t</mi></msub></math>），使“移除”与“写入”的键可以不同，写强度也从标量变成逐通道向量。<a class="citation" href="https://arxiv.org/abs/2503.14456v2" title="Bo Peng, Ruichong Zhang, Daniel Goldstein, Eric Alcaide, Xingjian Du, et al. RWKV-7 &quot;Goose&quot; with Expressive Dynamic State Evolution. arXiv:2503.14456v2 (2025)." aria-label="引用 [48]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;48&quot;, &quot;text&quot;: &quot;Bo Peng, Ruichong Zhang, Daniel Goldstein, Eric Alcaide, Xingjian Du, et al. RWKV-7 \&quot;Goose\&quot; with Expressive Dynamic State Evolution. arXiv:2503.14456v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2503.14456v2&quot;, &quot;fallback&quot;: false}]">[48]</a>（§3）原文据此证明了该更新式在标准复杂度猜想下能表达 TC⁰ 之外的函数，并用常数层识别全部正则语言；这是表达力层面的结论，与语言建模的实测表现是两件事。</p>
+<h4 id="七条更新式并排">七条更新式并排</h4>
+<p>把这些机制的状态演化写在一起，差别只在系数的形状与是否随输入变化：<a class="citation" href="https://arxiv.org/abs/2503.14456v2" title="Bo Peng, Ruichong Zhang, Daniel Goldstein, Eric Alcaide, Xingjian Du, et al. RWKV-7 &quot;Goose&quot; with Expressive Dynamic State Evolution. arXiv:2503.14456v2 (2025)." aria-label="引用 [48]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;48&quot;, &quot;text&quot;: &quot;Bo Peng, Ruichong Zhang, Daniel Goldstein, Eric Alcaide, Xingjian Du, et al. RWKV-7 \&quot;Goose\&quot; with Expressive Dynamic State Evolution. arXiv:2503.14456v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2503.14456v2&quot;, &quot;fallback&quot;: false}]">[48]</a>（表 1，按本文记号整理）</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>机制</th>
+<th>状态演化</th>
+<th>衰减形状</th>
+<th>是否含 delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>线性注意力</td>
+<td>S(t) = S(t−1) + v(t)k(t)ᵀ</td>
+<td>无</td>
+<td>否</td>
+</tr>
+<tr>
+<td>RetNet</td>
+<td>S(t) = γS(t−1) + v(t)k(t)ᵀ</td>
+<td>每头标量、常数</td>
+<td>否</td>
+</tr>
+<tr>
+<td>Mamba2</td>
+<td>S(t) = α(t)S(t−1) + v(t)k(t)ᵀ</td>
+<td>每头标量、输入相关</td>
+<td>否</td>
+</tr>
+<tr>
+<td>DeltaNet</td>
+<td>S(t) = S(t−1)(I − β(t)k(t)k(t)ᵀ) + β(t)v(t)k(t)ᵀ</td>
+<td>无</td>
+<td>是，标量写强度</td>
+</tr>
+<tr>
+<td>GDN</td>
+<td>S(t) = S(t−1)(α(t)(I − β(t)k(t)k(t)ᵀ)) + β(t)v(t)k(t)ᵀ</td>
+<td>每头标量、输入相关</td>
+<td>是，标量写强度</td>
+</tr>
+<tr>
+<td>KDA</td>
+<td>S(t) = (I − β(t)k(t)k(t)ᵀ)Diag(α(t))S(t−1) + β(t)k(t)v(t)ᵀ</td>
+<td>每通道、输入相关</td>
+<td>是，标量写强度</td>
+</tr>
+<tr>
+<td>RWKV-7</td>
+<td>S(t) = S(t−1)(diag(w(t)) + z(t)ᵀb(t)) + v(t)k(t)ᵀ</td>
+<td>每通道、输入相关</td>
+<td>是，向量写强度</td>
+</tr>
+</tbody>
+</table></div>
+<p>表中的“是否随输入变化”决定了内核对状态量的依赖：常数衰减可以在编译期把因子折进分块调度，输入相关的衰减必须先把 αₜ 或 wₜ 算出来再进入三角求解，这也是 GDN 与 RWKV-7 都要重写分块算法的原因。状态大小由 P×N 或 dᵥ×dₖ 给出，与历史长度无关；能精确保留多少条互不干扰的关联，仍受 delta 规则给出的秩上限约束。</p>
+<h3 id="滑动窗口把可读位置限制成固定长度">滑动窗口：把可读位置限制成固定长度</h3>
+<p>递推这条线用固定大小的状态换掉了逐位置缓存，代价是丢掉精确寻址。另一条线保留逐位置键值，只限制一个查询能读多少个位置。滑动窗口注意力（Sliding Window Attention，SWA）是这条线最简单的一种：第 k 层的第 i 个位置只能读上一层 i−W 到 i 之间的隐藏状态。<a class="citation" href="https://arxiv.org/abs/2310.06825v1" title="Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023)." aria-label="引用 [44]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;44&quot;, &quot;text&quot;: &quot;Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2310.06825v1&quot;, &quot;fallback&quot;: false}]">[44]</a>（§2）</p>
+<h4 id="感受野按层数线性累积">感受野按层数线性累积</h4>
+<p>单层只跨 W 个位置，但每层的输入已经是上一层汇聚过的表示，因此跨层累计的可达距离是层数与窗口的乘积。第 l 层的可见范围是 lW 个输入位置，原文给出的对照是：W=4096、32 层时，最后一层的理论注意力跨度约 131K 个 token。<a class="citation" href="https://arxiv.org/abs/2310.06825v1" title="Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023)." aria-label="引用 [44]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;44&quot;, &quot;text&quot;: &quot;Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2310.06825v1&quot;, &quot;fallback&quot;: false}]">[44]</a>（§2）这个数字依赖“每层都把窗口用满”的假设，实际每层读到的窗口内容不一定携带那么远的信息，因此它是上界，实际有效上下文长度可能短得多。第 1 章给出的路径估计 <math><mi>L</mi><mo>≥</mo><mo>⌈</mo><mi>Δ</mi><mo>/</mo><mi>W</mi><mo>⌉</mo></math> 描述的是同一件事，只是从“建立依赖需要多少层”这一侧提问。</p>
+<p>计算量随之改变。每层每 token 只与 W 个位置成对，成对项变成</p>
+<p><math display="block"><msub><mi>F</mi><mi>SWA</mi></msub><mo>≈</mo><mn>2</mn><msub><mi>H</mi><mi>q</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mi>N</mi><mi>W</mi></math></p>
+<p>序列长度出现在一次项上，窗口宽度成了新的比例系数。取 W=4096 与 128K 上下文相比，每 token 的成对计算量约为全注意力的 1/32。</p>
+<h4 id="缓存变成环形缓冲">缓存变成环形缓冲</h4>
+<p>缓存侧的变化更直接：既然任何未来查询都不会读 W 步以前的位置，这些键值就没有保留的必要。位置 i 的键值写到缓存的第 i mod W 个槽位，超出窗口的旧内容被覆盖，缓存大小因此封顶在 W。原文报告在 32K 序列长度上这一改动把缓存占用降到原来的八分之一，且模型质量没有变化。<a class="citation" href="https://arxiv.org/abs/2310.06825v1" title="Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023)." aria-label="引用 [44]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;44&quot;, &quot;text&quot;: &quot;Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2310.06825v1&quot;, &quot;fallback&quot;: false}]">[44]</a>（§2）读取量同样从 <math><mi>E</mi><mo>·</mo><mi>N</mi></math> 变成 <math><mi>E</mi><mo>·</mo><mi>W</mi></math>，解码阶段每步搬运的数据与上下文长度解耦。</p>
+<p>预填充阶段需要额外处理：把长提示切成与窗口等宽的块，逐块把键值填入缓存，块内按因果掩码自注意力，块与缓存之间按滑动窗口取掩码。<a class="citation" href="https://arxiv.org/abs/2310.06825v1" title="Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023)." aria-label="引用 [44]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;44&quot;, &quot;text&quot;: &quot;Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, et al. Mistral 7B. arXiv:2310.06825v1 (2023).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2310.06825v1&quot;, &quot;fallback&quot;: false}]">[44]</a>（§2）这个分块方式与 NSA 的窗口分支、GDN 混合模型里的局部层是同一件事，区别只在是否还有别的分支同时读历史。</p>
+<h4 id="覆盖与不读不是一回事">覆盖与不读不是一回事</h4>
+<p>SWA 的信息丢失发生在写入时：超出窗口的键值被物理覆盖，之后任何查询都取不回来。内容相关的选择机制（NSA、DSA、MSA）不这样做：它们保留全部历史，只是让当前查询跳过一部分位置，后面的查询仍可能选到被跳过的内容。两者在容量上的差别因此很具体：SWA 把每层状态上限限定为 W，选择机制仍要为整段历史留出空间，压缩的只是单次读取量。</p>
+<p>窗口宽度也带来一对相反的效应。窗口越大，单层能看到的证据越多，计算与缓存随之增长；窗口越小，远距离依赖只能靠层数堆积，而层数增加会让表示逐层被局部的模式主导。NSA 的原文给出过一条设计动机：局部模式学得更快，如果允许模型只靠邻近位置拟合，压缩与选择分支就学不到东西，因此需要把窗口单独作为一条分支隔开。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（§3.3.3）</p>
+<h4 id="固定形状读不到内容需要的那一段">固定形状读不到内容需要的那一段</h4>
+<p>SWA 的窗口与内容无关：无论当前查询在找什么，它读到的都是最近 W 个位置。对摘要、代码补全这类依赖近期上下文的场景，这已经够用；对跨文档检索、长程指代，答案可能在几万 token 之前，窗口只能保证信息“传得过来”，不能保证“读得到”。按内容挑位置需要一条额外的打分通道，代价是选择本身的计算与不可微问题，这正是稀疏注意力要处理的部分。</p>
+<h3 id="nsa压缩选择滑动窗口三条分支并联">NSA：压缩、选择、滑动窗口三条分支并联</h3>
+<p>滑动窗口解决了“读多少位置”，没有解决“读哪些位置”。原生稀疏注意力（Native Sparse Attention，NSA）把三种读法并成一层：一条分支读块级压缩表示，一条分支按查询选块，一条分支固定读最近窗口，三条分支各自的输出按一个学出来的门控加权求和。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（§3.2）“原生”指这套稀疏结构在预训练阶段就打开，训练完成后不再叠加裁剪步骤。</p>
+<h4 id="三个映射与一个门控">三个映射与一个门控</h4>
+<p>把注意力输出写成对若干候选表示集合的加权和，每条分支有自己的键值映射 f_K、f_V：</p>
+<p><math display="block"><msubsup><mi>o</mi><mi>t</mi><mo>&#42;</mo></msubsup><mo>=</mo><munder><mo>∑</mo><mrow><mi>c</mi><mo>∈</mo><mi>C</mi></mrow></munder><msubsup><mi>g</mi><mi>t</mi><mi>c</mi></msubsup><mo>·</mo><mi mathvariant="normal">Attn</mi><mo>(</mo><msub><mi>q</mi><mi>t</mi></msub><mo>,</mo><msubsup><mover><mi>K</mi><mo>~</mo></mover><mi>t</mi><mi>c</mi></msubsup><mo>,</mo><msubsup><mover><mi>V</mi><mo>~</mo></mover><mi>t</mi><mi>c</mi></msubsup><mo>)</mo></math></p>
+<p>其中 <math><mi>C</mi><mo>=</mo><mo>{</mo><mi>cmp</mi><mo>,</mo><mi>slc</mi><mo>,</mo><mi>win</mi><mo>}</mo></math> 分别对应压缩、选择与窗口，门控 <math><msubsup><mi>g</mi><mi>t</mi><mi>c</mi></msubsup><mo>∈</mo><mo>&#91;</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>&#93;</mo></math> 由当前输入经一个小网络和 sigmoid 产生。三条分支各用自己的键值投影；共用一份时，局部模式会让另外两条分支学不到内容，这一点在窗口分支处说明。</p>
+<p>压缩分支把历史按块聚合成粗粒度表示：块长 l、步长 d，块内键经一个带块内位置编码的可学习映射 φ 压成一个键，<math><msubsup><mover><mi>K</mi><mo>~</mo></mover><mi>t</mi><mi>cmp</mi></msubsup><mo>=</mo><mo>{</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mrow><mi>i</mi><mi>d</mi><mo>+</mo><mn>1</mn><mo>:</mo><mi>i</mi><mi>d</mi><mo>+</mo><mi>l</mi></mrow></msub><mo>)</mo><mo>}</mo></math>，取 d&lt;l 以减少信息碎片。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（§3.3.1）它的作用是保留粗粒度语义，同时把可读长度缩短一个 l/d 的因子。</p>
+<p>选择分支保留单个 token，但要先知道哪些块值得读。NSA 用压缩分支已经算出的注意力分数当块重要度：<math><msubsup><mi>p</mi><mi>t</mi><mi>cmp</mi></msubsup><mo>=</mo><mi mathvariant="normal">softmax</mi><mo>(</mo><msubsup><mi>q</mi><mi>t</mi><mi>T</mi></msubsup><msubsup><mover><mi>K</mi><mo>~</mo></mover><mi>t</mi><mi>cmp</mi></msubsup><mo>)</mo></math>，压缩块与选择块划分一致时直接复用；不一致时按空间重叠关系把压缩块的分数累加到选择块上。选择块大小 l′、数量 n，取分数最高的 n 块的全部 token。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（Eq.8–12）这样做省掉了一次额外的打分前向，也把选择误差与压缩误差绑在同一条通道上。</p>
+<p>对 GQA 或 MQA 模型还有一个必做的合并：同一组内的多个查询头共享键值，若各头选出不同的块，解码时就要为每个头单独读缓存，稀疏化省下的带宽会被抵消。原文把组内各头的块分数相加后再取 Top-n，保证同组选同一批块。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（Eq.10）</p>
+<p>窗口分支固定读最近 w 个 token，用独立的键值。原文给出的理由是防止捷径学习：局部模式收敛更快，如果三条分支共用键值，模型可以只靠邻近位置拟合而让压缩与选择分支学不到东西。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（§3.3.3）</p>
+<h4 id="配置与复杂度">配置与复杂度</h4>
+<p>原文的预训练配置是 27B 总参数、3B 激活的 MoE 底座，30 层，64 个查询头分 4 组，查询与键头维 192、值头维 128，每层 72 个路由专家加 2 个共享专家、每次选 6 个；压缩块 l=32、步长 d=16，选择块 l′=64、数量 n=16（其中 1 个初始块与 2 个局部块固定保留），窗口 w=512。训练用 270B token 的 8K 长度文本，再做 32K 的继续训练与监督微调。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（§4.1）</p>
+<p>每条查询的可读 token 数因此是三项之和，以 64K 历史为例：压缩项约 <math><mo>(</mo><mi>s</mi><mo>−</mo><mi>l</mi><mo>)</mo><mo>/</mo><mi>d</mi></math>≈4,094，选择项 n·l′=1,024，窗口 512，合计约 5,630，与原文表 4 的 5,632 基本一致。同一张表给出的对照是：全注意力在 8K、16K、32K、64K 上每步要读 8,192、16,384、32,768、65,536 个 token 的等价数据，NSA 是 2,048、2,560、3,584、5,632，预期加速 4×、6.4×、9.1×、11.6×。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（表 4）这些是访存量之比，不是端到端时延之比：真正的时延还要看内核效率与批组成。</p>
+<p>训练侧的加速来自内核重排。按 FlashAttention 的写法把连续查询块载入 SRAM 在这里会出问题：同一块内的查询可能选到完全不重叠的 KV 块。原文改成每次载入一个 GQA 组在同一位置的全部查询头（它们共享同一套入选块），再顺序把入选块读进 SRAM，把查询与输出的循环放到网格调度层。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（§3.4）在同一 Triton 后端下与 FlashAttention-2 比较，64K 长度上报告前向 9.0×、反向 6.0× 的加速。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（§5.1）</p>
+<h4 id="稀疏的是读取集合">稀疏的是读取集合</h4>
+<p>NSA 保留了完整历史的主键值（压缩分支另存一份压缩键值、窗口分支另存最近的键值），减少的是一个查询在一次计算中要读多少。位置没有被删除，后面的查询仍可选到前文没选中的块；这与 SWA 的覆盖写入是两种不同的取舍。质量一侧，原文报告预训练损失低于同配置的全注意力，一般基准的平均分从 0.443 升到 0.456，长上下文与长链推理基准上不劣于全注意力。<a class="citation" href="https://arxiv.org/abs/2502.11089v2" title="Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025)." aria-label="引用 [43]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;43&quot;, &quot;text&quot;: &quot;Jingyang Yuan, Huazuo Gao, Damai Dai, Junyu Luo, Liang Zhao, Zhengyan Zhang, Zhenda Xie, Y. X. Wei, Lean Wang, Zhiping Xiao, Yuqing Wang, Chong Ruan, Ming Zhang, Wenfeng Liang, Wangding Zeng. Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention. arXiv:2502.11089v2 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2502.11089v2&quot;, &quot;fallback&quot;: false}]">[43]</a>（图 4、表 1）</p>
+<p>选择粒度是 token 块，选择依据复用压缩分支的分数，因此它对“块内只有一个位置重要”的情形不够敏感：块分高就把整块读进来，块内无关 token 一并计入。按 GQA 组共享选择又进一步牺牲了头级差异。这两处正是后续两种做法各自的切入点。</p>
+<h3 id="dsa用轻量索引器挑出要读的历史">DSA：用轻量索引器挑出要读的历史</h3>
+<p>MLA 压缩了每个历史位置的宽度，位置个数却没有减少。一个长度为 N 的序列仍有大约 N²/2 个可见位置对，主注意力要逐个打分、逐个汇聚，长上下文下这项开销重新成为主导。DeepSeek 稀疏注意力（DeepSeek Sparse Attention，DSA）在 MLA 之上加了一条轻量通道：先用低代价的索引器扫一遍历史，挑出重要的若干位置，再让主注意力只在这些位置之间做完整计算。DeepSeek-V3.2 用它把每查询的主分支读取量固定在 2,048 个 KV token。<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（§2.1）</p>
+<p>NSA 也做同一件事，区别在选择粒度与依据：NSA 复用压缩分支已经算出的块分数、按块选择；DSA 用一套独立的索引头逐 token 打分，并把选中的位置对应到 MLA 的公共潜在状态上，于是一套入选集合可以被全部主注意力头共用。</p>
+<h4 id="索引分数与主注意力权重各司其职">索引分数与主注意力权重各司其职</h4>
+<p>设当前查询位置 t，可见历史位置 s≤t。索引器有 Hᴵ 个头，每头索引查询 qᴵₜ,ⱼ 为 dᴵ 维，历史位置共用一份索引键 kᴵₛ，当前输入另外给出每头一个标量权重 wᴵₜ,ⱼ。索引分数是各头点积的加权和，激活函数取 ReLU：<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（Eq.1）</p>
+<p><math display="block"><msub><mi>I</mi><mrow><mi>t</mi><mi>s</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><msup><mi>H</mi><mi>I</mi></msup></munderover><msubsup><mi>w</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mi mathvariant="normal">ReLU</mi><mo>(</mo><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>j</mi></mrow><mi>I</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>k</mi><mi>s</mi><mi>I</mi></msubsup><mo>)</mo></math></p>
+<p>多个索引头先合成一个位置分数，再取 Top-k，得到的是一套共享的位置集合：</p>
+<p><math display="block"><msub><mi>S</mi><mi>t</mi></msub><mo>=</mo><mi mathvariant="normal">TopK</mi><mo>(</mo><mo>{</mo><msub><mi>I</mi><mrow><mi>t</mi><mi>s</mi></mrow></msub><mo>:</mo><mi>s</mi><mo>≤</mo><mi>t</mi><mo>}</mo><mo>,</mo><mi>k</mi><mo>)</mo></math></p>
+<p>历史不足 k 时取已有的全部合法位置。这套集合由该位置的全部主注意力头共用，因为它对齐的是 MLA 的公共潜在 KV 条目：一个被选中的历史位置贡献的是一份潜在状态，各主头各自拿它算自己的分数。索引器头数少、维度小，还可以用 FP8 实现，扫描一遍全历史的代价远低于完整主注意力。它依然要看过历史，扫描量随当前历史长度增长。</p>
+<p>选出位置之后，主分支重新用自己的 MLA 查询、潜在状态和位置项打分，走一次 softmax 并汇聚：</p>
+<p><math display="block"><msub><mi>o</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>s</mi><mo>∈</mo><msub><mi>S</mi><mi>t</mi></msub></mrow></munder><mfrac><mrow><mi mathvariant="normal">exp</mi><mo>(</mo><msubsup><mi>ℓ</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>)</mo></mrow><mrow><munder><mo>∑</mo><mrow><mi>u</mi><mo>∈</mo><msub><mi>S</mi><mi>t</mi></msub></mrow></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msubsup><mi>ℓ</mi><mrow><mi>t</mi><mi>u</mi></mrow><mi>h</mi></msubsup><mo>)</mo></mrow></mfrac><msubsup><mi>v</mi><mi>s</mi><mi>h</mi></msubsup></math></p>
+<p>分母只统计入选位置，所以入选者的权重会因为没选中的位置被剔除而重新分配。ReLU 索引分数只承当路由代理的职责，最终权重仍由 ℓ 决定。</p>
+<h4 id="选定集合上的-softmax-是精确的">选定集合上的 softmax 是精确的</h4>
+<p>稀疏注意力在给定集合上做的仍是完整 softmax，问题在于这个集合是否装住了该装的信息。做一个局部估算：固定同一组主分数和值，设稠密分布在未选位置上的概率总和为 ε&lt;1，各值向量的范数不超过 V。稠密输出可以拆成入选部分与未选部分两个条件均值：</p>
+<p><math display="block"><msub><mi>o</mi><mi mathvariant="normal">dense</mi></msub><mo>=</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>ε</mi><mo>)</mo><msub><mi>o</mi><mi>S</mi></msub><mo>+</mo><mi>ε</mi><msub><mi>o</mi><mover><mi>S</mi><mo>¯</mo></mover></msub><mo>,</mo><mspace width="1em"/><mo>‖</mo><msub><mi>o</mi><mi mathvariant="normal">dense</mi></msub><mo>−</mo><msub><mi>o</mi><mi>S</mi></msub><mo>‖</mo><mo>≤</mo><mn>2</mn><mi>ε</mi><mi>V</mi></math></p>
+<p><code>o_S</code> 是入选集合上重新归一化的输出，ε=0 时两个输出相同，此时未选部分的均值无需定义。这个式子说明只统计选对了多少位置并不够用：遗漏的概率质量和值的尺度都会进入误差。它只覆盖固定参数下的单个注意力层，后续层、非线性以及训练本身都在范围之外。</p>
+<h4 id="硬-top-k-靠辅助损失学习">硬 Top-k 靠辅助损失学习</h4>
+<p>Top-k 的索引选取不可微，“哪些位置值得读”这件事没法学。DeepSeek-V3.2 分两段训练：<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（§2.1.1）稠密预热阶段冻结主模型，只练新增的索引器；主注意力各头的概率按位置求和，再沿序列做 L1 归一化，得到教师分布 pₜ，索引器用 KL 散度对齐它：</p>
+<p><math display="block"><msub><mi>ℒ</mi><mi>I</mi></msub><mo>=</mo><munder><mo>∑</mo><mi>t</mi></munder><msub><mi>D</mi><mi mathvariant="normal">KL</mi></msub><mo>(</mo><mi mathvariant="normal">stopgrad</mi><mo>(</mo><msub><mi>p</mi><mi>t</mi></msub><mo>)</mo><mo>‖</mo><mi mathvariant="normal">softmax</mi><mo>(</mo><msub><mi>I</mi><mrow><mi>t</mi><mo>,</mo><mo>:</mo></mrow></msub><mo>)</mo><mo>)</mo></math></p>
+<p>教师端取自动梯度，索引器输入也从计算图上断开，于是这项损失只更新索引器的投影，主模型由语言建模损失单独负责。稀疏阶段打开 Top-k，主模型学着适应新的连接模式，索引器转为在入选集合上对齐归一化后的主注意力分布。两段的规模在报告中写得很清楚：预热 1,000 步，每步 16 条 128K 序列，合计 2.1B token；稀疏训练 15,000 步，每步 480 条 128K 序列，合计 943.7B token。</p>
+<p>2,048 这个数字值得单独说明：它是主分支每个查询的读取预算。把它当成上下文长度上限或者缓存容量都会算错：索引键与可供未来查询选择的潜在状态仍全部留在显存里，不同的查询会从不同的位置拼出自己的集合。DSA 因此与滑动窗口、与按重要性永久驱逐 KV 的做法都不同。</p>
+<h4 id="索引项的二次规模留在那里">索引项的二次规模留在那里</h4>
+<p>设序列长度为 N，主分支每查询的读取预算为 k，每条主连接的有效工作量记作 D。忽略投影、选择、逐元素运算与常数因子，预填充阶段的主要结构是：</p>
+<p><math display="block"><msub><mi>C</mi><mi mathvariant="normal">DSA</mi></msub><mo>=</mo><mi>O</mi><mo>(</mo><msup><mi>N</mi><mn>2</mn></msup><msup><mi>H</mi><mi>I</mi></msup><msup><mi>d</mi><mi>I</mi></msup><mo>)</mo><mo>+</mo><mi>O</mi><mo>(</mo><mi>N</mi><mi>k</mi><mi>D</mi><mo>)</mo></math></p>
+<p>第一项留在原处，只是系数小；被降下来的是第二项。对一个新查询，索引扫描的长度随当前历史增长，主分支的访问量由 k 封顶。排序、非连续 gather、索引缓存与内核启动都是新增开销，短上下文下这笔开销可能超过省下的主计算，报告因此对短序列预填充专门实现了带掩码的 MHA 视图。<a class="citation" href="https://arxiv.org/abs/2512.02556v1" title="DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025)." aria-label="引用 [34]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;34&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V3.2: Pushing the Frontier of Open Large Language Models. arXiv:2512.02556v1 (2025).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2512.02556v1&quot;, &quot;fallback&quot;: false}]">[34]</a>（§2.3）</p>
+<p>这些结论带着具体的训练条件：DSA 是在 DeepSeek-V3.1-Terminus 检查点上继续训练得到的，评测也落在相应设置内，把它当作任意 MLA 模型套用 Top-k 即可无损的依据并不成立。报告里的 H800 服务成本换算自真实部署，与另一篇论文的单内核时间不能拼成一栏排名。MSA 用了另一套共享边界：选择在 GQA 组内共享，组与组之间可以不同。</p>
+<h3 id="minimax-msa每个-gqa-组挑自己的历史块">MiniMax MSA：每个 GQA 组挑自己的历史块</h3>
+<p>把选择粒度放到单个 token，精度最好，代价是路由变得零散：每个查询位置一套索引，几十个主头各自读不同的位置，GPU 上的分块矩阵乘拼不起来。MiniMax 稀疏注意力（MiniMax Sparse Attention，MSA）退一步处理这件事：选择在 GQA 组的粒度上做，一个组共用一套索引，组与组之间互不相同；被选中的单位是 token 块，粒度比单个 token 粗。<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a> 这样既保留了内容相关的稀疏性，又把访存整理成连续的块。这里的 MSA 指 MiniMax 的这套机制，与多头自注意力、与蛋白质主题中的多序列比对都无关。</p>
+<h4 id="每个-gqa-组选自己的历史块">每个 GQA 组选自己的历史块</h4>
+<p>设输入 X 为 <code>N × d_model</code>，主分支有 Hq 个查询头、Hkv 个 KV 头，每组包含 G=Hq/Hkv 个查询头。索引分支给每个组配一个 dᵢ 维的查询，索引键则在全部组之间共享，只保留一个头：<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§3.1，Eq.5–7）</p>
+<pre><code class="language-text">Q_idx:     [N, Hkv, d_i]
+K_idx:     [N, 1,   d_i]
+主分支 Q:  [N, Hq,  d_h]
+主分支 K、V:[N, Hkv, d_h]
+</code></pre>
+<p>这两条索引投影与主分支的 Q／K 各自独立，选择器因此可以做得比主分支轻得多。把历史按 B 个 token 一块切开，块 b 的位置集合记为 ℬᵦ。对位置 t、组 r，先算每个可见 token 的索引点积，再取块内最大值作为这一块的分数：</p>
+<p><math display="block"><msubsup><mi>s</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup><mo>=</mo><mfrac><mrow><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mi>t</mi><mi>r</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>k</mi><mi>s</mi></msub></mrow><msqrt><msub><mi>d</mi><mi>i</mi></msub></msqrt></mfrac><mo>,</mo><mspace width="1em"/><msubsup><mi>m</mi><mrow><mi>t</mi><mi>b</mi></mrow><mi>r</mi></msubsup><mo>=</mo><munder><mi mathvariant="normal">max</mi><mrow><mi>s</mi><mo>∈</mo><msub><mi>ℬ</mi><mi>b</mi></msub><mo>,</mo><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>s</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup></math></p>
+<p>式中的 q、k 是索引向量，主分支另有自己的投影。看不见任何因果位置的块记为负无穷。按 m 取最高的 k 个块，其中包含当前位置的本地块固定入选，占用 k 个名额中的一个。主分支随后读取入选块里所有可见 token，按每个主查询头自己的分数做 softmax，读取上限因此是 k·B 个位置。</p>
+<p>最大池化带来了一个可以预期的后果：块内只要有一个位置和当前查询匹配得上，整块就可能被读进来，邻近位置会一并被读入。把 B 调大，读取更连续、矩阵乘形状更规整，选择精度同时下降；把 B 调小则反过来。这是硬件友好度与内容粒度之间的实际取舍，调参时两个方向都要看。</p>
+<p>举个例子。设当前位于块 3，预算 k=2，本地块占掉一个名额。组 A 认为块 1 比块 2 重要，组 B 的判断相反，于是 A 读 <code>{1, 3}</code>、B 读 <code>{2, 3}</code>，两组在同一层里走了不同的检索路线；每组内部的多个查询头仍在这些块内形成各自的概率分布。MSA 给组以自由，但没有把自由下放到每个头，理由是后者的路由与访存会重新变得不规则。</p>
+<h4 id="教师分布取组内概率平均">教师分布取组内概率平均</h4>
+<p>索引选取同样不可微，MSA 用主分支当教师。在该组入选块覆盖的 token 上，先让每个主头各自 softmax，再对组内 G 个头求概率平均得到教师 P；索引分支在同一 token 集合上归一化，两边做 KL 对齐：<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§3.2，Eq.9–11）</p>
+<p><math display="block"><msubsup><mi>P</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup><mo>=</mo><mfrac><mn>1</mn><mi>G</mi></mfrac><munder><mo>∑</mo><mrow><mi>h</mi><mo>∈</mo><msub><mi>ℋ</mi><mi>r</mi></msub></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>ℒ</mi><mi mathvariant="normal">KL</mi></msub><mo>=</mo><mfrac><mn>1</mn><mrow><mi>N</mi><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub></mrow></mfrac><munder><mo>∑</mo><mrow><mi>t</mi><mo>,</mo><mi>r</mi></mrow></munder><msub><mi>D</mi><mi mathvariant="normal">KL</mi></msub><mo>(</mo><mi mathvariant="normal">stopgrad</mi><mo>(</mo><msup><mi>P</mi><mi>r</mi></msup><mo>)</mo><mo>‖</mo><msup><mi>P</mi><mi mathvariant="normal">idx</mi></msup><mo>)</mo></math></p>
+<p>ℋᵣ 是第 r 组的查询头集合，a 是各头在该集合上归一化后的主注意力概率，KL 两个分布省略了位置下标 t。教师端停止梯度，索引器输入 X 也停止梯度，辅助损失只更新两条索引投影：主分支继续由语言建模损失训练，索引器单独学“主分支会看哪里”。顺序上先跑一段全注意力做预热，等索引器大致对齐之后再切换到稀疏，训练时本地块始终强制保留。</p>
+<p>到这里，MSA 与 DSA 的数字出现了一个巧合：两者都写着 2,048。DSA 是每个查询选 2,048 个 token、全部主头共用；MSA 是每个查询、每个 GQA 组各选 16 块 ×128 token，并且其中一块被本地块占住。连接图不同，底座、训练数据、头数与硬件也不同，这个数字对齐并不意味着两种方法可以互相替代或直接比高低。</p>
+<h4 id="块稀疏没有消掉二次索引项">块稀疏没有消掉二次索引项</h4>
+<p>索引器依然要在全部因果位置上算一遍轻量分数，块最大值与 Top-k 削减的是随后主分支的读取集合。按论文的计数方式（一次乘加算 2 FLOPs，忽略投影与边界项），长序列下：</p>
+<p><math display="block"><msub><mi>F</mi><mi mathvariant="normal">GQA</mi></msub><mo>≈</mo><mn>2</mn><msub><mi>H</mi><mi>q</mi></msub><msub><mi>d</mi><mi>h</mi></msub><msup><mi>N</mi><mn>2</mn></msup></math></p>
+<p><math display="block"><msub><mi>F</mi><mi mathvariant="normal">MSA</mi></msub><mo>≈</mo><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub><msub><mi>d</mi><mi>i</mi></msub><msup><mi>N</mi><mn>2</mn></msup><mo>+</mo><mn>4</mn><msub><mi>H</mi><mi>q</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mi>N</mi><mi>k</mi><mi>B</mi></math></p>
+<p>第一项是索引分支，仍随 N² 增长，只是 Hkv·dᵢ 远小于 Hq·dₕ；第二项是主分支，固定 k·B 之后随 N 线性增长。序列继续加长，索引分支在总量中的占比会上升，这是这类两阶段结构的固有走向。</p>
+<p>状态方面，MSA 仍然保留完整的、可供未来查询读取的主 K／V，另外多出一份索引键。当前少读一些块，与永久释放其余块是两回事：后面的查询完全可能选到它们。它降低的是主注意力的读取工作，与 MLA 那种直接压缩每个位置表示宽度的做法落在不同位置。短输入上，索引与选择的固定开销还可能超过省下的计算。</p>
+<h4 id="从稀疏连接到-gpu-执行">从稀疏连接到 GPU 执行</h4>
+<p>第一步优化来自 softmax 的一个性质：它是保序的，同一行里 <math><msub><mi>s</mi><mi>i</mi></msub><mo>≤</mo><msub><mi>s</mi><mi>j</mi></msub></math> 与 <math><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>s</mi><msub><mo>)</mo><mi>i</mi></msub><mo>≤</mo><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>s</mi><msub><mo>)</mo><mi>j</mi></msub></math> 等价，因此选块直接用原始索引分数即可，省掉 max／exp／求和，Top-k 的结果不变。<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§4.1）主注意力与训练 KL 该做的归一化照做。</p>
+<p>循环顺序决定访存能不能复用。按查询遍历，每个查询去收集自己选中的若干 KV 块，K／V 会被反复读取；按 KV 块遍历，先建一张反向索引，把选中该块的所有查询聚到一起，载入一份 K／V 就能服务多个查询和组内多个头。用论文给的一阶估计比较两种顺序的算术访存比（bf16，忽略次要项）：<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§4.2）</p>
+<ul>
+<li>查询外层：FLOPs 为 4·Hq·N·dₕ·k·B，IO 主要是 Q 与 O 的读写 4·Hq·N·dₕ 加上 K／V 的读取 4·Hkv·N·k·B·dₕ，比值约为 G。</li>
+<li>KV 外层：K／V 只读一遍，Q 与局部输出缓冲按 k 倍放大，比值约为 <math><mfrac><mn>2</mn><mn>3</mn></mfrac><mi>B</mi></math>。</li>
+</ul>
+<p>取论文的配置 G=16、B=128，两个比值分别是 16 与 85 左右，KV 外层高出数倍，因此实现选了后者。代回的代价也具体：热门块会被大量查询选中，一个 CTA 承担不了，需要沿查询方向切分并预先分配输出槽位；每个查询的输出被拆成 k 份，由不同 CTA 产生。</p>
+<p>这些局部结果不能直接平均。若第 b 块的局部归一化输出为 oᵦ、其对数指数和为 Lᵦ，正确合并方式是按各自的概率质量加权：</p>
+<p><math display="block"><mi>L</mi><mo>=</mo><mi mathvariant="normal">log</mi><munder><mo>∑</mo><mi>b</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>L</mi><mi>b</mi></msub><mo>)</mo><mo>,</mo><mspace width="1em"/><mi>o</mi><mo>=</mo><munder><mo>∑</mo><mi>b</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>L</mi><mi>b</mi></msub><mo>−</mo><mi>L</mi><mo>)</mo><msub><mi>o</mi><mi>b</mi></msub></math></p>
+<p>实现里减去最大的 Lᵦ 以免指数溢出。这与在线 softmax 的归一化守恒是同一件事：分块计算的各部分要按自己的概率质量相加，按块数等权相加会得到另一个结果。收益是 KV 复用与更规整的矩阵乘，代价是反向索引、局部输出与 LSE 缓冲，以及一个额外的合并阶段。</p>
+<p>论文的质量验证放在一个约 109B 总参数、每个 token 约 6B 激活参数的多模态 MoE 底座上：41 层，前 3 层稠密，其余 38 层为 MoE，64 个查询头、4 个 KV 头、头维 128、RoPE 维 64，每层 128 个路由专家加 1 个共享专家、每次选 4 个，训练 3T token；对比稠密 GQA、原生稀疏训练与从稠密检查点继续训练三条路线。<a class="citation" href="https://arxiv.org/abs/2606.13392v2" title="Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026)." aria-label="引用 [35]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;35&quot;, &quot;text&quot;: &quot;Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao. MiniMax Sparse Attention. arXiv:2606.13392v2 (2026).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2606.13392v2&quot;, &quot;fallback&quot;: false}]">[35]</a>（§5.1–5.3）作者报告的结论支持这些设置下的可行性，换模型、换训练史仍是另一回事。本篇没有运行其内核，也没有复现这些测量。</p>
+<h4 id="块内冗余与二次索引项都还在">块内冗余与二次索引项都还在</h4>
+<p>MSA 的选择单位是块，块内只要有一个位置与当前查询匹配，整块就被读进来，这部分冗余随块长 B 上升；索引分支仍要在全部因果位置上算一遍轻量分数，二次项没有消失，只是系数从 Hq·dₕ 换成了 Hkv·dᵢ。它换来的是访存连续、组内共享与可提前调度的块形状，这三样决定稀疏在内核里能不能真的变成加速。</p>
+<p>本章的机制到此分属三条改法：改单个位置的宽度（MQA、GQA、MLA）、改状态与历史长度的关系（核化线性注意力、RetNet、DeltaNet、GDN、KDA、SSM 与 RWKV）、改单次读取的集合（SWA、NSA、DSA、MSA）。三组成本要放在同一张表上，才能判断哪些数字可以直接相乘、哪些不能。</p>
+<h3 id="三条轴上的成本对照">三条轴上的成本对照</h3>
+<p>把本章的机制放到同一组单位上，差别落在三个方向上：每个历史位置留下多少、一次解码要读多少、每 token 要做多少成对计算；状态容量对递推类机制另记一项。下表按这三个方向排列，最后一列写各自新增的成本。表中 Hq 为查询头数、Hkv 为键值头数、d 为每头维度、N 为历史长度、s 为当前已缓存长度；算术一列只保留主导项，常数因子省略。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>机制</th>
+<th>每历史位置的缓存</th>
+<th>单步读取量</th>
+<th>每 token 成对算术</th>
+<th>主要新增成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MHA</td>
+<td>Hq(dₖ+dᵥ)</td>
+<td>与 N 成正比</td>
+<td>≈ Hq·d·N²</td>
+<td>缓存随头数与长度双双增长</td>
+</tr>
+<tr>
+<td>GQA</td>
+<td>Hkv(dₖ+dᵥ)</td>
+<td>与 N 成正比，按 Hq/Hkv 缩小</td>
+<td>≈ Hq·d·N²</td>
+<td>需继续预训练恢复质量</td>
+</tr>
+<tr>
+<td>MLA</td>
+<td>d𝚌+dᵣ</td>
+<td>与 N 成正比，按宽度缩小</td>
+<td>≈ Hq·d𝚌·N²</td>
+<td>表示受瓶颈约束、位置分支必须解耦</td>
+</tr>
+<tr>
+<td>核化线性注意力</td>
+<td>状态 r×dᵥ+r</td>
+<td>与 N 无关</td>
+<td>≈ N·d·r</td>
+<td>有限维特征装不下指数核</td>
+</tr>
+<tr>
+<td>RetNet</td>
+<td>同上，加逐头衰减</td>
+<td>与 N 无关</td>
+<td>同上</td>
+<td>衰减形状固定</td>
+</tr>
+<tr>
+<td>DeltaNet</td>
+<td>dᵥ×dₖ</td>
+<td>与 N 无关</td>
+<td>同上，另加块内三角求解</td>
+<td>并行化依赖 WY 表示</td>
+</tr>
+<tr>
+<td>GDN</td>
+<td>dᵥ×dₖ</td>
+<td>与 N 无关</td>
+<td>同上，三角求解带逐元素权重</td>
+<td>α、β 投影与短卷积</td>
+</tr>
+<tr>
+<td>KDA</td>
+<td>dᵥ×dₖ</td>
+<td>与 N 无关</td>
+<td>≈ N(6d² + 3Cd + C²)，C 为块宽</td>
+<td>α 的逐通道低秩投影与短卷积</td>
+</tr>
+<tr>
+<td>SSM（Mamba2）</td>
+<td>每头 P×N</td>
+<td>与 N 无关</td>
+<td>≈ N·d·P</td>
+<td>专用扫描内核</td>
+</tr>
+<tr>
+<td>SWA</td>
+<td>Hq(dₖ+dᵥ)，长度封顶 W</td>
+<td>与 W 成正比</td>
+<td>≈ Hq·d·N·W</td>
+<td>覆盖写入，远距离只能靠层数</td>
+</tr>
+<tr>
+<td>NSA</td>
+<td>完整历史加压缩键值</td>
+<td>≈ s/d + n·l′ + w</td>
+<td>索引项 ≈ Hkv·dᵢ·N²，主分支 ≈ N·k·B</td>
+<td>三分支投影、选择不可微</td>
+</tr>
+<tr>
+<td>DSA</td>
+<td>完整潜在状态</td>
+<td>≈ k（论文取 2,048）</td>
+<td>索引项 ≈ N²·Hᴵ·dᴵ，主分支 ≈ N·k·d</td>
+<td>索引扫描、选择误差</td>
+</tr>
+<tr>
+<td>MSA</td>
+<td>完整历史加索引键</td>
+<td>≈ k·B</td>
+<td>索引项 ≈ Hkv·dᵢ·N²，主分支 ≈ N·k·B</td>
+<td>块内冗余、二次索引项</td>
+</tr>
+</tbody>
+</table></div>
+<h4 id="一个统一配置下的量级">一个统一配置下的量级</h4>
+<p>把三种改法放到同一个算例里：单层、批量 1、上下文 128K，缓存按 2 字节计。MHA 在每个 token 上留 64 KiB，一次解码要读 <math><mn>65536</mn><mo>×</mo><mn>131072</mn><mo>≈</mo><mn>8</mn></math> GiB；MLA 每 token 留 576 个元素、1,152 字节，读同一段历史约 141 MiB；DSA 只读 2,048 个潜在状态，约 2.3 MB；NSA 在 4 组 GQA、每 token 512 字节的配置下读约 5,632 个位置，约 2.8 MB。这几组数字横跨三个数量级，来源是三项互相独立的改动：压缩每个位置的宽度、把历史换成递推状态、限制单次读取的集合。它们是教学算例，没有计入分页、对齐、索引键与工作区，也不代表端到端时延。</p>
+<h4 id="收益为什么不能直接相乘">收益为什么不能直接相乘</h4>
+<p>宽度压缩与读取集合截断作用在同一个字节流上：先按 MLA 把每个位置压到 1,152 字节，再按 DSA 只读其中 2,048 个，两步的乘积才是读取量。换成 GDN 这类递推机制就不同了：它根本不读历史位置，缓存侧没有可再压缩的字节，与稀疏读取组合时省下的是同一份访存，不能按两个倍数叠乘。同理，SWA 把可读位置换成固定窗口之后，再对窗口内做 token 选择，收益也远小于两者各自的比例。</p>
+<p>质量一侧的代价同样不能互抵。MQA 与 GQA 用共享换取带宽，代价是表示受限；MLA 用低秩瓶颈换取宽度，代价是表示被压进 d𝚌 维；递推机制用固定状态换取线性成本，代价是精确检索；稀疏机制用访问预算换取算力，代价是可能漏掉该读的位置。每一项都要在训练里验证，任何一项的收益都不自动抵消另一项的质量损失。</p>
+<h4 id="按最先到上限的那一项选">按最先到上限的那一项选</h4>
+<p>选择机制时先确定当前部署先撞上哪一项约束，再沿对应轴找解：</p>
+<ul>
+<li>容量先满、而上下文仍需延长：先看每个位置的宽度（GQA、MLA），再看是否必须保留逐位置可寻址能力。若检索精度要求高，MLA 是能保住全历史的方案；若可以接受状态压缩，递推类机制的容量与长度无关。</li>
+<li>解码带宽先满、批量很小：头共享与潜在压缩的直接收益最明显，因为它们的收益直接作用在每步搬运的字节上；稀疏读取在批量小、上下文长时优势更大。</li>
+<li>训练算力先满、序列很长：成对项是主项，线性注意力与稀疏读取都能把这一项降下来，但要接受额外的内核复杂度与训练不稳定风险。</li>
+<li>需要精确长程检索：保留全历史的结构（MLA、稀疏读取）比固定状态更稳，混合结构把少量全注意力层留给检索，其余层换成递推，是当前开源权重里常见的折中。</li>
+</ul>
+<p>模型往往会同时采用几种机制，例如潜在压缩加稀疏读取、递推层加窗口层。判断这类组合的效果，要按上面三条轴分别算它改的是哪一项，再看两项是否落在同一条字节流上；同一份访存被两次压缩只算一次收益，不同资源上的节省才谈得上叠加。</p>
+</section>
+
+<section id="sec-03-pretraining">
+<h2 id="3-预训练阶段">3. 预训练阶段</h2>
 <p>预训练用数据中可以自行构造的预测关系学习表示。输入中哪些位置可见、预测什么、用什么误差度量，共同决定学习信号；数据分布决定这些信号出现的频率；优化与迁移协议决定有限预算内能形成什么表示、能否用到下游。本章按自回归语言建模、BERT、ViT、MAE 与 CLIP 的顺序讨论这些环节，并把目标的数学性质与具体模型的实验结果分开。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
 
 Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
@@ -1474,8 +2019,8 @@ Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini
 Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763." aria-label="引用 [3, 4]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;3&quot;, &quot;text&quot;: &quot;Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, Ross Girshick. 2022. Masked Autoencoders Are Scalable Vision Learners. CVPR 2022, 16000–16009.&quot;, &quot;url&quot;: &quot;https://openaccess.thecvf.com/content/CVPR2022/html/He_Masked_Autoencoders_Are_Scalable_Vision_Learners_CVPR_2022_paper.html&quot;, &quot;fallback&quot;: false}, {&quot;label&quot;: &quot;4&quot;, &quot;text&quot;: &quot;Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, Ilya Sutskever. 2021. Learning Transferable Visual Models From Natural Language Supervision. ICML 2021, PMLR 139, 8748–8763.&quot;, &quot;url&quot;: &quot;https://proceedings.mlr.press/v139/radford21a.html&quot;, &quot;fallback&quot;: false}]">[3, 4]</a> 因而，迁移结果应对应实际使用的信息和参数变化。保持评估边界清楚，才能辨认预训练贡献来自已有表示、目标监督下的重新学习，还是任务接口本身。</p>
 </section>
 
-<section id="sec-03-posttraining">
-<h2 id="3-后训练阶段">3. 后训练阶段</h2>
+<section id="sec-04-posttraining">
+<h2 id="4-后训练阶段">4. 后训练阶段</h2>
 <p>后训练把预训练得到的能力接到具体任务、领域与行为要求上。任务微调改变模型承担的输出职责，参数高效方法限制可更新的范围，持续学习处理新旧目标之间的干扰；示范与偏好提供不同类型的监督；蒸馏与校准分别改变承载知识的模型和概率的解释。本章按这些机制依次讨论。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
 
 Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, Neil Houlsby. 2021. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. ICLR 2021.
@@ -1644,8 +2189,8 @@ Geoffrey Hinton, Oriol Vinyals, Jeff Dean. Distilling the Knowledge in a Neural 
 <p>长期系统还要承担适配器选择、版本身份、回滚和评估分布变化。旧任务的下降可能来自参数干扰，也可能来自路由、模板或标签映射变化。将模型变化与接口变化分开，归因才能落到对应机制上。</p>
 </section>
 
-<section id="sec-04-inference">
-<h2 id="4-推理阶段">4. 推理阶段</h2>
+<section id="sec-05-inference">
+<h2 id="5-推理阶段">5. 推理阶段</h2>
 <h3 id="输出接口决定推理流程">输出接口决定推理流程</h3>
 <p>推理并不天然等于逐词生成。BERT 的分类与抽取式问答、ViT 的图像分类，都在完整输入上跑一次编码再读任务头；CLIP 分别编码两种模态然后比较向量。只有翻译和语言生成这类自回归解码器，才需要把选出的输出接回历史反复推进。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.
 
@@ -1666,7 +2211,7 @@ Luohe Shi, Hongyi Zhang, Yao Yao, Zuchao Li, Hai Zhao. Keep the Cost Down: A Rev
 <h3 id="状态容量与执行瓶颈">状态容量与执行瓶颈</h3>
 <p>设每层 KV 配置相同：层数 L、批量 B、缓存长度 S、KV 头数 Hkv、头维 dh、每元素 b 字节，只算 K 与 V 的原始容量是：</p>
 <p><math display="block"><msub><mi>M</mi><mi mathvariant="normal">KV</mi></msub><mo>=</mo><mn>2</mn><mi>L</mi><mi>B</mi><mi>S</mi><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub><msub><mi>d</mi><mi>h</mi></msub><mi>b</mi></math></p>
-<p>代入 24 层、批量 1、长度 2048、16 个 KV 头、每头 64 维、每元素 2 字节：2×24×1×2048×16×64×2=201,326,592 字节，正好 192 MiB。请求长度不一时按长度求和，层配置不一时逐层求和；页尾空槽、块表、量化尺度、工作区与图缓冲另算。共享 KV 头把 Hkv 降下来，同时改变模型的投影结构；分页只改变分配与寻址，有效 token 需要的张量元素数一个不少。<a class="citation" href="https://arxiv.org/abs/2407.18003v4" title="Luohe Shi, Hongyi Zhang, Yao Yao, Zuchao Li, Hai Zhao. Keep the Cost Down: A Review on Methods to Optimize LLM’s KV Cache Consumption. COLM 2024 manuscript; arXiv:2407.18003v4 (2024)." aria-label="引用 [14]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;14&quot;, &quot;text&quot;: &quot;Luohe Shi, Hongyi Zhang, Yao Yao, Zuchao Li, Hai Zhao. Keep the Cost Down: A Review on Methods to Optimize LLM’s KV Cache Consumption. COLM 2024 manuscript; arXiv:2407.18003v4 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2407.18003v4&quot;, &quot;fallback&quot;: false}]">[14]</a> 这条式子针对显式保存 K 与 V 的结构，MLA 保存的是潜在向量与解耦位置键，每层每个 token 的有效状态是 <code>d_c + d_r</code> 个元素。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a> 推导见架构章的 <a href="#mla把-kv-缓存压进一个潜在向量">MLA 专题</a>。</p>
+<p>代入 24 层、批量 1、长度 2048、16 个 KV 头、每头 64 维、每元素 2 字节：2×24×1×2048×16×64×2=201,326,592 字节，正好 192 MiB。请求长度不一时按长度求和，层配置不一时逐层求和；页尾空槽、块表、量化尺度、工作区与图缓冲另算。共享 KV 头把 Hkv 降下来，同时改变模型的投影结构；分页只改变分配与寻址，有效 token 需要的张量元素数一个不少。<a class="citation" href="https://arxiv.org/abs/2407.18003v4" title="Luohe Shi, Hongyi Zhang, Yao Yao, Zuchao Li, Hai Zhao. Keep the Cost Down: A Review on Methods to Optimize LLM’s KV Cache Consumption. COLM 2024 manuscript; arXiv:2407.18003v4 (2024)." aria-label="引用 [14]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;14&quot;, &quot;text&quot;: &quot;Luohe Shi, Hongyi Zhang, Yao Yao, Zuchao Li, Hai Zhao. Keep the Cost Down: A Review on Methods to Optimize LLM’s KV Cache Consumption. COLM 2024 manuscript; arXiv:2407.18003v4 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2407.18003v4&quot;, &quot;fallback&quot;: false}]">[14]</a> 这条式子针对显式保存 K 与 V 的结构，MLA 保存的是潜在向量与解耦位置键，每层每个 token 的有效状态是 <code>d_c + d_r</code> 个元素。<a class="citation" href="https://arxiv.org/abs/2405.04434v5" title="DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024)." aria-label="引用 [32]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;32&quot;, &quot;text&quot;: &quot;DeepSeek-AI et al. DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model. arXiv:2405.04434v5 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2405.04434v5&quot;, &quot;fallback&quot;: false}]">[32]</a> 推导见<a href="#sec-02-attention">第 2 章</a>的 MLA 小节。</p>
 <p>预填充把多个已知位置组织成矩阵运算，权重能在很多行之间复用。小批量解码每步只有寥寥几行，却照样要把权重和历史 KV 从显存读一遍。用一个具体模型看这道分界：7B 参数、fp16 权重占 14 GB，显存带宽 2 TB/s 时，每个 token 读一遍权重至少 7 ms，算力还远没到瓶颈——这就是小批解码受带宽限制的样子。用理想化的算力 C、带宽 W、运算量 F、数据移动量 D 写，一个执行段的时间下界是 max(F/C, D/W)。C 与 W 必须对应同一条实际设备路径，融合、缓存层级与通信都会改变 D，峰值规格高于可持续速率。</p>
 <p>增大批量能摊薄每个 token 的权重读取，同时抬高活跃 KV、工作区与排队等待；上下文很长时，KV 读取又可能反过来主导。由此，“单请求最快”与“总吞吐最高”往往落在不同的执行点上。优化的目标是换掉主导资源路径，笼统增加并行度并不解决这件事。<a class="citation" href="https://arxiv.org/abs/2404.14294v3" title="Zixuan Zhou et al. A Survey on Efficient Inference for Large Language Models. arXiv:2404.14294v3 (2024)." aria-label="引用 [11]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;11&quot;, &quot;text&quot;: &quot;Zixuan Zhou et al. A Survey on Efficient Inference for Large Language Models. arXiv:2404.14294v3 (2024).&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/2404.14294v3&quot;, &quot;fallback&quot;: false}]">[11]</a></p>
 <p>内容稀疏与状态压缩还要分开记账。DSA 在 MLA 的历史里选 token，MiniMax MSA 在 GQA 的历史里按组选块，两者减少的都是主分支这一次读取的集合；索引器仍要扫过历史，未来的查询也可能选中此刻没读的位置。把访问预算当成缓存容量，会漏掉索引键与重排缓冲；MoE 的激活专家预算同样决定不了服务需要备多少总专家存储，采用 EP 时还要把 dispatch／combine 的跨设备路径算进每步成本。<a class="citation" href="https://arxiv.org/abs/2412.19437v2" title="DeepSeek-AI et al. DeepSeek-V3 Technical Report. arXiv:2412.19437v2 (2025 revision; first submitted 2024).
@@ -1716,8 +2261,8 @@ Elias Frantar, Saleh Ashkboos, Torsten Hoefler, Dan Alistarh. GPTQ: Accurate Pos
 <p>设备端还多一层散热与功率边界。每任务能量是既定边界内功率对时间的积分，时延缩短不必然降低能量，峰值功率也代替不了平均功率。冷启动、暖缓存、持续运行和节流之后是几个不同状态。<a class="citation" href="https://doi.org/10.1007/s10462-026-11538-1" title="Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1." aria-label="引用 [7]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;7&quot;, &quot;text&quot;: &quot;Wanyi Chen et al. On-device large language models: a survey of model compression and system optimization. Artificial Intelligence Review 59 (2026), 191. DOI: 10.1007/s10462-026-11538-1.&quot;, &quot;url&quot;: &quot;https://doi.org/10.1007/s10462-026-11538-1&quot;, &quot;fallback&quot;: false}]">[7]</a> 质量、内存、时延、能量一起划出可用执行点，各取一项的最好值拼成排名没有意义。</p>
 </section>
 
-<section id="sec-05-frameworks">
-<h2 id="5-训练推理框架">5. 训练／推理框架</h2>
+<section id="sec-06-frameworks">
+<h2 id="6-训练推理框架">6. 训练／推理框架</h2>
 <h3 id="从模型计算到系统执行三种不同的优化对象">从模型计算到系统执行：三种不同的优化对象</h3>
 <p>Transformer 的架构规定了表示如何交互，训练与推理框架则决定这些计算怎样映射到设备、内存和请求。这里需要区分三个层次。算子层执行矩阵乘、注意力、归一化和量化；引擎层组织模型前向、状态分配、批处理与采样；服务层处理协议、连接、排队、路由和模型生命周期。FlashAttention 属于训练与推理都可使用的注意力加速技术，vLLM、SGLang 等主要组织推理执行，Ollama 则把执行引擎连接到模型分发与本地服务。它们各占一层，彼此没有替代关系。</p>
 <p>训练要保存或重算激活、计算梯度并更新参数。推理不执行反向，却要为每条活跃序列长期维护 KV cache，直到该请求结束。由此可以分开三件事：模型能否装进显存，取决于权重与激活的峰值；能否训练，取决于激活、梯度与优化器状态是否放得下、通信是否跟得上；能否同时服务很多长请求，取决于 KV cache 的容量与调度。本节先从 FlashAttention 的前向和反向算法解释算子层，然后沿训练执行、云端调度（含为单一模型定制的生产引擎）、端侧部署、异构硬件和服务组织展开。框架的共同机制与不同设计在同一条数据流上比较，不按功能名堆成排名。算子与 DSL 编译器的内部机制（Triton、TileLang、CUTLASS／CuTe、TVM、LLVM、MLIR 等）不在本书展开，另见编译栈书稿《编译栈：前端抽象、Pass 与后端》。</p>
@@ -2676,8 +3221,8 @@ CPU : 调度 N ──► 启动前向 ──► 等采样结果 ──► 调度
 <p>若主要限制落在“新算子与 DSL 怎么写、布局与流水由谁决定”，要解决的就是编译栈问题，换引擎解决不了。Triton、TileLang、CUTLASS／CuTe、TVM、LLVM 与 MLIR 的分工与代价在编译栈书稿中展开，本书只在相应项目稿里说明它们被谁调用。</p>
 </section>
 
-<section id="sec-06-downstream">
-<h2 id="6-下游任务">6. 下游任务</h2>
+<section id="sec-07-downstream">
+<h2 id="7-下游任务">7. 下游任务</h2>
 <h3 id="语言任务表示跨度与条件生成">语言任务：表示、跨度与条件生成</h3>
 <p>同一个上下文化编码器可以连接不同输出对象。BERT 分类头读取序列级表示；逐位置标注头为每个位置输出类别；抽取式问答分别为起点和终点打分。<a class="citation" href="https://aclanthology.org/N19-1423/" title="Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423." aria-label="引用 [1]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;1&quot;, &quot;text&quot;: &quot;Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. NAACL-HLT 2019, 4171–4186. DOI: 10.18653/v1/N19-1423.&quot;, &quot;url&quot;: &quot;https://aclanthology.org/N19-1423/&quot;, &quot;fallback&quot;: false}]">[1]</a> 表示共享不意味着任务约束共享。若起点和终点各自采用 softmax，两者的独立最大值可能形成终点早于起点的无效跨度，解码还需在允许的跨度集合内比较联合分数。该任务输出原文位置，不能产生原文中不存在的自由形式答案。</p>
 <p>自回归翻译则建模目标序列对源序列的条件概率。目标自注意力提供已有译文历史，交叉注意力读取源表示，下一 token 预测同时依赖两者。<a class="citation" href="https://arxiv.org/abs/1706.03762v7" title="Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7." aria-label="引用 [6]，点击查看来源详情" data-citations="[{&quot;label&quot;: &quot;6&quot;, &quot;text&quot;: &quot;Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin. Attention Is All You Need. NIPS 2017; arXiv:1706.03762v7.&quot;, &quot;url&quot;: &quot;https://arxiv.org/abs/1706.03762v7&quot;, &quot;fallback&quot;: false}]">[6]</a> 与把整个文本压成一个固定向量相比，交叉注意力允许不同输出位置访问不同源位置；但访问权重只是模型学到的分配，与人工对齐标签无关；模型似然、搜索结果和人工译文质量分别属于建模、决策与评价层。</p>
