@@ -16,13 +16,13 @@ MQA 与 GQA 都在“哪些查询头共用一份键值”上取值，键值本�
 
 设第 h 头的内容查询为 qᶜₜ,ₕ。忽略位置分支，它与历史位置 s 的打分可以重新结合：
 
-<math display="block"><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>=</mo><msup><mrow><mo>(</mo><msup><mrow><mo>(</mo><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>c</mi><mi>s</mi></msub></math>
+<math display="block"><msup><mrow><mo stretchy="false">(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>=</mo><msup><mrow><mo>(</mo><msup><mrow><mo stretchy="false">(</mo><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>c</mi><mi>s</mi></msub></math>
 
 据此，先把当前查询做一次线性变换，得到 d𝚌 维的“吸收后查询”，就能直接拿它和缓存的 cₛ 打分，无需为每个历史位置重建每头的内容键。归一化得到权重 aₜₛʰ 之后，值分支靠线性性同样可以后移：
 
 <math display="block"><msub><mi>o</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>=</mo><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><munder><mo>∑</mo><mrow><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub></math>
 
-把输出投影按头拆成 Oₕ，最终贡献就是 <math><munder><mo>∑</mo><mi>h</mi></munder><mo>(</mo><msub><mi>O</mi><mi>h</mi></msub><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><mo>)</mo><mo>(</mo><munder><mo>∑</mo><mi>s</mi></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>)</mo></math>，值上投影与输出投影可以合成一个矩阵，挪到汇聚之后。注意 softmax 的非线性原封不动：各头的 a 互不相同，先把各头平均再共用一次汇聚会得到另一个函数。[32]（§2.1.2）
+把输出投影按头拆成 Oₕ，最终贡献就是 <math><munder><mo>∑</mo><mi>h</mi></munder><mo stretchy="false">(</mo><msub><mi>O</mi><mi>h</mi></msub><msubsup><mi>U</mi><mi>V</mi><mi>h</mi></msubsup><mo stretchy="false">)</mo><mo>(</mo><munder><mo>∑</mo><mi>s</mi></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>)</mo></math>，值上投影与输出投影可以合成一个矩阵，挪到汇聚之后。注意 softmax 的非线性原封不动：各头的 a 互不相同，先把各头平均再共用一次汇聚会得到另一个函数。[32]（§2.1.2）
 
 这一串变换是运算顺序的重排，实现里并不需要真的把融合后的大矩阵显式存下来。吸收之后的点积与汇聚沿 d𝚌 维进行，代回 DeepSeek-V2 的取值 d𝚌=512 与单头 128 维，每个头的点积长度从 128 变成一个更大的量，每头算术量因此上升约四倍。于是取舍出现了：省下的是缓存读取，代价在别处。训练与预填充阶段查询多，展开成多头计算更顺手；小批解码从潜在缓存里读更划算。DeepSeek-V3.2 附录 A 把这两种执行视图称作 MLA 的 MHA mode 与 MQA mode，指的是同一个已训练模型的两条计算路径，不是两套模型。[34]（附录 A）
 
@@ -36,7 +36,7 @@ Rₛ 夹在中间且随 s 变化。矩阵乘法不满足交换律，把上投影
 
 MLA 的处理是把内容与位置分开：每头的内容查询与位置查询各走一条路，每个历史位置另存一个跨头共享、已经旋转过的位置键 kʳ，维度 dᵣ。主分数由两项相加构成：
 
-<math display="block"><msubsup><mi>ℓ</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>=</mo><mfrac><mrow><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>+</mo><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>R</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msubsup><mi>k</mi><mi>s</mi><mi>R</mi></msubsup></mrow><msqrt><mrow><msub><mi>d</mi><mi>h</mi></msub><mo>+</mo><msub><mi>d</mi><mi>r</mi></msub></mrow></msqrt></mfrac></math>
+<math display="block"><msubsup><mi>ℓ</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>=</mo><mfrac><mrow><msup><mrow><mo stretchy="false">(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>C</mi></msubsup><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><msubsup><mi>U</mi><mi>K</mi><mi>h</mi></msubsup><msub><mi>c</mi><mi>s</mi></msub><mo>+</mo><msup><mrow><mo stretchy="false">(</mo><msubsup><mi>q</mi><mrow><mi>t</mi><mo>,</mo><mi>h</mi></mrow><mi>R</mi></msubsup><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><msubsup><mi>k</mi><mi>s</mi><mi>R</mi></msubsup></mrow><msqrt><mrow><msub><mi>d</mi><mi>h</mi></msub><mo>+</mo><msub><mi>d</mi><mi>r</mi></msub></mrow></msqrt></mfrac></math>
 
 内容项照旧可以吸收，位置项单独算，两项相加后走同一次 softmax。缓存因此需要放下 cₛ 与 kʳₛ 两份数据。DeepSeek-V2 的取值是 d𝚌=512、dᵣ=64，每层每个 token 缓存 576 个元素；按 2 字节算合 1,152 字节。同一层的 MHA 对照值是 32,768 个元素、64 KiB，两者相差约 57 倍。[32]（§2.1.3、§3.1.2）这只是有效张量容量，分页、尺度、对齐与工作区另算，也不能据此推出端到端有同倍加速。
 

@@ -91,6 +91,16 @@
 | prefix caching / RadixCache | 前缀缓存／RadixCache | 复用一致上下文的状态／基数树组织，仍受物理页约束 |
 | SplitKV / cascade attention | SplitKV／级联注意力 | 沿键区间拆分并归约／组织共享前缀的读取 |
 | CUDA Graph / overlap scheduling | CUDA Graph／重叠调度 | 捕获重放设备计算／错开准备、计算与输出，需保证缓冲生命周期 |
+| DeepJIT | DeepJIT | DeepSeek 的运行期编译层：安装只建宿主扩展，设备内核在首次调用时按目标设备生成 |
+| CRAQ | 链式复制与应用查询 | 写沿副本链传递、读可分摊到链上多个节点的强一致复制协议 |
+| USRBIO | 用户态直接读写接口 | 绕过 FUSE 路径直接提交读写请求的接口，不等同于内核旁路网络 |
+| UE8M0 | UE8M0 | 只用指数、无符号、8 位的缩放因子格式；SM100 上四个打包进一个整数 |
+| FP8 / FP4 | FP8／FP4 | 8 位与 4 位浮点存储格式，具体指数与尾数分配由 e4m3、e5m2 等变体决定 |
+| streaming multiprocessor (SM) | 流式多处理器 | GPU 上的计算单元；通信内核占用的 SM 数与显存占用是两个量 |
+| programmatic dependent launch (PDL) | 程序化依赖启动 | 允许后一个 kernel 在前一个结束前启动，由内核自己声明依赖就绪 |
+| warp specialization | warp 特化 | 同一 kernel 内把线程分成生产者与消费者等角色，各自走不同的等待与搬运路径 |
+| LPT greedy packing | LPT 贪心装箱 | 按权重降序将对象放入当前最轻的容器，用于专家到设备的均衡放置 |
+| SASS / PTX | SASS／PTX | 汇编器输出的机器指令与它的中间表示；能导出 SASS 不等于手写 SASS |
 | zero-overhead (asynchronous) scheduling | 零开销调度／异步调度 | 把上一步后处理与下一步前向重叠，代价是调度在采样结果未知时完成 |
 | batch-invariant inference | 批次不变推理 | 同一请求在不同批组成下得到相同结果，不等于确定性采样 |
 | speculative decoding / speculative sampling | 投机解码／投机采样 | 前者统称提议—验证执行；后者包含保持目标分布的随机校正 |

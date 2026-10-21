@@ -6,11 +6,11 @@
 
 把模型可见的信息记为 C、预测对象记为 Y。对离散目标，条件交叉熵的总体风险为：
 
-<math display="block"><mi>R</mi><mo>(</mo><mi>θ</mi><mo>)</mo><mo>=</mo><msub><mi>𝔼</mi><mrow><mi>C</mi><mo>,</mo><mi>Y</mi></mrow></msub><mo>[</mo><mo>−</mo><mi mathvariant="normal">log</mi><msub><mi>p</mi><mi>θ</mi></msub><mo>(</mo><mi>Y</mi><mo>|</mo><mi>C</mi><mo>)</mo><mo>]</mo></math>
+<math display="block"><mi>R</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo><msub><mi>𝔼</mi><mrow><mi>C</mi><mo>,</mo><mi>Y</mi></mrow></msub><mo stretchy="false">[</mo><mo>−</mo><mi mathvariant="normal">log</mi><msub><mi>p</mi><mi>θ</mi></msub><mo stretchy="false">(</mo><mi>Y</mi><mo>|</mo><mi>C</mi><mo stretchy="false">)</mo><mo stretchy="false">]</mo></math>
 
 固定一个条件 c，设数据条件分布为 P，模型分布为 Q，并假定 Q 在 P 的支持上为正。加减数据分布自身的对数，可将该条件下的风险展开为：
 
-<math display="block"><mo>−</mo><munder><mo>∑</mo><mi>y</mi></munder><mi>P</mi><mo>(</mo><mi>y</mi><mo>|</mo><mi>c</mi><mo>)</mo><mi mathvariant="normal">log</mi><mi>Q</mi><mo>(</mo><mi>y</mi><mo>|</mo><mi>c</mi><mo>)</mo><mo>=</mo><mi>H</mi><mo>(</mo><mi>P</mi><mo>(</mo><mo>·</mo><mo>|</mo><mi>c</mi><mo>)</mo><mo>)</mo><mo>+</mo><mi mathvariant="normal">KL</mi><mo>(</mo><mi>P</mi><mo>(</mo><mo>·</mo><mo>|</mo><mi>c</mi><mo>)</mo><mo>‖</mo><mi>Q</mi><mo>(</mo><mo>·</mo><mo>|</mo><mi>c</mi><mo>)</mo><mo>)</mo></math>
+<math display="block"><mo>−</mo><munder><mo>∑</mo><mi>y</mi></munder><mi>P</mi><mo stretchy="false">(</mo><mi>y</mi><mo>|</mo><mi>c</mi><mo stretchy="false">)</mo><mi mathvariant="normal">log</mi><mi>Q</mi><mo stretchy="false">(</mo><mi>y</mi><mo>|</mo><mi>c</mi><mo stretchy="false">)</mo><mo>=</mo><mi>H</mi><mo stretchy="false">(</mo><mi>P</mi><mo stretchy="false">(</mo><mo>·</mo><mo>|</mo><mi>c</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mo>+</mo><mi mathvariant="normal">KL</mi><mo stretchy="false">(</mo><mi>P</mi><mo stretchy="false">(</mo><mo>·</mo><mo>|</mo><mi>c</mi><mo stretchy="false">)</mo><mo>‖</mo><mi>Q</mi><mo stretchy="false">(</mo><mo>·</mo><mo>|</mo><mi>c</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo></math>
 
 熵项由数据和条件决定；KL 项非负，其非负性可由对数不等式 log u ≤ u−1 得到。在模型能够表达相应分布的理想条件下，最小风险对应恢复数据的条件分布；输出一个确定答案在一般情况下会抬高风险。有限容量和有限样本下，模型则在可表达的分布族内逼近这个目标。
 
@@ -20,7 +20,7 @@
 
 自回归语言模型按链式规则建立序列概率，并最大化真实序列的似然：[17]
 
-<math display="block"><msub><mi>ℒ</mi><mi mathvariant="normal">AR</mi></msub><mo>=</mo><mo>−</mo><munder><mo>∑</mo><mi>t</mi></munder><mi mathvariant="normal">log</mi><msub><mi>p</mi><mi>θ</mi></msub><mo>(</mo><msub><mi>x</mi><mi>t</mi></msub><mo>|</mo><msub><mi>x</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo>)</mo></math>
+<math display="block"><msub><mi>ℒ</mi><mi mathvariant="normal">AR</mi></msub><mo>=</mo><mo>−</mo><munder><mo>∑</mo><mi>t</mi></munder><mi mathvariant="normal">log</mi><msub><mi>p</mi><mi>θ</mi></msub><mo stretchy="false">(</mo><msub><mi>x</mi><mi>t</mi></msub><mo>|</mo><msub><mi>x</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo></math>
 
 每个位置的目标是下一个真实 token，条件只包含其前缀。共享参数必须在不同前缀上预测不同后续内容，因此语法、事实关联和篇章规律都可能成为降低损失的资源；这些能力来自数据中的可预测关系，似然目标只提供优化方向。因果掩码让训练时的可见条件与生成时对应，已知目标序列又允许训练并行计算各位置的损失。
 

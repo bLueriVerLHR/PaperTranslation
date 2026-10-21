@@ -4,7 +4,7 @@
 
 对一个注意力头，令查询、键和值分别为 Q、K、V，缩放系数为 s，掩码为 M。标准计算是：
 
-<math display="block"><mi>S</mi><mo>=</mo><mi>s</mi><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>+</mo><mi>M</mi><mo>,</mo><mspace width="1em"/><mi>P</mi><mo>=</mo><msub><mi mathvariant="normal">softmax</mi><mi mathvariant="normal">row</mi></msub><mo>(</mo><mi>S</mi><mo>)</mo><mo>,</mo><mspace width="1em"/><mi>O</mi><mo>=</mo><mi>P</mi><mi>V</mi></math>
+<math display="block"><mi>S</mi><mo>=</mo><mi>s</mi><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup><mo>+</mo><mi>M</mi><mo>,</mo><mspace width="1em"/><mi>P</mi><mo>=</mo><msub><mi mathvariant="normal">softmax</mi><mi mathvariant="normal">row</mi></msub><mo stretchy="false">(</mo><mi>S</mi><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"/><mi>O</mi><mo>=</mo><mi>P</mi><mi>V</mi></math>
 
 若将 S 和 P 完整写入高带宽显存（HBM），其元素数随查询长度与键长度的乘积增长。自注意力中两者都为 N 时，这两份中间矩阵是二次规模；Q、K、V 与输出则通常是长度乘头维度的规模。朴素多算子实现不仅要计算分数，还要把分数写出、为 softmax 读入、把概率写出，再为 PV 读入。张量核加快了矩阵乘，这些往返并不会自动消失。
 
@@ -73,7 +73,7 @@ GPU 实现常利用以 2 为底的指数，通过缩放中的换底系数计算�
 
 可以逐步拿掉这些选择来理解设计。若先形成所有 P 与 dP，再求行内和，数学仍可成立，却重新引入与序列长度平方相关的中间量；利用上面的恒等式，D 的这一步只读取已经需要的 O 与 dO。进一步若在每个键块都重新计算相同的 D，又会重复行归约；单独预处理让多个键块读取同一结果，但增加一次 kernel 调度和一份行统计缓冲。若删去 Float32 转换，则改变归约的舍入路径，必须重新做误差验证，不能因公式相同便判定低精度实现等价。
 
-<math display="block"><mi mathvariant="normal">dS</mi><mo>=</mo><mi>P</mi><mo>⊙</mo><mo>(</mo><mi mathvariant="normal">dP</mi><mo>−</mo><mi>D</mi><mo>)</mo><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">dQ</mi><mo>=</mo><mi>s</mi><mi mathvariant="normal">dS</mi><mi>K</mi><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">dK</mi><mo>=</mo><mi>s</mi><msup><mi mathvariant="normal">dS</mi><mi>T</mi></msup><mi>Q</mi></math>
+<math display="block"><mi mathvariant="normal">dS</mi><mo>=</mo><mi>P</mi><mo>⊙</mo><mo stretchy="false">(</mo><mi mathvariant="normal">dP</mi><mo>−</mo><mi>D</mi><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">dQ</mi><mo>=</mo><mi>s</mi><mi mathvariant="normal">dS</mi><mi>K</mi><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">dK</mi><mo>=</mo><mi>s</mi><msup><mi mathvariant="normal">dS</mi><mi>T</mi></msup><mi>Q</mi></math>
 
 这里 D 按行广播，⊙ 表示逐元素乘；缩放 s 在 Q、K 梯度中都不能漏掉。反向主循环包含重算 QKᵀ、计算 GVᵀ、PᵀG、dSᵀQ 和 dS K，共五类矩阵乘；概率重构和 softmax 梯度是逐元素运算与归约，不应算成额外 GEMM。
 

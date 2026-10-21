@@ -14,6 +14,20 @@
 
 {{include:frameworks/cloud/index.md}}
 
+{{include:frameworks/deepseek/index.md}}
+
+{{include:frameworks/deepseek/instruction-level.md}}
+
+{{include:frameworks/deepseek/flashmla.md}}
+
+{{include:frameworks/deepseek/deepgemm.md}}
+
+{{include:frameworks/deepseek/deepep.md}}
+
+{{include:frameworks/deepseek/load-balancing.md}}
+
+{{include:frameworks/deepseek/storage.md}}
+
 {{include:frameworks/local/index.md}}
 
 {{include:frameworks/heterogeneous/index.md}}

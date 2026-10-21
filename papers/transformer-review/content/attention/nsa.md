@@ -8,9 +8,9 @@
 
 <math display="block"><msubsup><mi>o</mi><mi>t</mi><mo>*</mo></msubsup><mo>=</mo><munder><mo>∑</mo><mrow><mi>c</mi><mo>∈</mo><mi>C</mi></mrow></munder><msubsup><mi>g</mi><mi>t</mi><mi>c</mi></msubsup><mo>·</mo><mi mathvariant="normal">Attn</mi><mo>(</mo><msub><mi>q</mi><mi>t</mi></msub><mo>,</mo><msubsup><mover><mi>K</mi><mo>~</mo></mover><mi>t</mi><mi>c</mi></msubsup><mo>,</mo><msubsup><mover><mi>V</mi><mo>~</mo></mover><mi>t</mi><mi>c</mi></msubsup><mo>)</mo></math>
 
-其中 <math><mi>C</mi><mo>=</mo><mo>{</mo><mi>cmp</mi><mo>,</mo><mi>slc</mi><mo>,</mo><mi>win</mi><mo>}</mo></math> 分别对应压缩、选择与窗口，门控 <math><msubsup><mi>g</mi><mi>t</mi><mi>c</mi></msubsup><mo>∈</mo><mo>[</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>]</mo></math> 由当前输入经一个小网络和 sigmoid 产生。三条分支各用自己的键值投影；共用一份时，局部模式会让另外两条分支学不到内容，这一点在窗口分支处说明。
+其中 <math><mi>C</mi><mo>=</mo><mo>{</mo><mi>cmp</mi><mo>,</mo><mi>slc</mi><mo>,</mo><mi>win</mi><mo>}</mo></math> 分别对应压缩、选择与窗口，门控 <math><msubsup><mi>g</mi><mi>t</mi><mi>c</mi></msubsup><mo>∈</mo><mo stretchy="false">[</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo stretchy="false">]</mo></math> 由当前输入经一个小网络和 sigmoid 产生。三条分支各用自己的键值投影；共用一份时，局部模式会让另外两条分支学不到内容，这一点在窗口分支处说明。
 
-压缩分支把历史按块聚合成粗粒度表示：块长 l、步长 d，块内键经一个带块内位置编码的可学习映射 φ 压成一个键，<math><msubsup><mover><mi>K</mi><mo>~</mo></mover><mi>t</mi><mi>cmp</mi></msubsup><mo>=</mo><mo>{</mo><mi>φ</mi><mo>(</mo><msub><mi>k</mi><mrow><mi>i</mi><mi>d</mi><mo>+</mo><mn>1</mn><mo>:</mo><mi>i</mi><mi>d</mi><mo>+</mo><mi>l</mi></mrow></msub><mo>)</mo><mo>}</mo></math>，取 d<l 以减少信息碎片。[43]（§3.3.1）它的作用是保留粗粒度语义，同时把可读长度缩短一个 l/d 的因子。
+压缩分支把历史按块聚合成粗粒度表示：块长 l、步长 d，块内键经一个带块内位置编码的可学习映射 φ 压成一个键，<math><msubsup><mover><mi>K</mi><mo>~</mo></mover><mi>t</mi><mi>cmp</mi></msubsup><mo>=</mo><mo>{</mo><mi>φ</mi><mo stretchy="false">(</mo><msub><mi>k</mi><mrow><mi>i</mi><mi>d</mi><mo>+</mo><mn>1</mn><mo>:</mo><mi>i</mi><mi>d</mi><mo>+</mo><mi>l</mi></mrow></msub><mo stretchy="false">)</mo><mo>}</mo></math>，取 d<l 以减少信息碎片。[43]（§3.3.1）它的作用是保留粗粒度语义，同时把可读长度缩短一个 l/d 的因子。
 
 选择分支保留单个 token，但要先知道哪些块值得读。NSA 用压缩分支已经算出的注意力分数当块重要度：<math><msubsup><mi>p</mi><mi>t</mi><mi>cmp</mi></msubsup><mo>=</mo><mi mathvariant="normal">softmax</mi><mo>(</mo><msubsup><mi>q</mi><mi>t</mi><mi>T</mi></msubsup><msubsup><mover><mi>K</mi><mo>~</mo></mover><mi>t</mi><mi>cmp</mi></msubsup><mo>)</mo></math>，压缩块与选择块划分一致时直接复用；不一致时按空间重叠关系把压缩块的分数累加到选择块上。选择块大小 l′、数量 n，取分数最高的 n 块的全部 token。[43]（Eq.8–12）这样做省掉了一次额外的打分前向，也把选择误差与压缩误差绑在同一条通道上。
 
@@ -22,7 +22,7 @@
 
 原文的预训练配置是 27B 总参数、3B 激活的 MoE 底座，30 层，64 个查询头分 4 组，查询与键头维 192、值头维 128，每层 72 个路由专家加 2 个共享专家、每次选 6 个；压缩块 l=32、步长 d=16，选择块 l′=64、数量 n=16（其中 1 个初始块与 2 个局部块固定保留），窗口 w=512。训练用 270B token 的 8K 长度文本，再做 32K 的继续训练与监督微调。[43]（§4.1）
 
-每条查询的可读 token 数因此是三项之和，以 64K 历史为例：压缩项约 <math><mo>(</mo><mi>s</mi><mo>−</mo><mi>l</mi><mo>)</mo><mo>/</mo><mi>d</mi></math>≈4,094，选择项 n·l′=1,024，窗口 512，合计约 5,630，与原文表 4 的 5,632 基本一致。同一张表给出的对照是：全注意力在 8K、16K、32K、64K 上每步要读 8,192、16,384、32,768、65,536 个 token 的等价数据，NSA 是 2,048、2,560、3,584、5,632，预期加速 4×、6.4×、9.1×、11.6×。[43]（表 4）这些是访存量之比，不是端到端时延之比：真正的时延还要看内核效率与批组成。
+每条查询的可读 token 数因此是三项之和，以 64K 历史为例：压缩项约 <math><mo stretchy="false">(</mo><mi>s</mi><mo>−</mo><mi>l</mi><mo stretchy="false">)</mo><mo>/</mo><mi>d</mi></math>≈4,094，选择项 n·l′=1,024，窗口 512，合计约 5,630，与原文表 4 的 5,632 基本一致。同一张表给出的对照是：全注意力在 8K、16K、32K、64K 上每步要读 8,192、16,384、32,768、65,536 个 token 的等价数据，NSA 是 2,048、2,560、3,584、5,632，预期加速 4×、6.4×、9.1×、11.6×。[43]（表 4）这些是访存量之比，不是端到端时延之比：真正的时延还要看内核效率与批组成。
 
 训练侧的加速来自内核重排。按 FlashAttention 的写法把连续查询块载入 SRAM 在这里会出问题：同一块内的查询可能选到完全不重叠的 KV 块。原文改成每次载入一个 GQA 组在同一位置的全部查询头（它们共享同一套入选块），再顺序把入选块读进 SRAM，把查询与输出的循环放到网格调度层。[43]（§3.4）在同一 Triton 后端下与 FlashAttention-2 比较，64K 长度上报告前向 9.0×、反向 6.0× 的加速。[43]（§5.1）
 

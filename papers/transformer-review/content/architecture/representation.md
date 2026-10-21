@@ -16,12 +16,12 @@ Transformer 拿到的输入是一个矩阵。设序列长度 N、隐藏维度 d�
 
 不含位置信息、掩码或任何位置相关偏置的自注意力，对输入行的重排是等变的。设 <math><mi>Π</mi></math> 为置换矩阵，F 表示一层内容自注意力。线性投影共享，于是 <math><mi>Q</mi><mo>′</mo><mo>=</mo><mi>Π</mi><mi>Q</mi></math>，键与值同理，分数矩阵的行列被同时重排：
 
-<math display="block"><mi>S</mi><mo>′</mo><mo>=</mo><mi>Π</mi><mi>S</mi><msup><mi>Π</mi><mi>T</mi></msup><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>S</mi><mo>′</mo><mo>)</mo><mo>=</mo><mi>Π</mi><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>S</mi><mo>)</mo><msup><mi>Π</mi><mi>T</mi></msup></math>
+<math display="block"><mi>S</mi><mo>′</mo><mo>=</mo><mi>Π</mi><mi>S</mi><msup><mi>Π</mi><mi>T</mi></msup><mo>,</mo><mspace width="1em"/><mi mathvariant="normal">softmax</mi><mo stretchy="false">(</mo><mi>S</mi><mo>′</mo><mo stretchy="false">)</mo><mo>=</mo><mi>Π</mi><mi mathvariant="normal">softmax</mi><mo stretchy="false">(</mo><mi>S</mi><mo stretchy="false">)</mo><msup><mi>Π</mi><mi>T</mi></msup></math>
 
 右式成立的理由是 softmax 按行归一化：重排列只改变求和项的顺序，重排行只改变哪条查询落在哪一行。再代入 <math><msup><mi>Π</mi><mi>T</mi></msup><mi>Π</mi><mo>=</mo><mi>I</mi></math>，得到
 
-<math display="block"><mi>F</mi><mo>(</mo><mi>Π</mi><mi>X</mi><mo>)</mo><mo>=</mo><mi>Π</mi><mi>F</mi><mo>(</mo><mi>X</mi><mo>)</mo></math>
+<math display="block"><mi>F</mi><mo stretchy="false">(</mo><mi>Π</mi><mi>X</mi><mo stretchy="false">)</mo><mo>=</mo><mi>Π</mi><mi>F</mi><mo stretchy="false">(</mo><mi>X</mi><mo stretchy="false">)</mo></math>
 
 输入内容换个顺序，输出跟着换个顺序，网络无法仅凭数组下标获得新的顺序关系。逐位置共享的前馈层和归一化同样保持这一性质。在上述条件之外再加上对称池化（取平均、取最大这类聚合），连整体的置换不变性都出现了：打乱行得到的表示和原来完全一样。于是语言中的先后、图像中的空间布局必须显式进入计算。[6, 9]
 
-加性位置嵌入的做法是改变这个对称性：只重排 token 时，<math><mi>Π</mi><mi>X</mi><mo>+</mo><mi>P</mi></math> 与 <math><mi>Π</mi><mo>(</mo><mi>X</mi><mo>+</mo><mi>P</mi><mo>)</mo></math> 一般不相等。相对位置方法换个入口，把位置差做进查询与键的匹配，表达的是“相距多远”。两者施加的结构不同：前者要求模型自己从绝对坐标里推关系，后者把关系直接写进打分。原始 ViT 用可学习的绝对位置向量，换分辨率时按二维图块布局对这些参数做插值。[2] 位置表示让模型有条件辨认布局，局部窗口与层级结构这类先验仍由后面的层负责。
+加性位置嵌入的做法是改变这个对称性：只重排 token 时，<math><mi>Π</mi><mi>X</mi><mo>+</mo><mi>P</mi></math> 与 <math><mi>Π</mi><mo stretchy="false">(</mo><mi>X</mi><mo>+</mo><mi>P</mi><mo stretchy="false">)</mo></math> 一般不相等。相对位置方法换个入口，把位置差做进查询与键的匹配，表达的是“相距多远”。两者施加的结构不同：前者要求模型自己从绝对坐标里推关系，后者把关系直接写进打分。原始 ViT 用可学习的绝对位置向量，换分辨率时按二维图块布局对这些参数做插值。[2] 位置表示让模型有条件辨认布局，局部窗口与层级结构这类先验仍由后面的层负责。

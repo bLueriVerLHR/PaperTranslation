@@ -20,7 +20,7 @@
 
 CLIP 用类别描述的文本向量与图像向量比较。给定候选类别集合 C，相应分数归一化为：[4]
 
-<math display="block"><mi>p</mi><mo>(</mo><mi>c</mi><mo>|</mo><mi>I</mi><mo>,</mo><mi>C</mi><mo>)</mo><mo>=</mo><mfrac><mrow><mi mathvariant="normal">exp</mi><mo>(</mo><mi>α</mi><msup><mi>u</mi><mi>T</mi></msup><msub><mi>v</mi><mi>c</mi></msub><mo>)</mo></mrow><mrow><munder><mo>∑</mo><mrow><mi>k</mi><mo>∈</mo><mi>C</mi></mrow></munder><mi mathvariant="normal">exp</mi><mo>(</mo><mi>α</mi><msup><mi>u</mi><mi>T</mi></msup><msub><mi>v</mi><mi>k</mi></msub><mo>)</mo></mrow></mfrac></math>
+<math display="block"><mi>p</mi><mo stretchy="false">(</mo><mi>c</mi><mo>|</mo><mi>I</mi><mo>,</mo><mi>C</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mrow><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><mi>α</mi><msup><mi>u</mi><mi>T</mi></msup><msub><mi>v</mi><mi>c</mi></msub><mo stretchy="false">)</mo></mrow><mrow><munder><mo>∑</mo><mrow><mi>k</mi><mo>∈</mo><mi>C</mi></mrow></munder><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><mi>α</mi><msup><mi>u</mi><mi>T</mi></msup><msub><mi>v</mi><mi>k</mi></msub><mo stretchy="false">)</mo></mrow></mfrac></math>
 
 文本编码器把类别概念映射为分类方向，目标训练样本并未用于拟合这些方向；这就是该协议的零样本适配。预训练仍利用图文监督，类别名称、上下文模板和描述组合也参与决定方向。模板一换，输入文本及其嵌入跟着变，相当于换了一个分类器。
 

@@ -6,7 +6,7 @@
 
 缓存元素数 E 指每层每个历史位置留下的元素数。MHA 让每个查询头各有一套键和值，因此 E 随查询头数线性增长：
 
-<math display="block"><msub><mi>E</mi><mi>MHA</mi></msub><mo>=</mo><msub><mi>H</mi><mi>q</mi></msub><mo>(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo>)</mo></math>
+<math display="block"><msub><mi>E</mi><mi>MHA</mi></msub><mo>=</mo><msub><mi>H</mi><mi>q</mi></msub><mo stretchy="false">(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo stretchy="false">)</mo></math>
 
 取 Hq=128、d_k=d_v=128，每层每个 token 是 32,768 个元素，按 2 字节存储合 64 KiB；乘上上下文长度与层数，这个数就换到 GiB 量级。
 

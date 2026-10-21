@@ -12,7 +12,7 @@
 
 <math display="block"><mfrac><msub><mi>C</mi><mi mathvariant="normal">pair</mi></msub><mrow><msub><mi>C</mi><mi mathvariant="normal">projection</mi></msub><mo>+</mo><msub><mi>C</mi><mi mathvariant="normal">FFN</mi></msub></mrow></mfrac><mo>=</mo><mfrac><mi>N</mi><mrow><mn>2</mn><mi>d</mi><mo>+</mo><msub><mi>d</mi><mi mathvariant="normal">ff</mi></msub></mrow></mfrac></math>
 
-代入上例即 <math><mn>1024</mn><mo>/</mo><mo>(</mo><mn>1024</mn><mo>+</mo><mn>2048</mn><mo>)</mo><mo>=</mo><mn>1</mn><mo>/</mo><mn>3</mn></math>。阈值就写在式子里：序列长度超过 <math><mn>2</mn><mi>d</mi><mo>+</mo><msub><mi>d</mi><mi mathvariant="normal">ff</mi></msub></math> 之后，成对交互开始占多数。取 d=512、d_ff=4d=2048，这个门槛是 3072；短于它的序列上，投影和前馈才是大头。这里是既定形状下的稠密算术比较，真实耗时还要看访存、并行度、融合和硬件原语。
+代入上例即 <math><mn>1024</mn><mo>/</mo><mo stretchy="false">(</mo><mn>1024</mn><mo>+</mo><mn>2048</mn><mo stretchy="false">)</mo><mo>=</mo><mn>1</mn><mo>/</mo><mn>3</mn></math>。阈值就写在式子里：序列长度超过 <math><mn>2</mn><mi>d</mi><mo>+</mo><msub><mi>d</mi><mi mathvariant="normal">ff</mi></msub></math> 之后，成对交互开始占多数。取 d=512、d_ff=4d=2048，这个门槛是 3072；短于它的序列上，投影和前馈才是大头。这里是既定形状下的稠密算术比较，真实耗时还要看访存、并行度、融合和硬件原语。
 
 若把乘加按两次浮点运算计，所有数字翻倍，比值不变。
 

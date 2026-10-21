@@ -6,7 +6,7 @@
 
 设输入 x 包含指令、背景和历史，对应目标回答为 y。监督微调（SFT）的基本损失是：
 
-<math display="block"><msub><mi>ℒ</mi><mi mathvariant="normal">SFT</mi></msub><mo>=</mo><mo>−</mo><msub><mi>𝔼</mi><mrow><mo>(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>)</mo><mo>∼</mo><mi>D</mi></mrow></msub><mo>[</mo><munderover><mo>∑</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mrow><mo>|</mo><mi>y</mi><mo>|</mo></mrow></munderover><mi mathvariant="normal">log</mi><msub><mi>π</mi><mi>θ</mi></msub><mo>(</mo><msub><mi>y</mi><mi>t</mi></msub><mo>|</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo>)</mo><mo>]</mo></math>
+<math display="block"><msub><mi>ℒ</mi><mi mathvariant="normal">SFT</mi></msub><mo>=</mo><mo>−</mo><msub><mi>𝔼</mi><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo><mo>∼</mo><mi>D</mi></mrow></msub><mo>[</mo><munderover><mo>∑</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mrow><mo>|</mo><mi>y</mi><mo>|</mo></mrow></munderover><mi mathvariant="normal">log</mi><msub><mi>π</mi><mi>θ</mi></msub><mo stretchy="false">(</mo><msub><mi>y</mi><mi>t</mi></msub><mo>|</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo><mo>]</mo></math>
 
 它仍是条件似然，但训练分布由普通网页续写转为任务与示范回答。共享参数在多种任务上学习指令到行为的映射，示范中的措辞、推理组织和格式也会进入目标分布。[20] 没有被示范覆盖的可靠性条件，不会仅因数据被称为“指令数据”就获得保证。
 

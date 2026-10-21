@@ -10,7 +10,7 @@ ViT 将图像切成图块并投影为序列，由全局交互形成表示，再�
 
 真实物体构成无序集合。如果给每个预测槽位预先指定第几个标注对象，换一种标注排列就会改变训练目标。DETR 通过二分匹配，在预测集合与以“无物体”补齐的目标集合间选择总代价最低的排列：
 
-<math display="block"><mover><mi>σ</mi><mo>^</mo></mover><mo>=</mo><munder><mi mathvariant="normal">argmin</mi><mrow><mi>σ</mi><mo>∈</mo><msub><mi>S</mi><mi>N</mi></msub></mrow></munder><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>N</mi></munderover><msub><mi>C</mi><mi mathvariant="normal">match</mi></msub><mo>(</mo><msub><mi>y</mi><mi>i</mi></msub><mo>,</mo><msub><mover><mi>y</mi><mo>^</mo></mover><mrow><mi>σ</mi><mo>(</mo><mi>i</mi><mo>)</mo></mrow></msub><mo>)</mo></math>
+<math display="block"><mover><mi>σ</mi><mo>^</mo></mover><mo>=</mo><munder><mi mathvariant="normal">argmin</mi><mrow><mi>σ</mi><mo>∈</mo><msub><mi>S</mi><mi>N</mi></msub></mrow></munder><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>N</mi></munderover><msub><mi>C</mi><mi mathvariant="normal">match</mi></msub><mo>(</mo><msub><mi>y</mi><mi>i</mi></msub><mo>,</mo><msub><mover><mi>y</mi><mo>^</mo></mover><mrow><mi>σ</mi><mo stretchy="false">(</mo><mi>i</mi><mo stretchy="false">)</mo></mrow></msub><mo>)</mo></math>
 
 置换预测槽位只会重新编号可行排列，最小值不变，因此该匹配目标对槽位排列不敏感。一对一关系使同一物体只监督一个匹配槽位，多余槽位学习“无物体”；与允许多个候选同时匹配一个物体再后处理去重相比，去重压力进入了训练目标。它鼓励不重复输出；训练有限、预测有误时仍可能出现重复。
 

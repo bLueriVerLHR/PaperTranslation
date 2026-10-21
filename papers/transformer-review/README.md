@@ -19,6 +19,7 @@
 | llm.c／DeepSpeed | `training/llm-c.md`、`deepspeed.md` |
 | vLLM／SGLang | `vllm.md`、`sglang.md` |
 | 专用云端框架 | `cloud/{deepinfer,tensorrt-llm,lmdeploy,tgi,lightllm}.md` |
+| DeepSeek 自研栈 | `deepseek/{index,instruction-level,flashmla,deepgemm,deepep,load-balancing,storage}.md`；FlashMLA、DeepGEMM、DeepEP、EPLB、DualPipe、DeepJIT、DeepSelect、3FS、smallpond 与 DeepSeek-V3 十个仓库按固定提交只读检查 |
 | llama.cpp 与 server／其他端侧框架 | `local/*.md`，每个技术对象单独一稿 |
 | ktransformers／PowerInfer／Ascend | `heterogeneous/*.md` |
 | 跨框架共同机制 | `cross-cutting.md` |

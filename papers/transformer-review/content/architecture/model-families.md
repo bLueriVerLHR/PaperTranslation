@@ -6,7 +6,7 @@
 
 BERT 的双向编码让一个位置同时看到两侧文本，适合产出分类、标注、跨度预测需要的表示。翻译模型的处理方式是：源序列先双向编码，目标侧再通过交叉注意力读这些表示。目标序列的联合条件概率按链式规则分解为：[6]
 
-<math display="block"><mi>p</mi><mo>(</mo><msub><mi>y</mi><mrow><mn>1</mn><mo>:</mo><mi>T</mi></mrow></msub><mo>|</mo><mi>x</mi><mo>)</mo><mo>=</mo><munderover><mo>∏</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mi>T</mi></munderover><mi>p</mi><mo>(</mo><msub><mi>y</mi><mi>t</mi></msub><mo>|</mo><msub><mi>y</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo>,</mo><mi>x</mi><mo>)</mo></math>
+<math display="block"><mi>p</mi><mo stretchy="false">(</mo><msub><mi>y</mi><mrow><mn>1</mn><mo>:</mo><mi>T</mi></mrow></msub><mo>|</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><munderover><mo>∏</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mi>T</mi></munderover><mi>p</mi><mo stretchy="false">(</mo><msub><mi>y</mi><mi>t</mi></msub><mo>|</mo><msub><mi>y</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo>,</mo><mi>x</mi><mo stretchy="false">)</mo></math>
 
 训练时完整目标已知，于是把起始 token 和右移一位的真实目标同时喂进去，因果掩码保证第 t 个位置的表示只依赖真实的先前目标。所有位置的条件损失因此能在一轮前向里算完。这个可行性有个前提：预测位置读不到自己的真实目标。一旦掩码失效，任务就退化成用泄漏的信息复现答案，与生成时的条件对不上。
 

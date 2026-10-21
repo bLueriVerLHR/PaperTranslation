@@ -133,6 +133,12 @@ Jev 对有限类型输出的约束与判断正确性、概率校准是不同问�
 
 规范稿位于 `content/attention/`，由 `content/02-attention.md` 按继承关系组合：`overview`（三条轴与谱系表）、`head-sharing`（MHA→MQA→GQA）、`mla`、`linear-attention`（核化线性注意力）、`retention`（RetNet）、`delta-rule`（DeltaNet）、`gdn`、`ssm-rwkv`（Mamba／Mamba2／RWKV 对照）、`sliding-window`（SWA）、`nsa`、`dsa`、`msa`、`ledger`（三条轴上的账目）。`reference/attention-mechanisms.md` 保存 [37]–[49] 的固定修订、章节定位与实际阅读范围，并单独列出哪些说法是原文报告、哪些是本篇推导；本篇未采集被引数，也不按引用量排序。MoE 与 EP 的规范稿仍为 `architecture/{moe,expert-parallel}.md`。`inference/execution-cache.md` 区分显式 KV、MLA 潜在容量和稀疏访问预算。通信字节、容量算例和单层稀疏输出界为原创解释，不是设备实测或全网络质量证明；论文执行设计不冒充固定源码审计。MSA 在此指 MiniMax Sparse Attention，不更改蛋白质主题中的 multiple sequence alignment。
 
+## DeepSeek 自研栈
+
+`content/frameworks/deepseek/` 由 `frameworks/deepseek/index.md` 组合四个技术对象：FlashMLA、DeepGEMM、DeepEP，以及 3FS 与 smallpond 一组存储与数据。六个仓库按固定提交写入 `source-repositories.json`，实际阅读范围、断言与来源的对应、以及“仓库报告值 vs 本机测量”的分界在 `reference/deepseek-stack.md`。[51]–[55] 为对应引用，DeepInfer 仍由 `frameworks/cloud/deepinfer.md` 维护，不重复。
+
+本节只做静态阅读：未构建、未安装、未运行上游代码，也未跑 benchmark；所有吞吐与时延均为仓库自述，并随文保留 GPU 型号与集群规模。模型权重仓库与 Ascend 分叉只提及存在，未检出、未阅读。
+
 ## 原始 Transformer 与术语／推理推导
 
 *Attention Is All You Need* 固定为 arXiv:1706.03762v7，作者与英文题名见 `reader.json`。HTML 的 §3–4 支持自注意力／交叉注意力、因果目标错位、归一化顺序、前馈网络及局部连接路径的讨论。局部注意力在原文中是待探索方向，不写成该文已完成的效率评测。

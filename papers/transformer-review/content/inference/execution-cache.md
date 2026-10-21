@@ -4,7 +4,7 @@
 
 自回归模型表达的是一串条件分布的乘积。给定提示 x，生成序列 y 的概率是：
 
-<math display="block"><mi>p</mi><mo>(</mo><mi>y</mi><mo>|</mo><mi>x</mi><mo>)</mo><mo>=</mo><munderover><mo>∏</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mi>T</mi></munderover><mi>p</mi><mo>(</mo><msub><mi>y</mi><mi>t</mi></msub><mo>|</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo>)</mo></math>
+<math display="block"><mi>p</mi><mo stretchy="false">(</mo><mi>y</mi><mo>|</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><munderover><mo>∏</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mi>T</mi></munderover><mi>p</mi><mo stretchy="false">(</mo><msub><mi>y</mi><mi>t</mi></msub><mo>|</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo stretchy="false">)</mo></math>
 
 训练时目标历史已经给定，因果掩码让所有位置的条件预测在一次前向里并行算完；生成时下一个位置的输入还没被选出来，不能把未知输出当作已知条件。这个数据依赖造成了逐步解码的串行部分，与它叫 Transformer 与否无关。
 

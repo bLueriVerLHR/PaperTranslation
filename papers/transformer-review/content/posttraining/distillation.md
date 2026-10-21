@@ -6,7 +6,7 @@
 
 硬标签只标出一个正确类别，软分布还告诉学生教师容易混淆哪些候选。设教师与学生的 logits 分别为 v、z，温度为正数 T，软概率为 softmax(v/T) 和 softmax(z/T)。将它们记为 pT、qT，一个常见混合目标为：
 
-<math display="block"><mi>ℒ</mi><mo>=</mo><mi>λ</mi><msup><mi>T</mi><mn>2</mn></msup><mi mathvariant="normal">KL</mi><mo>(</mo><msub><mi>p</mi><mi>T</mi></msub><mo>‖</mo><msub><mi>q</mi><mi>T</mi></msub><mo>)</mo><mo>+</mo><mo>(</mo><mn>1</mn><mo>−</mo><mi>λ</mi><mo>)</mo><mi mathvariant="normal">CE</mi><mo>(</mo><mi>y</mi><mo>,</mo><msub><mi>q</mi><mn>1</mn></msub><mo>)</mo></math>
+<math display="block"><mi>ℒ</mi><mo>=</mo><mi>λ</mi><msup><mi>T</mi><mn>2</mn></msup><mi mathvariant="normal">KL</mi><mo stretchy="false">(</mo><msub><mi>p</mi><mi>T</mi></msub><mo>‖</mo><msub><mi>q</mi><mi>T</mi></msub><mo stretchy="false">)</mo><mo>+</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>λ</mi><mo stretchy="false">)</mo><mi mathvariant="normal">CE</mi><mo stretchy="false">(</mo><mi>y</mi><mo>,</mo><msub><mi>q</mi><mn>1</mn></msub><mo stretchy="false">)</mo></math>
 
 教师保持固定、0≤λ≤1。KL 的教师熵不依赖学生，因此其学生梯度与软目标交叉熵相同；硬目标在温度一的分布上计算，使真实标签仍能影响学习。数据覆盖与教师误差同样被传递，软目标不会自动变成更可靠的真值。
 
@@ -14,7 +14,7 @@
 
 对软目标交叉熵，学生 logit 的导数为：
 
-<math display="block"><mfrac><mrow><mo>∂</mo><msub><mi>ℒ</mi><mi mathvariant="normal">soft</mi></msub></mrow><mrow><mo>∂</mo><msub><mi>z</mi><mi>j</mi></msub></mrow></mfrac><mo>=</mo><mfrac><mn>1</mn><mi>T</mi></mfrac><mo>(</mo><msub><mi>q</mi><mi>j</mi></msub><mo>−</mo><msub><mi>p</mi><mi>j</mi></msub><mo>)</mo></math>
+<math display="block"><mfrac><mrow><mo>∂</mo><msub><mi>ℒ</mi><mi mathvariant="normal">soft</mi></msub></mrow><mrow><mo>∂</mo><msub><mi>z</mi><mi>j</mi></msub></mrow></mfrac><mo>=</mo><mfrac><mn>1</mn><mi>T</mi></mfrac><mo stretchy="false">(</mo><msub><mi>q</mi><mi>j</mi></msub><mo>−</mo><msub><mi>p</mi><mi>j</mi></msub><mo stretchy="false">)</mo></math>
 
 第一个 1/T 来自 logit 缩放的链式法则。若类别数为 K、教师和学生 logits 各自中心化，并且温度相对 logit 幅度足够高，指数的一阶展开给出 qⱼ≈1/K+zⱼ/(KT)，教师同理，于是：
 

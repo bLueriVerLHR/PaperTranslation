@@ -6,7 +6,7 @@
 
 记旧风险为 Rold、新风险的梯度为 gnew。对一个小的普通梯度更新 θ′=θ−ηgnew，在足够光滑的局部邻域中：
 
-<math display="block"><msub><mi>R</mi><mi mathvariant="normal">old</mi></msub><mo>(</mo><mi>θ</mi><mo>′</mo><mo>)</mo><mo>−</mo><msub><mi>R</mi><mi mathvariant="normal">old</mi></msub><mo>(</mo><mi>θ</mi><mo>)</mo><mo>=</mo><mo>−</mo><mi>η</mi><msubsup><mi>g</mi><mi mathvariant="normal">old</mi><mi>T</mi></msubsup><msub><mi>g</mi><mi mathvariant="normal">new</mi></msub><mo>+</mo><mfrac><msup><mi>η</mi><mn>2</mn></msup><mn>2</mn></mfrac><msubsup><mi>g</mi><mi mathvariant="normal">new</mi><mi>T</mi></msubsup><msub><mi>H</mi><mi mathvariant="normal">old</mi></msub><msub><mi>g</mi><mi mathvariant="normal">new</mi></msub><mo>+</mo><mi>O</mi><mo>(</mo><msup><mi>η</mi><mn>3</mn></msup><mo>)</mo></math>
+<math display="block"><msub><mi>R</mi><mi mathvariant="normal">old</mi></msub><mo stretchy="false">(</mo><mi>θ</mi><mo>′</mo><mo stretchy="false">)</mo><mo>−</mo><msub><mi>R</mi><mi mathvariant="normal">old</mi></msub><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo><mo>−</mo><mi>η</mi><msubsup><mi>g</mi><mi mathvariant="normal">old</mi><mi>T</mi></msubsup><msub><mi>g</mi><mi mathvariant="normal">new</mi></msub><mo>+</mo><mfrac><msup><mi>η</mi><mn>2</mn></msup><mn>2</mn></mfrac><msubsup><mi>g</mi><mi mathvariant="normal">new</mi><mi>T</mi></msubsup><msub><mi>H</mi><mi mathvariant="normal">old</mi></msub><msub><mi>g</mi><mi mathvariant="normal">new</mi></msub><mo>+</mo><mi>O</mi><mo stretchy="false">(</mo><msup><mi>η</mi><mn>3</mn></msup><mo stretchy="false">)</mo></math>
 
 两梯度方向冲突时，内积为负，一阶项会提高旧风险。即使已经接近旧目标的局部极小点、一阶梯度接近零，新方向仍可能穿过旧风险的正曲率区域，引起二阶增长。这里的 Taylor 分析指出共享参数更新的干扰来源可以不止一种：一阶冲突与二阶曲率各自贡献一部分。
 
@@ -18,7 +18,7 @@
 
 正则化可以用重要性矩阵 F 限制偏离旧参数：
 
-<math display="block"><mi>Ω</mi><mo>(</mo><mi>θ</mi><mo>)</mo><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><msup><mrow><mo>(</mo><mi>θ</mi><mo>−</mo><msub><mi>θ</mi><mn>0</mn></msub><mo>)</mo></mrow><mi>T</mi></msup><mi>F</mi><mo>(</mo><mi>θ</mi><mo>−</mo><msub><mi>θ</mi><mn>0</mn></msub><mo>)</mo></math>
+<math display="block"><mi>Ω</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><msup><mrow><mo stretchy="false">(</mo><mi>θ</mi><mo>−</mo><msub><mi>θ</mi><mn>0</mn></msub><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><mi>F</mi><mo stretchy="false">(</mo><mi>θ</mi><mo>−</mo><msub><mi>θ</mi><mn>0</mn></msub><mo stretchy="false">)</mo></math>
 
 对称半正定 F 使不同方向具有不同偏离成本，梯度为 F(θ−θ₀)。这个一般二次约束把“保留重要变化方向”写进目标；重要性估计、局部近似和新任务需求决定实际取舍。输出蒸馏则在给定输入上保持旧分布，限制的是行为关系，不一定逐参数保持相同值。[15]
 

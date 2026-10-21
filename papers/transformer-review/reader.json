@@ -203,6 +203,42 @@
     "50": {
       "text": "Kimi Team. Kimi Linear: An Expressive, Efficient Attention Architecture. arXiv:2510.26692v2 (2025).",
       "url": "https://arxiv.org/abs/2510.26692v2"
+    },
+    "51": {
+      "text": "DeepSeek-AI. FlashMLA: optimized attention kernels for MLA, sparse (DSA), FP8/FP4 KV cache and fused norm-RoPE-attn kernels. Inspected commit 0f11e178da1f67becb087a324b400854931ec3e3.",
+      "url": "https://github.com/deepseek-ai/FlashMLA/tree/0f11e178da1f67becb087a324b400854931ec3e3"
+    },
+    "52": {
+      "text": "DeepSeek-AI. DeepGEMM: tensor-core GEMM, fused MoE and indexer primitives compiled at runtime through DeepJIT. Inspected commit 5081f8513af57e61696de4f4f04b0e707ffb503e.",
+      "url": "https://github.com/deepseek-ai/DeepGEMM/tree/5081f8513af57e61696de4f4f04b0e707ffb503e"
+    },
+    "53": {
+      "text": "DeepSeek-AI. DeepEP: expert-parallel dispatch and combine kernels with the NCCL Gin backend. Inspected commit f6aa38fe06cd4a0489e7730365d4e0114970a2f3.",
+      "url": "https://github.com/deepseek-ai/DeepEP/tree/f6aa38fe06cd4a0489e7730365d4e0114970a2f3"
+    },
+    "54": {
+      "text": "DeepSeek-AI. 3FS (Fire-Flyer File System): disaggregated distributed file system with CRAQ consistency. Inspected commit 22fca04564c7cc230fd8b9523b8b92864e1dad47.",
+      "url": "https://github.com/deepseek-ai/3FS/tree/22fca04564c7cc230fd8b9523b8b92864e1dad47"
+    },
+    "55": {
+      "text": "DeepSeek-AI. smallpond: lightweight data processing on DuckDB and 3FS. Inspected commit 52ecc5e45535c7448f848bcb45b0da00d9484f81.",
+      "url": "https://github.com/deepseek-ai/smallpond/tree/52ecc5e45535c7448f848bcb45b0da00d9484f81"
+    },
+    "56": {
+      "text": "DeepSeek-AI. EPLB: Expert Parallelism Load Balancer, with hierarchical and global placement policies. Inspected commit d52c72d5b2f2fb4c41afbf8eb21366820239913d.",
+      "url": "https://github.com/deepseek-ai/EPLB/tree/d52c72d5b2f2fb4c41afbf8eb21366820239913d"
+    },
+    "57": {
+      "text": "DeepSeek-AI. DualPipe: bidirectional pipeline parallelism with full computation-communication overlap. Inspected commit 030ce4325f4ebeb437da4ebc6d00a70469dd58ae.",
+      "url": "https://github.com/deepseek-ai/DualPipe/tree/030ce4325f4ebeb437da4ebc6d00a70469dd58ae"
+    },
+    "58": {
+      "text": "DeepSeek-AI. DeepJIT: a lightweight library for xPU kernel JIT compilation. Inspected commit 18fe520b0473fc45d32d2f0e86923da707de19ab.",
+      "url": "https://github.com/deepseek-ai/DeepJIT/tree/18fe520b0473fc45d32d2f0e86923da707de19ab"
+    },
+    "59": {
+      "text": "DeepSeek-AI. DeepSelect: TopK kernels for DeepSeek Sparse Attention and samplers. Inspected commit bfa4507d935f17ebfc3d0f00ff7d3c9a4d0e5c18.",
+      "url": "https://github.com/deepseek-ai/DeepSelect/tree/bfa4507d935f17ebfc3d0f00ff7d3c9a4d0e5c18"
     }
   }
 }

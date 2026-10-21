@@ -4,7 +4,7 @@
 
 对 B 个图文对，投影后单位向量为 uᵢ、vⱼ，分数 sᵢⱼ=αuᵢᵀvⱼ，其中正尺度 α 采用指数参数化。图像到文本的概率与对称损失为：
 
-<math display="block"><msubsup><mi>p</mi><mrow><mi>i</mi><mi>j</mi></mrow><mrow><mi>I</mi><mo>→</mo><mi>T</mi></mrow></msubsup><mo>=</mo><mfrac><mrow><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>s</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>)</mo></mrow><mrow><munder><mo>∑</mo><mi>k</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>s</mi><mrow><mi>i</mi><mi>k</mi></mrow></msub><mo>)</mo></mrow></mfrac><mo>,</mo><mspace width="1em"/><mi>ℒ</mi><mo>=</mo><mo>−</mo><mfrac><mn>1</mn><mrow><mn>2</mn><mi>B</mi></mrow></mfrac><munder><mo>∑</mo><mi>i</mi></munder><mo>(</mo><mi mathvariant="normal">log</mi><msubsup><mi>p</mi><mrow><mi>i</mi><mi>i</mi></mrow><mrow><mi>I</mi><mo>→</mo><mi>T</mi></mrow></msubsup><mo>+</mo><mi mathvariant="normal">log</mi><msubsup><mi>p</mi><mrow><mi>i</mi><mi>i</mi></mrow><mrow><mi>T</mi><mo>→</mo><mi>I</mi></mrow></msubsup><mo>)</mo></math>
+<math display="block"><msubsup><mi>p</mi><mrow><mi>i</mi><mi>j</mi></mrow><mrow><mi>I</mi><mo>→</mo><mi>T</mi></mrow></msubsup><mo>=</mo><mfrac><mrow><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>s</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo stretchy="false">)</mo></mrow><mrow><munder><mo>∑</mo><mi>k</mi></munder><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>s</mi><mrow><mi>i</mi><mi>k</mi></mrow></msub><mo stretchy="false">)</mo></mrow></mfrac><mo>,</mo><mspace width="1em"/><mi>ℒ</mi><mo>=</mo><mo>−</mo><mfrac><mn>1</mn><mrow><mn>2</mn><mi>B</mi></mrow></mfrac><munder><mo>∑</mo><mi>i</mi></munder><mo>(</mo><mi mathvariant="normal">log</mi><msubsup><mi>p</mi><mrow><mi>i</mi><mi>i</mi></mrow><mrow><mi>I</mi><mo>→</mo><mi>T</mi></mrow></msubsup><mo>+</mo><mi mathvariant="normal">log</mi><msubsup><mi>p</mi><mrow><mi>i</mi><mi>i</mi></mrow><mrow><mi>T</mi><mo>→</mo><mi>I</mi></mrow></msubsup><mo>)</mo></math>
 
 反向概率按固定文本对所有图像归一化，即对分数矩阵的列归一化。两个方向同时约束检索关系，输出是一组相对候选分数，供检索与排序使用。
 
@@ -18,7 +18,7 @@
 
 全部表示相同时，每行概率均为 1/B，损失为 log B。作为损失空间中的对照，把各样本嵌入视为可独立选择的向量。若嵌入维度至少为 B，并令每对图文使用同一组相互正交的单位向量，正配对分数为 α，其他分数为零，单行损失成为：
 
-<math display="block"><mi>ℓ</mi><mo>=</mo><mi mathvariant="normal">log</mi><mo>(</mo><mn>1</mn><mo>+</mo><mo>(</mo><mi>B</mi><mo>−</mo><mn>1</mn><mo>)</mo><msup><mi>e</mi><mrow><mo>−</mo><mi>α</mi></mrow></msup><mo>)</mo><mo>&lt;</mo><mi mathvariant="normal">log</mi><mi>B</mi></math>
+<math display="block"><mi>ℓ</mi><mo>=</mo><mi mathvariant="normal">log</mi><mo stretchy="false">(</mo><mn>1</mn><mo>+</mo><mo stretchy="false">(</mo><mi>B</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo><msup><mi>e</mi><mrow><mo>−</mo><mi>α</mi></mrow></msup><mo stretchy="false">)</mo><mo>&lt;</mo><mi mathvariant="normal">log</mi><mi>B</mi></math>
 
 该构造在 B>1、α>0 时说明目标偏好可区分的匹配。这是损失几何的比较；优化能否逃离所有坍塌状态要另行论证；完全相同的表示仍可能形成特殊驻点，实际学习依赖初始化、参数化和数据。
 

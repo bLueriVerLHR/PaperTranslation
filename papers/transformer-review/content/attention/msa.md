@@ -15,7 +15,7 @@ K_idx:     [N, 1,   d_i]
 
 这两条索引投影与主分支的 Q／K 各自独立，选择器因此可以做得比主分支轻得多。把历史按 B 个 token 一块切开，块 b 的位置集合记为 ℬᵦ。对位置 t、组 r，先算每个可见 token 的索引点积，再取块内最大值作为这一块的分数：
 
-<math display="block"><msubsup><mi>s</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup><mo>=</mo><mfrac><mrow><msup><mrow><mo>(</mo><msubsup><mi>q</mi><mi>t</mi><mi>r</mi></msubsup><mo>)</mo></mrow><mi>T</mi></msup><msub><mi>k</mi><mi>s</mi></msub></mrow><msqrt><msub><mi>d</mi><mi>i</mi></msub></msqrt></mfrac><mo>,</mo><mspace width="1em"/><msubsup><mi>m</mi><mrow><mi>t</mi><mi>b</mi></mrow><mi>r</mi></msubsup><mo>=</mo><munder><mi mathvariant="normal">max</mi><mrow><mi>s</mi><mo>∈</mo><msub><mi>ℬ</mi><mi>b</mi></msub><mo>,</mo><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>s</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup></math>
+<math display="block"><msubsup><mi>s</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup><mo>=</mo><mfrac><mrow><msup><mrow><mo stretchy="false">(</mo><msubsup><mi>q</mi><mi>t</mi><mi>r</mi></msubsup><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><msub><mi>k</mi><mi>s</mi></msub></mrow><msqrt><msub><mi>d</mi><mi>i</mi></msub></msqrt></mfrac><mo>,</mo><mspace width="1em"/><msubsup><mi>m</mi><mrow><mi>t</mi><mi>b</mi></mrow><mi>r</mi></msubsup><mo>=</mo><munder><mi mathvariant="normal">max</mi><mrow><mi>s</mi><mo>∈</mo><msub><mi>ℬ</mi><mi>b</mi></msub><mo>,</mo><mi>s</mi><mo>≤</mo><mi>t</mi></mrow></munder><msubsup><mi>s</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup></math>
 
 式中的 q、k 是索引向量，主分支另有自己的投影。看不见任何因果位置的块记为负无穷。按 m 取最高的 k 个块，其中包含当前位置的本地块固定入选，占用 k 个名额中的一个。主分支随后读取入选块里所有可见 token，按每个主查询头自己的分数做 softmax，读取上限因此是 k·B 个位置。
 
@@ -27,7 +27,7 @@ K_idx:     [N, 1,   d_i]
 
 索引选取同样不可微，MSA 用主分支当教师。在该组入选块覆盖的 token 上，先让每个主头各自 softmax，再对组内 G 个头求概率平均得到教师 P；索引分支在同一 token 集合上归一化，两边做 KL 对齐：[35]（§3.2，Eq.9–11）
 
-<math display="block"><msubsup><mi>P</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup><mo>=</mo><mfrac><mn>1</mn><mi>G</mi></mfrac><munder><mo>∑</mo><mrow><mi>h</mi><mo>∈</mo><msub><mi>ℋ</mi><mi>r</mi></msub></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>ℒ</mi><mi mathvariant="normal">KL</mi></msub><mo>=</mo><mfrac><mn>1</mn><mrow><mi>N</mi><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub></mrow></mfrac><munder><mo>∑</mo><mrow><mi>t</mi><mo>,</mo><mi>r</mi></mrow></munder><msub><mi>D</mi><mi mathvariant="normal">KL</mi></msub><mo>(</mo><mi mathvariant="normal">stopgrad</mi><mo>(</mo><msup><mi>P</mi><mi>r</mi></msup><mo>)</mo><mo>‖</mo><msup><mi>P</mi><mi mathvariant="normal">idx</mi></msup><mo>)</mo></math>
+<math display="block"><msubsup><mi>P</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>r</mi></msubsup><mo>=</mo><mfrac><mn>1</mn><mi>G</mi></mfrac><munder><mo>∑</mo><mrow><mi>h</mi><mo>∈</mo><msub><mi>ℋ</mi><mi>r</mi></msub></mrow></munder><msubsup><mi>a</mi><mrow><mi>t</mi><mi>s</mi></mrow><mi>h</mi></msubsup><mo>,</mo><mspace width="1em"/><msub><mi>ℒ</mi><mi mathvariant="normal">KL</mi></msub><mo>=</mo><mfrac><mn>1</mn><mrow><mi>N</mi><msub><mi>H</mi><mi mathvariant="normal">kv</mi></msub></mrow></mfrac><munder><mo>∑</mo><mrow><mi>t</mi><mo>,</mo><mi>r</mi></mrow></munder><msub><mi>D</mi><mi mathvariant="normal">KL</mi></msub><mo>(</mo><mi mathvariant="normal">stopgrad</mi><mo stretchy="false">(</mo><msup><mi>P</mi><mi>r</mi></msup><mo stretchy="false">)</mo><mo>‖</mo><msup><mi>P</mi><mi mathvariant="normal">idx</mi></msup><mo>)</mo></math>
 
 ℋᵣ 是第 r 组的查询头集合，a 是各头在该集合上归一化后的主注意力概率，KL 两个分布省略了位置下标 t。教师端停止梯度，索引器输入 X 也停止梯度，辅助损失只更新两条索引投影：主分支继续由语言建模损失训练，索引器单独学“主分支会看哪里”。顺序上先跑一段全注意力做预热，等索引器大致对齐之后再切换到稀疏，训练时本地块始终强制保留。
 
@@ -47,7 +47,7 @@ K_idx:     [N, 1,   d_i]
 
 #### 从稀疏连接到 GPU 执行
 
-第一步优化来自 softmax 的一个性质：它是保序的，同一行里 <math><msub><mi>s</mi><mi>i</mi></msub><mo>≤</mo><msub><mi>s</mi><mi>j</mi></msub></math> 与 <math><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>s</mi><msub><mo>)</mo><mi>i</mi></msub><mo>≤</mo><mi mathvariant="normal">softmax</mi><mo>(</mo><mi>s</mi><msub><mo>)</mo><mi>j</mi></msub></math> 等价，因此选块直接用原始索引分数即可，省掉 max／exp／求和，Top-k 的结果不变。[35]（§4.1）主注意力与训练 KL 该做的归一化照做。
+第一步优化来自 softmax 的一个性质：它是保序的，同一行里 <math><msub><mi>s</mi><mi>i</mi></msub><mo>≤</mo><msub><mi>s</mi><mi>j</mi></msub></math> 与 <math><mi mathvariant="normal">softmax</mi><mo stretchy="false">(</mo><mi>s</mi><msub><mo stretchy="false">)</mo><mi>i</mi></msub><mo>≤</mo><mi mathvariant="normal">softmax</mi><mo stretchy="false">(</mo><mi>s</mi><msub><mo stretchy="false">)</mo><mi>j</mi></msub></math> 等价，因此选块直接用原始索引分数即可，省掉 max／exp／求和，Top-k 的结果不变。[35]（§4.1）主注意力与训练 KL 该做的归一化照做。
 
 循环顺序决定访存能不能复用。按查询遍历，每个查询去收集自己选中的若干 KV 块，K／V 会被反复读取；按 KV 块遍历，先建一张反向索引，把选中该块的所有查询聚到一起，载入一份 K／V 就能服务多个查询和组内多个头。用论文给的一阶估计比较两种顺序的算术访存比（bf16，忽略次要项）：[35]（§4.2）
 
@@ -58,7 +58,7 @@ K_idx:     [N, 1,   d_i]
 
 这些局部结果不能直接平均。若第 b 块的局部归一化输出为 oᵦ、其对数指数和为 Lᵦ，正确合并方式是按各自的概率质量加权：
 
-<math display="block"><mi>L</mi><mo>=</mo><mi mathvariant="normal">log</mi><munder><mo>∑</mo><mi>b</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>L</mi><mi>b</mi></msub><mo>)</mo><mo>,</mo><mspace width="1em"/><mi>o</mi><mo>=</mo><munder><mo>∑</mo><mi>b</mi></munder><mi mathvariant="normal">exp</mi><mo>(</mo><msub><mi>L</mi><mi>b</mi></msub><mo>−</mo><mi>L</mi><mo>)</mo><msub><mi>o</mi><mi>b</mi></msub></math>
+<math display="block"><mi>L</mi><mo>=</mo><mi mathvariant="normal">log</mi><munder><mo>∑</mo><mi>b</mi></munder><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>L</mi><mi>b</mi></msub><mo stretchy="false">)</mo><mo>,</mo><mspace width="1em"/><mi>o</mi><mo>=</mo><munder><mo>∑</mo><mi>b</mi></munder><mi mathvariant="normal">exp</mi><mo stretchy="false">(</mo><msub><mi>L</mi><mi>b</mi></msub><mo>−</mo><mi>L</mi><mo stretchy="false">)</mo><msub><mi>o</mi><mi>b</mi></msub></math>
 
 实现里减去最大的 Lᵦ 以免指数溢出。这与在线 softmax 的归一化守恒是同一件事：分块计算的各部分要按自己的概率质量相加，按块数等权相加会得到另一个结果。收益是 KV 复用与更规整的矩阵乘，代价是反向索引、局部输出与 LSE 缓冲，以及一个额外的合并阶段。
 

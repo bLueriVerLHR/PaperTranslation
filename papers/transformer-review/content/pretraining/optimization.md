@@ -16,7 +16,7 @@
 
 对梯度在相应邻域中具有 L-Lipschitz 连续性的可微风险 R，下降引理给出普通梯度步的上界：
 
-<math display="block"><mi>R</mi><mo>(</mo><mi>θ</mi><mo>−</mo><mi>η</mi><mi>∇</mi><mi>R</mi><mo>(</mo><mi>θ</mi><mo>)</mo><mo>)</mo><mo>≤</mo><mi>R</mi><mo>(</mo><mi>θ</mi><mo>)</mo><mo>−</mo><mi>η</mi><mo>(</mo><mn>1</mn><mo>−</mo><mfrac><mrow><mi>L</mi><mi>η</mi></mrow><mn>2</mn></mfrac><mo>)</mo><msubsup><mrow><mo>‖</mo><mi>∇</mi><mi>R</mi><mo>(</mo><mi>θ</mi><mo>)</mo><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup></math>
+<math display="block"><mi>R</mi><mo stretchy="false">(</mo><mi>θ</mi><mo>−</mo><mi>η</mi><mi>∇</mi><mi>R</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mo>≤</mo><mi>R</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>−</mo><mi>η</mi><mo>(</mo><mn>1</mn><mo>−</mo><mfrac><mrow><mi>L</mi><mi>η</mi></mrow><mn>2</mn></mfrac><mo>)</mo><msubsup><mrow><mo>‖</mo><mi>∇</mi><mi>R</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup></math>
 
 在梯度步仍处于该邻域、且 0<η<2/L 时，上界中的减小项非负。推导来自对参数位移的一阶展开与二阶余项界：步长太大时，曲率项可以抵消沿负梯度方向的收益。深网络中的有效曲率、随机梯度和参数尺度随训练变化，这个局部结论说明学习率与稳定性之间的联系，非凸训练能否达到全局最优是另一个问题。
 
@@ -26,7 +26,7 @@ BERT 与 ViT 使用学习率 warmup，让初期步长逐渐增加；二者报告
 
 Adam 以梯度的一阶、二阶指数移动统计调节各坐标更新。[18] 令 t 为步数、逐元素平方为 gₜ²，统计从零初始化，两个衰减系数均在 [0,1) 内，其统计与偏差修正为：
 
-<math display="block"><msub><mi>m</mi><mi>t</mi></msub><mo>=</mo><msub><mi>β</mi><mn>1</mn></msub><msub><mi>m</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mo>(</mo><mn>1</mn><mo>−</mo><msub><mi>β</mi><mn>1</mn></msub><mo>)</mo><msub><mi>g</mi><mi>t</mi></msub><mo>,</mo><mspace width="1em"/><msub><mi>v</mi><mi>t</mi></msub><mo>=</mo><msub><mi>β</mi><mn>2</mn></msub><msub><mi>v</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mo>(</mo><mn>1</mn><mo>−</mo><msub><mi>β</mi><mn>2</mn></msub><mo>)</mo><msubsup><mi>g</mi><mi>t</mi><mn>2</mn></msubsup></math>
+<math display="block"><msub><mi>m</mi><mi>t</mi></msub><mo>=</mo><msub><mi>β</mi><mn>1</mn></msub><msub><mi>m</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><msub><mi>β</mi><mn>1</mn></msub><mo stretchy="false">)</mo><msub><mi>g</mi><mi>t</mi></msub><mo>,</mo><mspace width="1em"/><msub><mi>v</mi><mi>t</mi></msub><mo>=</mo><msub><mi>β</mi><mn>2</mn></msub><msub><mi>v</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><msub><mi>β</mi><mn>2</mn></msub><mo stretchy="false">)</mo><msubsup><mi>g</mi><mi>t</mi><mn>2</mn></msubsup></math>
 
 <math display="block"><msub><mover><mi>m</mi><mo>^</mo></mover><mi>t</mi></msub><mo>=</mo><mfrac><msub><mi>m</mi><mi>t</mi></msub><mrow><mn>1</mn><mo>−</mo><msubsup><mi>β</mi><mn>1</mn><mi>t</mi></msubsup></mrow></mfrac><mo>,</mo><mspace width="1em"/><msub><mover><mi>v</mi><mo>^</mo></mover><mi>t</mi></msub><mo>=</mo><mfrac><msub><mi>v</mi><mi>t</mi></msub><mrow><mn>1</mn><mo>−</mo><msubsup><mi>β</mi><mn>2</mn><mi>t</mi></msubsup></mrow></mfrac></math>
 

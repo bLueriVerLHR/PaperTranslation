@@ -12,7 +12,7 @@
 
 若某个理想单矩阵更新具有奇异值 σ₁≥σ₂≥…，其最佳秩 r 近似的平方 Frobenius 误差为尾部平方和：
 
-<math display="block"><munder><mi mathvariant="normal">min</mi><mrow><mi mathvariant="normal">rank</mi><mo>(</mo><mi>Δ</mi><mo>)</mo><mo>≤</mo><mi>r</mi></mrow></munder><msubsup><mrow><mo>‖</mo><msup><mi>Δ</mi><mo>*</mo></msup><mo>−</mo><mi>Δ</mi><mo>‖</mo></mrow><mi>F</mi><mn>2</mn></msubsup><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>&gt;</mo><mi>r</mi></mrow></munder><msubsup><mi>σ</mi><mi>j</mi><mn>2</mn></msubsup></math>
+<math display="block"><munder><mi mathvariant="normal">min</mi><mrow><mi mathvariant="normal">rank</mi><mo stretchy="false">(</mo><mi>Δ</mi><mo stretchy="false">)</mo><mo>≤</mo><mi>r</mi></mrow></munder><msubsup><mrow><mo>‖</mo><msup><mi>Δ</mi><mo>*</mo></msup><mo>−</mo><mi>Δ</mi><mo>‖</mo></mrow><mi>F</mi><mn>2</mn></msubsup><mo>=</mo><munder><mo>∑</mo><mrow><mi>j</mi><mo>&gt;</mo><mi>r</mi></mrow></munder><msubsup><mi>σ</mi><mi>j</mi><mn>2</mn></msubsup></math>
 
 截断奇异值分解的前 r 项可以达到这个误差。其下界也来自子空间容量：任意秩 r 近似的列空间至多 r 维，令 P 为该空间的正交投影，则近似无法恢复 (I−P)Δ*。平方误差至少为 Δ* 的总平方能量减去该子空间捕获的能量。将 P 放到左奇异向量基中，其对角权重各在零与一之间、总和至多为 r；对递减的平方奇异值加权，最多捕获前 r 项的能量，余下尾部因此不可消除。
 
@@ -22,7 +22,7 @@
 
 原版 LoRA 随机初始化 A、将 B 初始化为零，使初始增量为零。[19] 对一层、一个样本，记输出梯度为 g，则：
 
-<math display="block"><mfrac><mrow><mo>∂</mo><mi>ℓ</mi></mrow><mrow><mo>∂</mo><mi>B</mi></mrow></mfrac><mo>=</mo><mi>s</mi><mi>g</mi><msup><mrow><mo>(</mo><mi>A</mi><mi>x</mi><mo>)</mo></mrow><mi>T</mi></msup><mo>,</mo><mspace width="1em"/><mfrac><mrow><mo>∂</mo><mi>ℓ</mi></mrow><mrow><mo>∂</mo><mi>A</mi></mrow></mfrac><mo>=</mo><mi>s</mi><msup><mi>B</mi><mi>T</mi></msup><mi>g</mi><msup><mi>x</mi><mi>T</mi></msup></math>
+<math display="block"><mfrac><mrow><mo>∂</mo><mi>ℓ</mi></mrow><mrow><mo>∂</mo><mi>B</mi></mrow></mfrac><mo>=</mo><mi>s</mi><mi>g</mi><msup><mrow><mo stretchy="false">(</mo><mi>A</mi><mi>x</mi><mo stretchy="false">)</mo></mrow><mi>T</mi></msup><mo>,</mo><mspace width="1em"/><mfrac><mrow><mo>∂</mo><mi>ℓ</mi></mrow><mrow><mo>∂</mo><mi>A</mi></mrow></mfrac><mo>=</mo><mi>s</mi><msup><mi>B</mi><mi>T</mi></msup><mi>g</mi><msup><mi>x</mi><mi>T</mi></msup></math>
 
 B 为零时，A 的初始梯度为零，B 则可以利用随机 A 产生的特征开始更新；随后 A 也获得梯度。若两者都为零，两个数据损失梯度都为零，这条乘积分支无法由普通梯度开始学习。零增量与非零可学习路径因此需要同时安排。
 

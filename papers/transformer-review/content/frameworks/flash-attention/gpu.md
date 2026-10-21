@@ -60,7 +60,7 @@ SM100、SM103、SM120 对应不同后端能力组合，架构名称不能替代�
 
 以使用两相位屏障、含 S 个 stage 的抽象环形流水线为例，第 t 次工作的缓冲编号与代次可写为：
 
-<math display="block"><mi>s</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><mi>t</mi><mo>mod</mo><mi>S</mi><mo>,</mo><mspace width="1em"/><mi>φ</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><mo>(</mo><msub><mi>φ</mi><mn>0</mn></msub><mo>+</mo><mo>⌊</mo><mfrac><mi>t</mi><mi>S</mi></mfrac><mo>⌋</mo><mo>)</mo><mo>mod</mo><mn>2</mn></math>
+<math display="block"><mi>s</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mo>=</mo><mi>t</mi><mo>mod</mo><mi>S</mi><mo>,</mo><mspace width="1em"/><mi>φ</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mo>=</mo><mo>(</mo><msub><mi>φ</mi><mn>0</mn></msub><mo>+</mo><mo>⌊</mo><mfrac><mi>t</mi><mi>S</mi></mfrac><mo>⌋</mo><mo>)</mo><mo>mod</mo><mn>2</mn></math>
 
 缓冲编号在一次完整轮转后重复，相位则翻转。只保存编号无法区分旧数据完成事件与新一轮使用；生产者和消费者对相位的解释不同，就可能出现提前读取或永久等待。这个状态关系说明了为什么容量正确、事务字节正确仍不足以保证异步执行正确。
 

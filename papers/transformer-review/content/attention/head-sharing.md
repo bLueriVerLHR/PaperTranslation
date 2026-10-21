@@ -4,7 +4,7 @@
 
 #### 解码时带宽为什么先到上限
 
-MQA 的原文给出了增量解码的访存与算术之比：设批量 b、历史长度 n、模型维 d、头数 h、每头维度 k（取 k=d/h），增量解码 n 次的总算术量约为 <math><mi>Θ</mi><mo>(</mo><mi>b</mi><mi>n</mi><msup><mi>d</mi><mn>2</mn></msup><mo>)</mo></math>，主项来自四次投影与打分。MHA 的总访存量则含一项每次调用都要重读全部历史键值：<math><mi>b</mi><msup><mi>n</mi><mn>2</mn></msup><mi>d</mi></math>。[37]（§2.4.1）两者相除，访存与算术之比是：
+MQA 的原文给出了增量解码的访存与算术之比：设批量 b、历史长度 n、模型维 d、头数 h、每头维度 k（取 k=d/h），增量解码 n 次的总算术量约为 <math><mi>Θ</mi><mo stretchy="false">(</mo><mi>b</mi><mi>n</mi><msup><mi>d</mi><mn>2</mn></msup><mo stretchy="false">)</mo></math>，主项来自四次投影与打分。MHA 的总访存量则含一项每次调用都要重读全部历史键值：<math><mi>b</mi><msup><mi>n</mi><mn>2</mn></msup><mi>d</mi></math>。[37]（§2.4.1）两者相除，访存与算术之比是：
 
 <math display="block"><msub><mrow><mo>(</mo><mfrac><mi>M</mi><mi>F</mi></mfrac><mo>)</mo></mrow><mi>MHA</mi></msub><mo>=</mo><mi>Θ</mi><mo>(</mo><mfrac><mi>n</mi><mi>d</mi></mfrac><mo>+</mo><mfrac><mn>1</mn><mi>b</mi></mfrac><mo>)</mo></math>
 
@@ -16,7 +16,7 @@ MQA 把键值头压到一个，历史键值只剩单个头宽，同一比值变�
 
 #### MQA 只保留一套键值
 
-MQA 的实现改动很小：查询头照旧是 h 份，键与值的投影矩阵只留一套，[37]（§3）于是每层每个历史位置的缓存元素数从 <math><msub><mi>H</mi><mi>q</mi></msub><mo>(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo>)</mo></math> 降到 <math><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub></math>。名字里的“多查询”说的是查询有多个，键值只有一份，与只保留一个查询头是两件事。
+MQA 的实现改动很小：查询头照旧是 h 份，键与值的投影矩阵只留一套，[37]（§3）于是每层每个历史位置的缓存元素数从 <math><msub><mi>H</mi><mi>q</mi></msub><mo stretchy="false">(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo stretchy="false">)</mo></math> 降到 <math><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub></math>。名字里的“多查询”说的是查询有多个，键值只有一份，与只保留一个查询头是两件事。
 
 代价落在表示能力上。所有查询头必须共用同一组键和值，各头只能靠自己的查询投影区分“要看什么”，无法再让某个头拥有专门的键空间。原文在 WMT 2014 英德翻译上的报告值是这样的：开发集 ln(PPL) 从 1.424 升到 1.439，开发集 BLEU 从 26.7 降到 26.5，测试集 beam 4 的 BLEU 从 28.4 升到 28.5；作为对照，减少头数或减小键值维度的几种改法在这组指标上更差。为了保持参数量与基线相同，它把前馈隐层从 4096 加宽到 5440。速度一侧，批量 1024、源与目标各 128 token 的增量解码里，解码器每步从 47 ms 降到 3.9 ms，摊到每 token 是 46 µs 降到 3.8 µs。[37]（§4）
 
@@ -24,7 +24,7 @@ MQA 的实现改动很小：查询头照旧是 h 份，键与值的投影矩阵�
 
 #### GQA 在两者之间取值
 
-分组查询注意力把查询头分成 G 组，每组共用一套键值，[36]（§2.2）因此 G=1 就是 MQA，G=Hq 就是 MHA，每层每个 token 的缓存元素数是 <math><msub><mi>H</mi><mi>k</mi><mi>v</mi></msub><mo>(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo>)</mo></math>。组内共享、组间不共享这一点与序列切分无关，它切的是头。
+分组查询注意力把查询头分成 G 组，每组共用一套键值，[36]（§2.2）因此 G=1 就是 MQA，G=Hq 就是 MHA，每层每个 token 的缓存元素数是 <math><msub><mi>H</mi><mi>k</mi><mi>v</mi></msub><mo stretchy="false">(</mo><msub><mi>d</mi><mi>k</mi></msub><mo>+</mo><msub><mi>d</mi><mi>v</mi></msub><mo stretchy="false">)</mo></math>。组内共享、组间不共享这一点与序列切分无关，它切的是头。
 
 把已有 MHA 检查点直接合并成 GQA 会掉质量，原文给的做法是先把组内的键值投影均值池化成一套，再用原预训练配方的 5% 继续训练：在 T5 XXL 上这一步耗约 600 个 TPUv3 芯片日，得到的 GQA 质量接近 MHA，解码速度接近 MQA。均值池化比随机初始化或只挑一个头效果更好：均值保留了组内各头键空间的重心，随机初始化则丢掉了预训练已经学到的方向。[36]（§2.1、§3.1）
 
