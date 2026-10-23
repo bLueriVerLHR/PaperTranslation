@@ -22,7 +22,7 @@
 
 <math display="block"><mrow><mi>S</mi><mo>=</mo><mfrac><mn>1</mn><mrow><mn>1</mn><mo>−</mo><mi>f</mi><mo>+</mo><mi>f</mi><mo>/</mo><mi>s</mi></mrow></mfrac></mrow></math>
 
-若 <math><mrow><mi>f</mi><mo>=</mo><mn>0.2</mn></mrow></math>、通信部分耗时减半，即 <math><mrow><mi>s</mi><mo>=</mo><mn>2</mn></mrow></math>，总加速只有约 1.11 倍。该教学例不是训练结果；已有重叠时，应该用真正暴露在关键路径上的通信比例，而非所有通信 kernel 时长之和。优化还可能改变计算资源竞争，使上述固定工作模型失效。
+举个教学例：通信占比 <math><mrow><mi>f</mi><mo>=</mo><mn>0.2</mn></mrow></math>、通信部分耗时减半即 <math><mrow><mi>s</mi><mo>=</mo><mn>2</mn></mrow></math> 时，总加速只有约 1.11 倍。真实训练里已有重叠时，应该改用暴露在关键路径上的通信比例，而不是所有通信 kernel 时长之和；优化还可能改变计算资源竞争，使上述固定工作模型失效。
 
 集合完成常受最慢 rank 影响。平均 per-rank 吞吐尚好时，一个 NUMA 远端缓冲、迟到的 bucket 或被 PFC 波及的流，仍可能拉长尾部。更多通信流可以提高吞吐，却也增加上下文、排队和同步压力；吞吐峰值与每步时延最小化不是同一目标。
 

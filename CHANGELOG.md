@@ -6,6 +6,53 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Review corrections in pending manuscript additions
+
+- Correct checkpoint and queueing calculations: the checkpoint/rollback subtotal is about 9.1%
+  before restart cost; doubling the service-time coefficient of variation gives a Kingman-based
+  utilization bound of 2/7, not 0.4. Separate average waiting from tail guarantees and clarify Borg
+  allocation/usage denominators. Add the original Kingman reference.
+- Correct the Prometheus GPU-to-CPU ratio, keep MTBI scaling conditional, and retain the reported
+  13% spare-margin discrepancy rather than inventing its denominator. Narrow unsupported detector,
+  power-buffer, cooling and recovery claims.
+- Distinguish CUDA runtime update capabilities from PyTorch fixed-address replay policies; correct
+  launch-cost overlap accounting and align both diagrams with the text. Keep source locators outside
+  copyable excerpts and add fixed-version links.
+- Recompute the attention cache example (144 MiB for full-history MLA), separate sequence-wide
+  arithmetic from per-token costs, and do not transplant NSA's 64K reading budget into 128K.
+
+### Example framing in quantitative passages
+
+- Move the "this is a teaching value / a derived estimate" statement to the start of each worked example
+  instead of appending it after the numbers: the SRE review's checkpoint interval, failure-rate table,
+  model-loading time, queueing, container start and disk-repair passages, the CUDA Graph launch-cost
+  example, the latency break-even and speedup examples in the communication reader, the KV-cache ledger
+  example, and the pagination example in the question bank. Trailing disclaimers become the conditions
+  that actually decide whether the numbers transfer (platform, model scale, shared bandwidth, overlap).
+
+### Prometheus case chapter in the SRE reader
+
+- Add `papers/ml-sre-ha-review/content/15-case-prometheus.md`: a worked case that puts the
+  review's quantities back into one cluster — goodput against mean time between interruptions,
+  the 64-of-72 rack geometry and its spare ratio, silent-data-corruption detection at fleet
+  scale, the DSF-to-NSF fabric change, power transients and liquid cooling, and firmware as a
+  release. Two vendor engineering posts are added as sources [9] and [10]; reported numbers stay
+  attributed, and the chapter recomputes the interrupt-rate conversion, the spare ratio
+  (≈15% against the reported 13%), and the power budget (45.9 MW).
+- Extend the reader's scope with power/cooling and hardware quality, and add the glossary rows,
+  source-map rows and reader notes the chapter needs.
+
+### CUDA Graph section in the compilation-stack reader
+
+- Add `papers/dl-compiler-review/content/graph/cuda-graph.md` to chapter 05: launch-cost
+  accounting, stream-capture rules, instantiation and replay, executable-graph update limits,
+  graph memory pools and pool-state checkpoints, conditional nodes, and device graph launch. Its
+  evidence is the pinned PyTorch commit (`CUDAGraph.{h,cpp,cu}`, `cudagraph_trees.py`,
+  `cudagraph_conditional_nodes.py`, the in-repo CUDAGraph Trees guide) plus the CUDA Programming
+  Guide for runtime semantics, because the toolkit is closed source and not checked out.
+- Add two figures, `assets/figures/01-launch-lifecycle.svg` and `02-pool-liveness.svg`, and the
+  glossary rows, source-map row and reference entry that the new section depends on.
+
 ### Attention mechanism chapter
 
 - Add chapter 2, `papers/transformer-review/content/02-attention.md`, ordering MHA → MQA → GQA →

@@ -38,6 +38,13 @@
       "aliases": [
         "Wang et al. 2025"
       ]
+    },
+    "cuda-guide": {
+      "text": "NVIDIA. CUDA Programming Guide, release v13.4.2, §4.2 CUDA Graphs.",
+      "url": "https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/cuda-graphs.html",
+      "aliases": [
+        "CUDA Programming Guide"
+      ]
     }
   }
 }

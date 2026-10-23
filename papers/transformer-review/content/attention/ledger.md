@@ -1,26 +1,28 @@
 ### 三条轴上的成本对照
 
-把本章的机制放到同一组单位上，差别落在三个方向上：每个历史位置留下多少、一次解码要读多少、每 token 要做多少成对计算；状态容量对递推类机制另记一项。下表按这三个方向排列，最后一列写各自新增的成本。表中 <math><msub><mi>H</mi><mi>q</mi></msub></math> 为查询头数、<math><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub></math> 为键值头数、d 为每头维度、N 为历史长度、s 为当前已缓存长度；算术一列只保留主导项，常数因子省略。
+把本章的机制放到同一组单位上，差别落在三个方向上：每个历史位置留下多少、一次解码要读多少、处理整段序列需要多少主要算术；状态容量对递推类机制另记一项。下表按这三个方向排列，最后一列写各自新增的成本。表中 <math><msub><mi>H</mi><mi>q</mi></msub></math> 为查询头数、<math><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub></math> 为键值头数、d 为每头维度、N 为历史长度、s 为当前已缓存长度；算术一列按整段长度 N 计，只保留主要项，省略投影等开销；递推状态按每头计。NSA 的 δ 是压缩步长，n、l′、w 分别是入选块数、块长与窗口长度，Mamba2 的状态维度另记为 D_state，以免与历史长度 N 混用。
 
-| 机制 | 每历史位置的缓存 | 单步读取量 | 每 token 成对算术 | 主要新增成本 |
+| 机制 | 每历史位置的缓存或递推状态 | 单步读取量 | 全序列主要算术 | 主要新增成本 |
 |---|---|---|---|---|
 | MHA | <math><msub><mi>H</mi><mi>q</mi></msub></math>(<math><msub><mi>d</mi><mi>k</mi></msub></math>+<math><msub><mi>d</mi><mi>v</mi></msub></math>) | 与 N 成正比 | ≈ <math><msub><mi>H</mi><mi>q</mi></msub></math>·d·N² | 缓存随头数与长度双双增长 |
-| GQA | <math><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub></math>(<math><msub><mi>d</mi><mi>k</mi></msub></math>+<math><msub><mi>d</mi><mi>v</mi></msub></math>) | 与 N 成正比，按 <math><msub><mi>H</mi><mi>q</mi></msub></math>/<math><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub></math> 缩小 | ≈ <math><msub><mi>H</mi><mi>q</mi></msub></math>·d·N² | 需继续预训练恢复质量 |
+| GQA | <math><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub></math>(<math><msub><mi>d</mi><mi>k</mi></msub></math>+<math><msub><mi>d</mi><mi>v</mi></msub></math>) | 与 N 成正比，按 <math><msub><mi>H</mi><mi>q</mi></msub></math>/<math><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub></math> 缩小 | ≈ <math><msub><mi>H</mi><mi>q</mi></msub></math>·d·N² | 由已有 MHA 转换时需训练恢复质量 |
 | MLA | <math><msub><mi>d</mi><mi>c</mi></msub></math>+<math><msub><mi>d</mi><mi>r</mi></msub></math> | 与 N 成正比，按宽度缩小 | ≈ <math><msub><mi>H</mi><mi>q</mi></msub></math>·<math><msub><mi>d</mi><mi>c</mi></msub></math>·N² | 表示受瓶颈约束、位置分支必须解耦 |
 | 核化线性注意力 | 状态 r×<math><msub><mi>d</mi><mi>v</mi></msub></math>+r | 与 N 无关 | ≈ N·d·r | 有限维特征装不下指数核 |
 | RetNet | 同上，加逐头衰减 | 与 N 无关 | 同上 | 衰减形状固定 |
 | DeltaNet | <math><msub><mi>d</mi><mi>v</mi></msub></math>×<math><msub><mi>d</mi><mi>k</mi></msub></math> | 与 N 无关 | 同上，另加块内三角求解 | 并行化依赖 WY 表示 |
 | GDN | <math><msub><mi>d</mi><mi>v</mi></msub></math>×<math><msub><mi>d</mi><mi>k</mi></msub></math> | 与 N 无关 | 同上，三角求解带逐元素权重 | α、β 投影与短卷积 |
 | KDA | <math><msub><mi>d</mi><mi>v</mi></msub></math>×<math><msub><mi>d</mi><mi>k</mi></msub></math> | 与 N 无关 | ≈ N(6d² + 3Cd + C²)，C 为块宽 | α 的逐通道低秩投影与短卷积 |
-| SSM（Mamba2） | 每头 P×N | 与 N 无关 | ≈ N·d·P | 专用扫描内核 |
+| SSM（Mamba2） | 每头 P×D_state | 与 N 无关 | ≈ N·P·D_state，另计分块开销 | 专用扫描内核 |
 | SWA | <math><msub><mi>H</mi><mi>q</mi></msub></math>(<math><msub><mi>d</mi><mi>k</mi></msub></math>+<math><msub><mi>d</mi><mi>v</mi></msub></math>)，长度封顶 W | 与 W 成正比 | ≈ <math><msub><mi>H</mi><mi>q</mi></msub></math>·d·N·W | 覆盖写入，远距离只能靠层数 |
-| NSA | 完整历史加压缩键值 | ≈ s/d + n·l′ + w | 索引项 ≈ <math><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub></math>·<math><msub><mi>d</mi><mi>i</mi></msub></math>·N²，主分支 ≈ N·k·B | 三分支投影、选择不可微 |
+| NSA | 完整历史加压缩键值及窗口 | ≈ s/δ + n·l′ + w | ≈ <math><msub><mi>H</mi><mi>q</mi></msub></math>·d·[N²/δ + N(n·l′+w)]，另计选块 | 三分支投影、块内冗余与选择误差 |
 | DSA | 完整潜在状态 | ≈ k（论文取 2,048） | 索引项 ≈ N²·Hᴵ·dᴵ，主分支 ≈ N·k·d | 索引扫描、选择误差 |
 | MSA | 完整历史加索引键 | ≈ k·B | 索引项 ≈ <math><msub><mi>H</mi><mrow><mi>k</mi><mi>v</mi></mrow></msub></math>·<math><msub><mi>d</mi><mi>i</mi></msub></math>·N²，主分支 ≈ N·k·B | 块内冗余、二次索引项 |
 
-#### 一个统一配置下的量级
+#### 固定长度下的缓存读取算例
 
-把三种改法放到同一个算例里：单层、批量 1、上下文 128K，缓存按 2 字节计。MHA 在每个 token 上留 64 KiB，一次解码要读 <math><mn>65536</mn><mo>×</mo><mn>131072</mn><mo>≈</mo><mn>8</mn></math> GiB；MLA 每 token 留 576 个元素、1,152 字节，读同一段历史约 141 MiB；DSA 只读 2,048 个潜在状态，约 2.3 MB；NSA 在 4 组 GQA、每 token 512 字节的配置下读约 5,632 个位置，约 2.8 MB。这几组数字横跨三个数量级，来源是三项互相独立的改动：压缩每个位置的宽度、把历史换成递推状态、限制单次读取的集合。它们是教学算例，没有计入分页、对齐、索引键与工作区，也不代表端到端时延。
+以下为教学算例，取单层、批量 1、历史长度 131,072，缓存每元素 2 字节，只算主注意力的理想缓存读取，不计分页、对齐、索引扫描与工作区。MHA 取 128 个头、键和值头维均为 128，每位置为 128×（128＋128）×2＝65,536 字节，读取全部历史为 8 GiB。MLA 另取每位置 576 个缓存元素，即 1,152 字节，读全部历史为 144 MiB；在这个布局上仅取 2,048 个位置，读取为 2,048×1,152＝2,359,296 字节，约 2.36 MB。
+
+这组算式分别展示宽度压缩与稀疏读取如何改变同一字节流；它没有对齐模型参数量或训练质量，也没有计入 DSA 的索引开销，不能作为三种模型的端到端排名。NSA 的 5,632 个等价读取位置来自论文的 64K 配置[43]（表 4），不能移到上述 128K 历史上直接使用。
 
 #### 收益为什么不能直接相乘
 

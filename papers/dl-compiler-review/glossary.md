@@ -22,6 +22,15 @@
 | quantization | 量化 | 用低位宽表示数值；与调度层次无关 |
 | dispatch / operator registration | 分发／算子注册 | 依据输入类型选择具体实现 |
 | graph capture | 图捕获 | 把执行过程中的算子序列记录成可变换的图 |
+| CUDA Graph | CUDA 图 | 运行时工作与依赖的图，可显式构造或从流捕获；支持受限更新和条件结点，与算子级编译器图不同层 |
+| graph description / executable graph | 描述图／可执行图 | `cudaGraph_t` 是可检查的描述，`cudaGraphExec_t` 是实例化后可发射的形式 |
+| graph node / dependency | 图结点／依赖 | 结点是启动单元，边是“谁等谁”；调度时机由运行时决定，流只负责与外部排序 |
+| graph memory node | 图内存结点 | 可显式构造，也可由捕获异步分配与释放生成；图内存池与框架缓存分配器私有池需区分 |
+| conditional node | 条件结点 | IF／WHILE／SWITCH 三类，条件体是子图，条件值由设备内核写入 |
+| device graph launch | 设备端发射 | 从另一张图的结点内部发射，只能发射进三个命名流 |
+| pool checkpoint | 池检查点 | 录制时存下的分配器记账状态；回放不更新记账，继续录制前需要恢复 |
+| CUDA Graph Trees | CUDA 图树（保留英文） | 按路径分裂的多份录制与它们的池共享结构；同一段代码可能对应多份 |
+| graph partition（CUDA 图） | 图分区 | 把 CPU 算子、设备拷贝、控制流与不安全自定义算子切出，只对剩余部分做图化；与图级分区不同层 |
 | guard | 守卫 | 运行前检查假设是否仍成立，不成立则回退 |
 | backend / target | 后端／目标 | 针对具体硬件生成代码的部分 |
 | shared memory | 共享内存 | 片上、块内可见的存储 |

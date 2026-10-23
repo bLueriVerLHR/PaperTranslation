@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" role="img" aria-labelledby="title desc">
+<title id="title">逐次投放与图化的成本位置</title>
+<desc id="desc">逐次投放为每个内核各付一次准备成本，CPU 侧为 K 乘 c；图化把部分准备提前完成，每次图发射另付 c_g，一次性准备按 R 次摊销。</desc>
+<defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto-start-reverse"><path d="M0 0 L10 4 L0 8 Z" fill="#243244"/></marker></defs>
+<style>text{font-family:"Source Han Serif SC","Microsoft YaHei",serif;fill:#243244} .code{font-family:"Maple Mono CN",monospace} .muted{fill:#4a5b6e}</style>
+<rect width="900" height="640" rx="12" fill="#fff"/>
+<text x="30" y="44" font-size="27" font-weight="bold">逐次投放与图化：成本挪到哪里</text>
+
+<text x="30" y="112" font-size="22" font-weight="bold">逐次投放</text>
+<text x="30" y="140" font-size="17" class="muted">每个内核各付一次准备</text>
+
+<rect x="228" y="86" width="70" height="18" rx="3" fill="#2563a8" opacity="0.32"/>
+<text x="263" y="100" font-size="13" text-anchor="middle">准备 c</text>
+<rect x="228" y="108" width="70" height="42" rx="7" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="263" y="134" font-size="17" text-anchor="middle">内核 1</text>
+
+<rect x="318" y="86" width="70" height="18" rx="3" fill="#2563a8" opacity="0.32"/>
+<text x="353" y="100" font-size="13" text-anchor="middle">准备 c</text>
+<rect x="318" y="108" width="70" height="42" rx="7" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="353" y="134" font-size="17" text-anchor="middle">内核 2</text>
+
+<rect x="408" y="86" width="70" height="18" rx="3" fill="#2563a8" opacity="0.32"/>
+<text x="443" y="100" font-size="13" text-anchor="middle">准备 c</text>
+<rect x="408" y="108" width="70" height="42" rx="7" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="443" y="134" font-size="17" text-anchor="middle">内核 3</text>
+
+<rect x="498" y="86" width="70" height="18" rx="3" fill="#2563a8" opacity="0.32"/>
+<text x="533" y="100" font-size="13" text-anchor="middle">准备 c</text>
+<rect x="498" y="108" width="70" height="42" rx="7" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="533" y="134" font-size="17" text-anchor="middle">内核 K</text>
+
+<line x1="298" y1="129" x2="316" y2="129" stroke="#243244" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="388" y1="129" x2="406" y2="129" stroke="#243244" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="478" y1="129" x2="496" y2="129" stroke="#243244" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="586" y="128" font-size="24" class="muted">…</text>
+<text x="618" y="120" font-size="18" class="code">CPU 侧 = K · c</text>
+<text x="618" y="146" font-size="18" class="code muted">GPU 工作本身 = T</text>
+
+<text x="30" y="230" font-size="22" font-weight="bold">图化</text>
+<text x="30" y="258" font-size="17" class="muted">准备一次，发射多次</text>
+
+<rect x="210" y="200" width="150" height="62" rx="8" fill="#fff" stroke="#237b65" stroke-width="2"/>
+<text x="285" y="238" font-size="19" text-anchor="middle">捕获</text>
+<rect x="400" y="200" width="150" height="62" rx="8" fill="#f2f8f5" stroke="#237b65" stroke-width="2"/>
+<text x="475" y="238" font-size="19" text-anchor="middle">实例化</text>
+<rect x="590" y="200" width="150" height="62" rx="8" fill="#f2f8f5" stroke="#237b65" stroke-width="2"/>
+<text x="665" y="238" font-size="19" text-anchor="middle">回放</text>
+
+<line x1="360" y1="231" x2="396" y2="231" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="550" y1="231" x2="586" y2="231" stroke="#243244" stroke-width="2.2" marker-end="url(#arrow)"/>
+<line x1="740" y1="231" x2="782" y2="231" stroke="#237b65" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+<text x="794" y="226" font-size="18" fill="#237b65">×R</text>
+<text x="794" y="250" font-size="15" fill="#237b65">重复</text>
+
+<text x="285" y="284" font-size="15" text-anchor="middle" class="muted">只记录，不执行</text>
+<text x="475" y="284" font-size="15" text-anchor="middle" class="muted">验证与资源准备</text>
+<text x="665" y="284" font-size="15" text-anchor="middle" class="muted">成本另记 c_g</text>
+
+<line x1="30" y1="330" x2="870" y2="330" stroke="#d5dde8" stroke-width="1.5"/>
+
+<text x="30" y="358" font-size="18">主机成本节省 ≈ K·c − c_g − C_setup/R；图发射成本不等于单内核启动成本。</text>
+<text x="30" y="384" font-size="17" class="muted">只有提交暴露在关键路径上，省下的 CPU 时间才可能缩短端到端时间。</text>
+
+<rect x="30" y="396" width="410" height="76" rx="8" fill="#f5f8fc" stroke="#2563a8" stroke-width="2"/>
+<text x="46" y="424" font-size="18" class="code">cudaGraphExecUpdate</text>
+<text x="46" y="452" font-size="17" class="muted">拓扑兼容时，可受限更新地址等参数</text>
+
+<rect x="460" y="396" width="410" height="76" rx="8" fill="#fdf4f2" stroke="#a83a25" stroke-width="2"/>
+<text x="476" y="424" font-size="18">重新构图或捕获并实例化</text>
+<text x="476" y="452" font-size="17" class="muted">拓扑不兼容；图树也可能按形状重录</text>
+
+<rect x="30" y="496" width="840" height="80" rx="8" fill="#f5f8fc" stroke="#243244" stroke-width="1.6"/>
+<text x="46" y="524" font-size="18">历史报告：CUDA 12.4／驱动 550 之前，每个内核启动约占 64 KB；</text>
+<text x="46" y="552" font-size="18">不能用一般结点数或这一旧值预测新版本的实际设备内存。</text>
+
+<text x="30" y="612" font-size="16" class="muted">示意只核算 CPU 提交；运行时还可能利用完整工作流优化调度。</text>
+</svg>

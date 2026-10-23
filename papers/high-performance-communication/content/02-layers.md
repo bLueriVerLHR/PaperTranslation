@@ -39,7 +39,7 @@
 
 <math display="block"><mrow><msup><mi>n</mi><mo>*</mo></msup><mo>=</mo><mi>α</mi><mi>β</mi></mrow></math>
 
-取 <math><mrow><mi>α</mi><mo>=</mo><mn>1</mn></mrow></math> µs、<math><mrow><mi>β</mi><mo>=</mo><mn>64</mn></mrow></math> GB/s（PCIe 5.0 ×16 的标称速率），得到 <math><mrow><msup><mi>n</mi><mo>*</mo></msup><mo>=</mo><mn>64</mn></mrow></math> KB：小于这个规模时，固定开销占传输时间的一半以上；大于它之后，带宽项开始主导。这两个数值是本篇为说明关系设定的教学取值，不是某台机器的实测参数。
+举个教学算例：取 <math><mrow><mi>α</mi><mo>=</mo><mn>1</mn></mrow></math> µs、<math><mrow><mi>β</mi><mo>=</mo><mn>64</mn></mrow></math> GB/s（为便于计算选取的单向带宽近似值，与 PCIe 5.0 ×16 的速率同量级，不是有效载荷实测带宽），得到 <math><mrow><msup><mi>n</mi><mo>*</mo></msup><mo>=</mo><mn>64</mn></mrow></math> kB。小于这个规模时，固定开销占传输时间的一半以上；大于它之后，带宽项开始主导。
 
 <figure>
 <a href="assets/figures/03-movement-layers.svg"><img src="assets/figures/03-movement-layers.svg" alt="自上而下为片上存储、HBM、主机内存、节点内互连、网络端口与跨域；左侧标注量级速率，右侧标注由谁共享。"></a>

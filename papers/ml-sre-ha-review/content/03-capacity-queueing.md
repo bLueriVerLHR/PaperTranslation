@@ -6,33 +6,33 @@
 
 先看最简单的情形：单个服务台、到达过程近似泊松、服务时间近似指数分布（M/M/1）。设服务强度为 <math><mi>ρ</mi></math>（到达率乘以平均服务时间），平均等待时间为
 
-<math display="block"><mrow><mi>W</mi><mo>=</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mi>S</mi></mrow></math>
+<div class="equation" id="eq-queue-mm1"><math display="block"><mrow><mi>W</mi><mo>=</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mi>S</mi></mrow></math><span class="eqno">(3-1)</span></div>
 
 其中 <math><mi>S</mi></math> 是平均服务时间。放大因子 <math><mi>ρ</mi><mo>/</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo stretchy="false">)</mo></math> 在利用率接近 1 时发散：ρ 取 0.5 是 1 倍，0.8 是 4 倍，0.9 是 9 倍，0.95 是 19 倍。
 
-M/M/1 假设太强，实用的是它的近似推广（Kingman 公式）：
+到达间隔与服务时间不服从上述分布时，可以用 GI/G/1 单服务台模型下的 Kingman 重载近似估计平均排队等待时间[11]。它假设到达间隔独立同分布、服务时间独立同分布，且二者独立；在低负载、强相关或批服务场景中，精度需要另行检验：
 
-<math display="block"><mrow><mi>E</mi><mo stretchy="false">[</mo><mi>W</mi><mo stretchy="false">]</mo><mo>≈</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><msubsup><mi>C</mi><mi>a</mi><mn>2</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>s</mi><mn>2</mn></msubsup></mrow><mn>2</mn></mfrac><mo>·</mo><mi>E</mi><mo stretchy="false">[</mo><mi>S</mi><mo stretchy="false">]</mo></mrow></math>
+<div class="equation" id="eq-queue-kingman"><math display="block"><mrow><mi>E</mi><mo stretchy="false">[</mo><mi>W</mi><mo stretchy="false">]</mo><mo>≈</mo><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><msubsup><mi>C</mi><mi>a</mi><mn>2</mn></msubsup><mo>+</mo><msubsup><mi>C</mi><mi>s</mi><mn>2</mn></msubsup></mrow><mn>2</mn></mfrac><mo>·</mo><mi>E</mi><mo stretchy="false">[</mo><mi>S</mi><mo stretchy="false">]</mo></mrow></math><span class="eqno">(3-2)</span></div>
 
-<math><msub><mi>C</mi><mi>a</mi></msub></math> 与 <math><msub><mi>C</mi><mi>s</mi></msub></math> 分别是到达间隔与服务时间的变异系数。这个式子给出两个可操作的结论：决定时延的除了利用率，还有服务时间的离散程度；降低方差与降低利用率是等效的手段，而前者通常更便宜。
+<math><msub><mi>C</mi><mi>a</mi></msub></math> 与 <math><msub><mi>C</mi><mi>s</mi></msub></math> 分别是到达间隔与服务时间的变异系数。在这个近似中，利用率与两个变异系数共同决定平均等待时间。降低波动和降低利用率都能减小估计值，但实现成本取决于负载与系统，公式不能给出哪一种更便宜。
 
-代入一组教学取值说明量级：平均服务时间 50 ms，要求平均等待不超过 50 ms。若服务时间接近指数分布（变异系数 1），则要求 <math><mi>ρ</mi><mo>/</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo stretchy="false">)</mo><mo>≤</mo><mn>1</mn></math>，即 ρ ≤ 0.5。若批处理让服务时间的变异系数升到 2，同样的等待目标要求
+以下为教学算例：取泊松到达（到达间隔变异系数为 1），平均服务时间 50 ms，要求平均排队等待不超过 50 ms。若服务时间为指数分布（变异系数为 1），则要求 <math><mi>ρ</mi><mo>/</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>ρ</mi><mo stretchy="false">)</mo><mo>≤</mo><mn>1</mn></math>，即 ρ ≤ 0.5。若批处理让服务时间的变异系数升到 2，同样的等待目标要求
 
-<math display="block"><mrow><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><mn>1</mn><mo>+</mo><mn>4</mn></mrow><mn>2</mn></mfrac><mo>≤</mo><mn>1</mn><mo>⇒</mo><mi>ρ</mi><mo>≤</mo><mn>0.4</mn></mrow></math>
+<div class="equation" id="eq-queue-cv-bound"><math display="block"><mrow><mfrac><mi>ρ</mi><mrow><mn>1</mn><mo>−</mo><mi>ρ</mi></mrow></mfrac><mo>·</mo><mfrac><mrow><mn>1</mn><mo>+</mo><mn>4</mn></mrow><mn>2</mn></mfrac><mo>≤</mo><mn>1</mn><mo>⇒</mo><mi>ρ</mi><mo>≤</mo><mfrac><mn>2</mn><mn>7</mn></mfrac><mo>≈</mo><mn>0.286</mn></mrow></math><span class="eqno">(3-3)</span></div>
 
-也就是说，同样一台机器，服务时间方差翻倍就要把规划利用率从 50% 降到 40%，否则尾时延会越过目标。生成式推理恰好属于方差大的情形：连续批处理把不同长度的请求拼进同一批，批内 token 数决定了这一批的服务时间。
+保持均值不变，服务时间变异系数从 1 升到 2，方差增至原来的 4 倍；按该近似反解，利用率上限由 50% 降至约 28.6%。这里约束的是平均等待，不能据此保证 P99 等尾时延。连续批处理还会改变服务粒度，并使请求等待相互关联，因此不能把这条单服务台近似直接当作推理调度器的精确容量公式。
 
 ### 3.2 生成式推理的双约束
 
-推理服务的容量不能只用一个时延目标描述。预填充阶段决定首 token 时延，解码阶段决定 token 间隔，两个阶段对批大小的敏感度不同：预填充偏好大批量以摊薄权重读取，解码偏好小批量以压低单请求间隔。Mooncake 把这两个目标都写成约束，在满足首 token 时延与 token 间隔离线的前提下最大化有效吞吐，并把可复用的键值缓存（KVCache）从显存下沉到由 CPU、内存、固态盘与网卡组成的分布式池中[6]。
+推理服务的容量不能只用一个时延目标描述。预填充阶段决定首 token 时延，解码阶段决定 token 间隔，两个阶段对批大小的敏感度不同：预填充偏好大批量以摊薄权重读取，解码偏好小批量以压低单请求间隔。Mooncake 把这两个目标都写成约束，在满足首 token 时延与 token 间隔约束的前提下最大化有效吞吐，并把可复用的键值缓存（KVCache）从显存下沉到由 CPU、内存、固态盘与网卡组成的分布式池中[6]。
 
 这个设计改变了容量算式的一项。传统做法下，显存容量限制了并发会话数，扩容只能加卡；把缓存下沉后，并发上限部分由存储带宽决定，扩容可以在不动加速卡的前提下完成。代价是多了一次跨节点读取，读带宽成为新的约束项。第 12 章讨论这种分离在运维上的后果。
 
 ### 3.3 分配率不等于使用率
 
-调度系统按申请量（request）分配资源，而实际使用量通常低于申请量。Borg 论文给出了一组有代表性的数字：在典型的 cell 中，生产作业分配到约 70% 的 CPU，实际使用约 60%；分配到约 55% 的内存，实际使用约 85%[4]。CPU 的分配高于使用，内存的分配低于使用。
+资源申请量（request）与实际使用量是两种统计。Borg 在一个代表性 cell 中报告：生产作业获分配的 CPU 占总 CPU 资源约 70%，其 CPU 使用量占全体作业 CPU 使用量约 60%；内存对应的比例分别约为 55% 与 85%[4]（§2.1）。分配比例以资源总量为分母，使用比例以总使用量为分母，不能据此断言生产作业实际使用了总内存的 85%，也不能推出其使用量超过申请量。
 
-这两个方向对应两种不同的资源性质。CPU 是可压缩资源，超用时表现为变慢而不是被杀；内存是不可压缩资源，超用时进程会被终止。Borg 因此对 CPU 做回收，把生产作业闲置的份额让给批处理；对内存则必须允许申请量低于真实使用量，否则大量作业无法被接纳。
+CPU 与内存的回收方式也不同。CPU 配额不足通常表现为计算变慢；内存不足可能触发回收、驱逐或进程终止。Borg 利用未被使用的预留资源运行较低优先级任务[4]（§5.5），资源回收收益与生产任务受到的干扰需要分别计量。
 
 Kubernetes 把同一组概念写成申请量与上限：申请量参与调度与服务质量等级判定，上限写入控制组[1]。这带来一个实践上的分工：容量规划按申请量做，因为调度器只认申请量；风险评估按上限做，因为上限决定了单机超卖后的实际内存压力。把两者混同，要么规划出大量永远用不上的空闲资源，要么在节点上制造不可预测的终止。
 
@@ -48,9 +48,9 @@ Kubernetes 把同一组概念写成申请量与上限：申请量参与调度与
 
 容量规划的另一半是冗余：为吸收故障需要预留多少资源。设集群有 <math><mi>n</mi></math> 台机器，单台在某个窗口内出故障的概率为 <math><mi>p</mi></math>，同时故障的台数近似服从二项分布：
 
-<math display="block"><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>X</mi><mo>=</mo><mi>k</mi><mo stretchy="false">)</mo><mo>=</mo><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>p</mi><mi>k</mi></msup><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo stretchy="false">)</mo></mrow><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup></mrow></math>
+<div class="equation" id="eq-queue-redundancy"><math display="block"><mrow><mi>P</mi><mo stretchy="false">(</mo><mi>X</mi><mo>=</mo><mi>k</mi><mo stretchy="false">)</mo><mo>≈</mo><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow><msup><mi>p</mi><mi>k</mi></msup><msup><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>p</mi><mo stretchy="false">)</mo></mrow><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup></mrow></math><span class="eqno">(3-4)</span></div>
 
-取 <math><mi>n</mi><mo>=</mo><mn>100</mn></math>，按 <math><mi>p</mi></math> 取三档算出“至少 3 台同时故障”的概率，结果如表 3-1。表中概率按上式逐项计算，<math><mi>p</mi></math> 为教学取值，实际应按监控数据估计。
+举个算例：取 <math><mi>n</mi><mo>=</mo><mn>100</mn></math>，单机故障概率按三档取值，算出“至少 3 台同时故障”的概率，结果如表 3-1。表中概率按上式逐项计算；生产里 <math><mi>p</mi></math> 应从监控数据估计。
 
 | 单台故障概率 p | P(X ≥ 1) | P(X ≥ 3) |
 |---|---|---|
@@ -58,17 +58,17 @@ Kubernetes 把同一组概念写成申请量与上限：申请量参与调度与
 | 1% | 63.4% | 7.9% |
 | 2% | 86.7% | 32.3% |
 
-冗余台数 <math><mi>k</mi></math> 应当按上一行的尾概率选取，而不是按平均故障数 <math><mi>n</mi><mi>p</mi></math> 选取。100 台机器、单台 1% 的故障概率下平均故障数是 1，但“同时坏 3 台”的概率接近 8%，这个量级足以让“只留一份备机”的方案在每个窗口都失效一次。这条算式也解释了为什么大规模集群需要按机架、按交换机做故障域隔离：独立假设不成立时，尾部会更厚。
+冗余台数 <math><mi>k</mi></math> 应当按上一行的尾概率选取，而不是按平均故障数 <math><mi>n</mi><mi>p</mi></math> 选取。100 台机器、单台 1% 的故障概率下平均故障数是 1，但“同时坏 3 台”的概率接近 8%，只留 1 台备机时，应检查的失效概率是 P（X≥2），在这一配置下约为 26.4%；它不是每个窗口必然失效。这条算式也解释了为什么大规模集群需要按机架、按交换机做故障域隔离：独立假设不成立时，尾部会更厚。
 
 ### 3.6 碎片与集群规模
 
-集群越大，碎片损失越小。Borg 论文用分组实验说明这一点：把一个 cell 的工作负载随机打散到多个更小的 cell，所需机器显著增加；把资源申请按 2 的幂做桶，中位情形需要多 30%～50% 的机器[4]。机制是装箱问题：申请量的分布越连续，大集群越容易把不同形状的申请拼进同一批机器；一旦把申请量取整到少数几档，就人为制造了无法利用的空洞。
+在负载可以共同装箱、调度约束相近的条件下，扩大资源池通常能降低碎片损失。Borg 论文用分组实验说明这一点：把一个 cell 的工作负载随机打散到多个更小的 cell，所需机器显著增加；把资源申请按 2 的幂做桶，中位情形需要多 30%～50% 的机器[4]。机制是装箱问题：申请量的分布越连续，大集群越容易把不同形状的申请拼进同一批机器；一旦把申请量取整到少数几档，就人为制造了无法利用的空洞。
 
-这条结论对 Kubernetes 的直接含义是：资源申请的粒度决定了碎片水平。为少量超大规模作业单独建池、给常规服务保留细粒度申请，比把所有负载塞进一个池再统一取整更省机器。
+这条结论对 Kubernetes 的直接含义是：资源申请的粒度决定了碎片水平。细粒度申请可以减少取整浪费；单独建池会削弱跨负载装箱的机会，是否值得还要权衡隔离、拓扑与调度约束，不能由该实验推出独立建池必然更省机器。
 
 ### 3.7 串联可用性与降级
 
-单个组件的可用性不直接决定服务可用性，它们沿调用链相乘。若一次请求要经过三个可用性各为 99.9% 的组件，端到端可用性为
+请求必须依赖全部组件成功时，端到端可用性是这些成功事件的联合概率。以下为教学算例：三个组件的失效相互独立、各自可用性为 99.9%，则联合概率可以相乘：
 
 <math display="block"><mrow><mi>A</mi><mo>=</mo><mn>0.999</mn><mo>×</mo><mn>0.999</mn><mo>×</mo><mn>0.999</mn><mo>≈</mo><mn>0.997</mn></mrow></math>
 
@@ -76,11 +76,11 @@ Kubernetes 把同一组概念写成申请量与上限：申请量参与调度与
 
 降级有两种形态，机制不同。第一种是限流：超过容量就拒绝部分请求，服务对剩下的请求保持质量。第二种是降精度：缩短生成长度、跳过重排序、降低检索召回数，全部请求都返回，但质量下降。两者的取舍在于“谁承担损失”：限流把损失集中到少数用户的完全失败上，降精度把损失平摊到全部用户的体验下降上。
 
-限流本身也需要容量参数。若要求排队时间不超过 <math><msub><mi>W</mi><mtext>max</mtext></msub></math>，由式（3-1）反解得利用率上限为
+限流本身也需要容量参数。在 3.1 节的 M/M/1 假设下，若要求平均排队等待时间不超过 <math><msub><mi>W</mi><mtext>max</mtext></msub></math>，由式（3-1）反解得利用率上限为
 
 <math display="block"><mrow><mi>ρ</mi><mo>≤</mo><mfrac><msub><mi>W</mi><mtext>max</mtext></msub><mrow><mi>S</mi><mo>+</mo><msub><mi>W</mi><mtext>max</mtext></msub></mrow></mfrac></mrow></math>
 
-取平均服务时间 50 ms、等待上限 50 ms，得到 <math><mi>ρ</mi><mo>≤</mo><mn>0.5</mn></math>，与 3.1 节的结论一致。这条式子的用途是把“限流阀值”从拍数变成可推导的参数：等待上限越低，可运行的利用率上限越低。
+取平均服务时间 50 ms、等待上限 50 ms，得到 <math><mi>ρ</mi><mo>≤</mo><mn>0.5</mn></math>，与 3.1 节的结论一致。这条式子把平均等待目标转换为该模型下的利用率上限，可用于初步估算限流阈值；它不保证单请求等待上限或尾时延，实际阈值还需要按到达波动与调度方式校准。
 
 ### 3.8 容量规划的输入
 

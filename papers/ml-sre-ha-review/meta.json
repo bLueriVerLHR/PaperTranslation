@@ -2,7 +2,7 @@
   "slug": "ml-sre-ha-review",
   "kind": "review",
   "title": "机器学习系统的 SRE 与高可用：容器、编排与故障预算",
-  "subtitle": "从错误预算、容器隔离、调度与共识，到存储带宽账本与训推算力运营",
+  "subtitle": "从错误预算、容器隔离、调度与共识，到存储带宽账本、训推算力运营与吉瓦级集群的工程现实",
   "author": "原创研读与整理",
   "source": {
     "kind": "original-review",
@@ -10,7 +10,7 @@
   },
   "public_export": true,
   "created_on": "2026-10-21",
-  "updated_on": "2026-10-21",
+  "updated_on": "2026-10-23",
   "scope": {
     "subject": "大规模生成式 AI 训练与推理系统的站点可靠性工程（SRE）与高可用设计",
     "layers": [
@@ -20,7 +20,9 @@
       "副本、共识与故障切换",
       "分布式存储与数据可靠性",
       "网络与算力共享",
-      "可观测性与变更管理"
+      "可观测性与变更管理",
+      "供电与散热：功率瞬态、限功率与液冷回路",
+      "硬件质量：静默数据损坏的检测与筛除"
     ],
     "evidence": "已读来源的固定版本、页码或提交；机制推导与参数取值在正文标注类别"
   },
@@ -38,6 +40,7 @@
     {"file": "11-network-fault-domain.md", "title": "网络作为共享故障域"},
     {"file": "12-pooling-colocation.md", "title": "训推算力并池、混部与可抢占实例"},
     {"file": "13-observability.md", "title": "可观测性：信号选择、基数与告警设计"},
-    {"file": "14-change-delivery.md", "title": "变更、交付与工程化沉淀"}
+    {"file": "14-change-delivery.md", "title": "变更、交付与工程化沉淀"},
+    {"file": "15-case-prometheus.md", "title": "案例：吉瓦级集群的可靠性与硬件质量"}
   ]
 }

@@ -46,7 +46,7 @@
 
 <math display="block"><mrow><msub><mi>t</mi><mtext>repair</mtext></msub><mo>=</mo><mfrac><mi>D</mi><mi>B</mi></mfrac></mrow></math>
 
-<math><mi>D</mi></math> 是单块介质需要恢复的数据量，<math><mi>B</mi></math> 是修复时可用的有效带宽。取一块 14 TiB 的固态盘、修复带宽 4 GiB/s，则 <math><msub><mi>t</mi><mtext>repair</mtext></msub><mo>≈</mo><mn>1</mn></math> 小时。这些是教学取值，实际带宽要与业务读写共享网络，因此真实修复时间更长。
+<math><mi>D</mi></math> 是单块介质需要恢复的数据量，<math><mi>B</mi></math> 是修复时可用的有效带宽。以下为教学算例：需恢复的数据量为 14 TiB，持续有效修复带宽为 4 GiB/s，则 <math><msub><mi>t</mi><mtext>repair</mtext></msub><mo>≈</mo><mn>1</mn></math> 小时。若业务竞争使持续有效修复带宽低于这一取值，恢复将更慢；实际时间还取决于需恢复的数据量、读写放大与并发度。
 
 修复时间的意义在于它与“第二块盘在修复期间再坏”的概率相乘。第 3 章的二项分布可以直接搬过来：集群规模越大、修复越慢，双故障窗口内的暴露面越大。三副本与纠删码的取舍因此不只看容量开销，还要看修复带宽：纠删码的容量开销小，但重建时需要读取的数据块更多，修复时间更长。
 

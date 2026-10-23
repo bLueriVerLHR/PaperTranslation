@@ -10,8 +10,8 @@
 | SLA（Service Level Agreement） | 服务等级协议 | 带违约后果的对外承诺；SLO 是其内部依据，不等同 |
 | error budget | 错误预算 | 1 − SLO 在一个窗口内允许消耗的不可用额度，本文按“预算比例”和“预算时长”两种口径分别说明 |
 | burn rate | 预算消耗速率 | 实际错误率与预算错误率之比；消耗速率 1 表示窗口内恰好用尽预算 |
-| nines | 可用性“个 9” | 99.9% 为 3 个 9，每加一个 9 表示不 unavailable 时间降低一个数量级 |
-| MTBF／MTTR | 平均故障间隔／平均恢复时间 | 前者决定需要多少冗余，后者决定切换与重建的时间预算 |
+| nines | 可用性“个 9” | 99.9% 为 3 个 9，每加一个 9 表示不可用比例降低一个数量级 |
+| MTBF（mean time between failures）／MTTR（mean time to repair） | 平均故障间隔／平均修复时间 | 前者决定需要多少冗余，后者决定切换与重建的时间预算 |
 | toil | 重复性人工劳动 | 可被自动化、随规模线性增长、不产生持久价值的工作 |
 | on-call | 值班 | 承担分页响应责任的轮值安排，本文按“分页是否可行动”讨论其设计 |
 | postmortem | 复盘报告 | 对事件影响、缓解动作、成因与后续动作的书面记录，本文按无指责原则使用 |
@@ -48,3 +48,13 @@
 | QPS（queries per second） | 每秒请求数 | 到达率的口径，不等于可服务容量 |
 | P99 | 99 分位 | 分位数口径，不能跨实例相加或取平均 |
 | FUSE（Filesystem in Userspace） | 用户态文件系统 | 通过内核模块把 I/O 转到用户态进程，代价是内存拷贝与并发扩展性受限 |
+| MTBI（mean time between interruptions） | 平均中断间隔 | 来源可能按 GPU 小时归一化；仅在累计暴露量口径、强度随卡数线性缩放时，可除以作业卡数估算墙钟间隔 |
+| scale-up domain | 扩展域 | 通过 NVLink 紧耦合的 GPU 组；NVL72 指 72 卡一个域，取代 H100 世代的 8 卡域 |
+| PAFT（parallelism-aware fault tolerance） | 并行感知容错 | 隔离故障副本，其余副本重复该步后继续；故障副本在备用资源上重启并重新同步 |
+| SDC（silent data corruption） | 静默数据损坏 | 硬件算错且不留痕迹，应用消费错误结果；与可观测的故障相对 |
+| Fleetscanner／Ripple／Hardware Sentinel | 三种静默损坏检测机制 | 定向微基准／与负载共置的短测试／内核态异常分析，差别在覆盖周期与侵入性 |
+| DSF（disaggregated scheduled fabric）／NSF（non-scheduled fabric） | 分离式调度网络／非调度网络 | 前者在网内进行子包多路径与重排，后者依赖端点重排与交换机负载均衡；不能据此推出总体故障率 |
+| BAG（back-end aggregation） | 后端汇聚网 | 连接楼内 fabric 的多层 hub-and-spoke 网络，报告的链路跨度从 2 km 到 100 km 以上 |
+| AALC（air-assisted liquid cooling）／FLC（facility liquid cooling） | 风助液冷／设施液冷 | 前者用于自由空气建筑与快速部署结构，后者用于 AI 优化建筑；两者都是闭式直触液冷 |
+| BESS（battery energy storage system）／BBU（battery backup unit）／CBU（capacitor backup unit） | 电池储能／机架电池／电容托盘 | 不同层级的功率缓冲；引用报告未给出统一响应时间与容量 |
+| spare ratio | 备用率 | 备用量相对活跃量或装备总量的比例；两种分母不同，必须明确标注 |

@@ -35,6 +35,18 @@
     "8": {
       "text": "Xupeng Miao, Chunan Shi, Jiangfei Duan, Xiaoli Xi, Dahua Lin, Bin Cui, Zhihao Jia. SpotServe: Serving Generative Large Language Models on Preemptible Instances. ASPLOS 2024, pp. 1112–1128. DOI: 10.1145/3620665.3640411. 本文采用其摘要与第 1 节关于抢占宽限期、动态重并行与状态化恢复的表述。",
       "url": "https://doi.org/10.1145/3620665.3640411"
+    },
+    "9": {
+      "text": "Kevin Lee, Yashar Bayani, Ahmed Sharif, Yee Jiun Song. Inside Prometheus: Meta’s Journey to a Gigawatt-Scale Supercluster. Engineering at Meta, 2026-10-19. 本文采用其集群规模、两代 NVIDIA 平台规格、网络架构、72 卡故障域与备用率、并行感知容错、goodput 与 MTBI、供电与散热、固件与质量流程的报告数据；均为厂商自报值，本文只重算其中可复算的部分。",
+      "url": "https://engineering.fb.com/2026/10/19/data-center-engineering/inside-prometheus-meta-gigawatt-scale-supercluster/"
+    },
+    "10": {
+      "text": "Harish Dattatraya Dixit, Sriram Sankar. How Meta keeps its AI hardware reliable. Engineering at Meta, 2025-07-22. 本文采用其三类硬件故障的分类、SDC 量级、三种检测机制与基础设施／软件栈缓解手段的表述与报告数据。",
+      "url": "https://engineering.fb.com/2025/07/22/data-infrastructure/how-meta-keeps-its-ai-hardware-reliable/"
+    },
+    "11": {
+      "text": "J. F. C. Kingman. The single server queue in heavy traffic. Mathematical Proceedings of the Cambridge Philosophical Society, 1961, 57(4): 902–904. DOI: 10.1017/S0305004100036094. 用于单服务台重载近似的来源定位；第 3 章的具体数值为本文教学推导。",
+      "url": "https://doi.org/10.1017/S0305004100036094"
     }
   }
 }
